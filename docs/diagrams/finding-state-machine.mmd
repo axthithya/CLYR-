@@ -1,0 +1,18 @@
+stateDiagram-v2
+    [*] --> Observed
+    Observed --> Protected: protected policy matches
+    Observed --> Unknown: insufficient evidence
+    Observed --> Candidate: rule evidence matches
+    Candidate --> ReportOnly: Phases 0 through 4
+    Candidate --> ReviewRequired: contextual or medium/high risk
+    Candidate --> MoveCandidate: supported movement is preferable
+    Candidate --> SafeCandidate: confirmed low-risk evidence
+    ReportOnly --> Stale: newer scan required
+    ReviewRequired --> Stale
+    MoveCandidate --> Stale
+    SafeCandidate --> Stale
+    Stale --> NoLongerPresent: target absent on rescan
+    Stale --> Observed: refreshed evidence
+    Protected --> [*]
+    Unknown --> [*]
+    NoLongerPresent --> [*]

@@ -1,0 +1,66 @@
+flowchart TD
+    Start[Storage finding with evidence and coverage]
+    Choose{Canonical ActionType}
+    Info[Informational path: report-only, open-settings, or manual-instructions]
+    Explain[Explain consequence and uncertainty; no CLYR storage mutation]
+
+    Start --> Choose
+    Choose -->|report-only / open-settings / manual-instructions| Info
+    Info --> Explain
+
+    Choose -->|recycle-files / quarantine-files / trusted-tool-command / windows-supported-cleanup / move-known-folder| Protect{Protected-resource and capability policy}
+    Protect -->|Denied or unknown| Prohibited[RiskLevel Prohibited: reject with no override]
+    Protect -->|Allowed| Build[Build resolved immutable plan with stable identity evidence]
+
+    Build --> DryRun[Dry run: validate scope, effect, rollback, elevation, and byte qualification]
+    DryRun --> Bounded{Exact bounded effect available?}
+    Bounded -->|No| ReportOnly[Remain report-only or manual-instructions]
+    Bounded -->|Yes| Preview[Display exact plan, consequence, rollback, risk, estimate status, and ten-minute expiry]
+
+    Preview --> Risk{RiskLevel}
+    Risk -->|Informational| Explain
+    Risk -->|Prohibited| Prohibited
+    Risk -->|High without capability-specific approval| Gated[Unavailable pending ADR, threat review, UX review, fixtures, and release approval]
+    Risk -->|Low| Select[Explicit opt-in; beta selections start empty]
+    Risk -->|Medium| Acknowledge[Separate consequence acknowledgement; no hidden Low batch]
+    Select --> Confirm{Confirm displayed plan digest?}
+    Acknowledge --> Confirm
+    Confirm -->|No| Stop[Stop with zero mutation]
+    Confirm -->|Yes| Fresh{Unexpired and materially unchanged?}
+    Fresh -->|No| Replan[Invalidate confirmation and create a new dry run]
+    Replan --> Build
+    Fresh -->|Yes| JournalConfirmed[Persist and flush Confirmed before UAC or execution]
+    JournalConfirmed --> Elevation{Approved capability requires elevation?}
+
+    Elevation -->|No| Validate[Validate complete batch again]
+    Elevation -->|Yes| UAC{Windows UAC consent}
+    UAC -->|Denied| FailedNoChange[Failed attempt with zero mutation]
+    UAC -->|Approved| IPC[Authenticate one secure typed IPC session]
+    IPC --> Validate
+
+    Validate --> Valid{Every item and target still valid?}
+    Valid -->|No| FailedNoChange
+    Valid -->|Yes| JournalExecuting[Persist and flush Validating to Executing transition]
+    JournalExecuting --> Execute[Executing: perform only compiled approved actions]
+    Execute --> Verify[Verifying: target postconditions and before/after free space]
+    Verify --> Outcome{Verified transaction outcome}
+
+    Outcome -->|No mutation and failure| Failed[Failed]
+    Outcome -->|Some effect, uncertainty, cancellation, or verification failure| Partial[PartiallyCompleted]
+    Outcome -->|Verified and no CLYR rollback| Completed[Completed]
+    Outcome -->|Verified with recovery path| RollbackAvailable[RollbackAvailable]
+    RollbackAvailable --> RollbackPlan[New typed rollback plan and explicit confirmation]
+    RollbackPlan --> Rollback[Execute and verify rollback]
+    Rollback -->|Verified| RolledBack[RolledBack]
+    Rollback -->|Conflict, partial, or unknown| Partial
+
+    Failed --> Receipt[Immutable privacy-safe receipt]
+    Partial --> Receipt
+    Completed --> Receipt
+    RollbackAvailable --> Receipt
+    RolledBack --> Receipt
+    FailedNoChange --> Receipt
+    Receipt --> Report[Report measured bytes separately from the original estimate]
+
+    Phase0[Phase 0 boundary: this workflow is design only; no mutation code exists]
+    Phase0 -.-> DryRun

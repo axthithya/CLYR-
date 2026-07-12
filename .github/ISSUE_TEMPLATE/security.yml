@@ -1,0 +1,23 @@
+name: Security report redirect
+description: Do not disclose vulnerabilities publicly; follow SECURITY.md.
+title: "Request private security contact"
+labels: ["type:security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Stop before posting details.** Use GitHub's private **Security → Report a vulnerability** flow when enabled. If none exists, request a private channel without vulnerability details. Follow `SECURITY.md`. Never paste exploit steps, real paths, tokens, reports, dumps, or personal data here.
+  - type: checkboxes
+    id: safe
+    attributes:
+      label: Public-content check
+      options:
+        - label: This submission only requests a private contact channel and includes no sensitive details.
+          required: true
+  - type: textarea
+    id: request
+    attributes:
+      label: Non-sensitive request only
+      placeholder: Please enable or identify the private reporting channel.
+    validations:
+      required: true

@@ -1,0 +1,42 @@
+name: Feature request
+description: Propose an evidence-backed capability without expanding the current phase.
+title: "[Feature]: "
+labels: ["type:feature", "status:needs-evidence"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Describe the problem and affected users before the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome and alternatives
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Earliest roadmap phase
+      options:
+        - Phase 1 - foundation only
+        - Phase 2 - read-only scan
+        - Phase 3 - detection and explanation
+        - Phase 4 - snapshots
+        - Phase 5 - dry-run only
+        - Phase 6 or later - mutation/security review
+        - Post-v1 or unknown
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety, privacy, privilege, support, and rollback impact
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and acceptance tests

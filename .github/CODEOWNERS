@@ -1,0 +1,28 @@
+# PROVISIONING GATE: replace and verify this team when the remote is created.
+# Branch protection must not treat an unresolved owner as approval.
+* @clyr/reviewers
+
+# Security and protected-resource policy
+/docs/SAFETY_MODEL.md @clyr/reviewers
+/docs/THREAT_MODEL.md @clyr/reviewers
+/docs/PRIVILEGE_MODEL.md @clyr/reviewers
+/docs/SECURE_IPC.md @clyr/reviewers
+/docs/RISK_REGISTER.md @clyr/reviewers
+/src/Clyr.Core/** @clyr/reviewers
+/src/Clyr.ElevatedHelper/** @clyr/reviewers
+/tests/Clyr.Safety.Tests/** @clyr/reviewers
+
+# Rule actions and externally visible schemas
+/rules/schemas/** @clyr/reviewers
+/rules/builtin/** @clyr/reviewers
+/src/Clyr.Rules/** @clyr/reviewers
+/src/Clyr.Contracts/** @clyr/reviewers
+
+# Privacy, persistence, packaging, update, and release supply chain
+/PRIVACY.md @clyr/reviewers
+/docs/EXPORT_FORMAT.md @clyr/reviewers
+/src/Clyr.Persistence/** @clyr/reviewers
+/.github/workflows/** @clyr/reviewers
+/.github/dependabot.yml @clyr/reviewers
+/docs/RELEASE_AND_SIGNING.md @clyr/reviewers
+/docs/UPDATE_SECURITY.md @clyr/reviewers

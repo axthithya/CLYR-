@@ -1,0 +1,38 @@
+# Expected failure: detection.roots[0] contains a parent-directory traversal segment.
+schemaVersion: 1
+id: malicious.path.traversal
+version: 1.0.0
+name: Traversal attempt
+category: unknown
+description: Deliberately invalid fixture proving that a rule cannot escape its declared placeholder root.
+risk: prohibited
+confidence: unknown
+platform:
+  os: windows
+detection:
+  roots:
+    - "%LOCALAPPDATA%/../Windows/System32"
+  followReparsePoints: false
+finding:
+  disposition: protected
+  regenerability: unknown
+  exclusiveGroup: malicious.path.traversal
+  priority: 1000
+action:
+  type: report-only
+  requiresElevation: false
+  rollback: not-applicable
+explanation:
+  whyItExists: This text exists only to keep every other required field schema-valid.
+  afterRemoval: No removal is possible because the complete rule must be rejected.
+  userImpact: A conforming validator reports the traversal root and loads no rule.
+privacy:
+  readsFileContents: false
+  exportsFullPaths: false
+  pathDisclosure: aggregate-only
+compatibility:
+  minimumEngineVersion: 1.0.0
+  maximumEngineVersionExclusive: 2.0.0
+references: []
+tests:
+  fixture: malicious-path-traversal

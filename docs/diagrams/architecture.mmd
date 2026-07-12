@@ -1,0 +1,21 @@
+flowchart LR
+    User[User] --> UI[WinUI 3 desktop app]
+    User --> CLI[CLYR CLI]
+    UI --> AppService[Application services]
+    CLI --> AppService
+    AppService --> Scanner[Scan engine]
+    AppService --> Classifier[Classifier and insight engine]
+    AppService --> Snapshots[Snapshot and diff engine]
+    AppService -. Phase 5+ .-> Planner[Cleanup plan engine]
+    Scanner --> WinAdapter[Windows adapters]
+    Classifier --> RuleEngine[Versioned rule engine]
+    Planner --> RuleEngine
+    Snapshots --> DB[(SQLite)]
+    RuleEngine --> Rules[(Built-in and reviewed rule packs)]
+    Planner -. Phase 6+ .-> NormalActions[Non-elevated action executor]
+    Planner -. Phase 6+ .-> ElevationClient[Elevation client]
+    ElevationClient -. typed authenticated request .-> Helper[Short-lived elevated helper]
+    NormalActions -. allowlisted action .-> Windows[Windows APIs and supported tool adapters]
+    Helper -. allowlisted action .-> Windows
+    AppService -. Phase 6+ .-> Audit[Action journal and receipts]
+    Audit --> DB

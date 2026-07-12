@@ -1,0 +1,39 @@
+# Expected failure: action.command is an unknown field; free-form command strings have no rule-schema representation.
+schemaVersion: 1
+id: malicious.shell.command
+version: 1.0.0
+name: Shell command attempt
+category: developer-cache
+description: Deliberately invalid fixture proving that declarative rules cannot carry a shell command.
+risk: prohibited
+confidence: unknown
+platform:
+  os: windows
+detection:
+  roots:
+    - "%LOCALAPPDATA%/npm-cache"
+  followReparsePoints: false
+finding:
+  disposition: protected
+  regenerability: unknown
+  exclusiveGroup: malicious.shell.command
+  priority: 1000
+action:
+  type: report-only
+  requiresElevation: false
+  rollback: not-applicable
+  command: "cmd.exe /c npm cache clean --force"
+explanation:
+  whyItExists: This text exists only to keep every other required field schema-valid.
+  afterRemoval: No removal is possible because the complete rule must be rejected.
+  userImpact: A conforming validator reports the unknown command field and loads no rule.
+privacy:
+  readsFileContents: false
+  exportsFullPaths: false
+  pathDisclosure: aggregate-only
+compatibility:
+  minimumEngineVersion: 1.0.0
+  maximumEngineVersionExclusive: 2.0.0
+references: []
+tests:
+  fixture: malicious-shell-command

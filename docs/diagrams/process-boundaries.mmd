@@ -1,0 +1,18 @@
+flowchart TB
+    subgraph UserIntegrity[Standard-user integrity boundary]
+        App[CLYR WinUI app]
+        CLI[CLYR CLI]
+        Core[Core services]
+        App --> Core
+        CLI --> Core
+        Core --> Local[(Product-owned SQLite, settings, logs)]
+        Core --> FS[Read-only filesystem adapters]
+    end
+    subgraph AdminIntegrity[Administrator integrity boundary - Phase 6 or later]
+        Helper[Short-lived CLYR elevated helper]
+    end
+    Core -. confirmed immutable plan .-> Client[Elevation client]
+    Client -. authenticated versioned named-pipe request .-> Helper
+    Helper -. structured receipt .-> Client
+    Helper -. exact allowlisted action .-> ProtectedAPI[Approved Windows API]
+    Network[(Network)] -. not required .-> Core

@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "reportType": "clyr-summary",
+  "reportId": "d3f46943-fd75-4d6d-8b79-a8f2070d5f66",
+  "generatedAt": "2026-07-10T18:00:00Z",
+  "producer": {
+    "name": "CLYR",
+    "version": "0.0.0-phase0"
+  },
+  "compatibility": {
+    "schemaMajor": 1,
+    "minimumReaderMajor": 1,
+    "unknownFieldPolicy": "reject"
+  },
+  "privacy": {
+    "classification": "support-safe",
+    "redactionVersion": 1,
+    "fullPathsIncluded": false,
+    "userNamesIncluded": false,
+    "fileNamesIncluded": false,
+    "fileContentsIncluded": false,
+    "uploadedAutomatically": false
+  },
+  "environment": {
+    "osFamily": "windows",
+    "osRelease": "Windows 11",
+    "processArchitecture": "x64",
+    "fileSystem": "ntfs",
+    "systemVolume": true,
+    "volumeIdHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "rulePack": {
+    "id": "clyr.builtin.phase0",
+    "version": "0.1.0",
+    "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "scan": {
+    "scanId": "4bdcf5d6-4d02-47d5-b4cb-b22a4872b55b",
+    "mode": "quick",
+    "status": "completed",
+    "startedAt": "2026-07-10T17:59:55Z",
+    "endedAt": "2026-07-10T18:00:00Z",
+    "volume": {
+      "capacityBytes": {
+        "value": 1000000000,
+        "precision": "exact",
+        "source": "filesystem-api"
+      },
+      "usedBytes": {
+        "value": 600000000,
+        "precision": "exact",
+        "source": "filesystem-api"
+      },
+      "freeBytes": {
+        "value": 400000000,
+        "precision": "exact",
+        "source": "filesystem-api"
+      }
+    },
+    "coverage": {
+      "state": "complete",
+      "enumeratedItemCount": 4,
+      "skippedItemCount": 0,
+      "inaccessibleItemCount": 0
+    },
+    "accounting": {
+      "logicalBytes": {
+        "value": 4096,
+        "precision": "exact",
+        "source": "file-metadata"
+      },
+      "allocatedBytes": {
+        "value": 4096,
+        "precision": "exact",
+        "source": "file-metadata"
+      },
+      "exclusiveAllocatedBytes": {
+        "value": 4096,
+        "precision": "exact",
+        "source": "file-metadata"
+      },
+      "cloudPlaceholderLogicalBytes": {
+        "value": 0,
+        "precision": "exact",
+        "source": "file-metadata"
+      },
+      "cloudPlaceholderLocalBytes": {
+        "value": 0,
+        "precision": "exact",
+        "source": "file-metadata"
+      },
+      "knownReclaimableLowerBoundBytes": {
+        "value": 0,
+        "precision": "lower-bound",
+        "source": "derived"
+      },
+      "estimatedReclaimableBytes": {
+        "value": null,
+        "precision": "unavailable",
+        "source": "not-measured"
+      },
+      "reviewCandidateBytes": {
+        "value": 4096,
+        "precision": "exact",
+        "source": "rule-aggregate"
+      },
+      "movableBytes": {
+        "value": 0,
+        "precision": "exact",
+        "source": "derived"
+      },
+      "protectedBytes": {
+        "value": 0,
+        "precision": "lower-bound",
+        "source": "derived"
+      },
+      "unknownBytes": {
+        "value": 0,
+        "precision": "lower-bound",
+        "source": "derived"
+      },
+      "inaccessibleBytes": {
+        "value": null,
+        "precision": "unavailable",
+        "source": "not-measured"
+      }
+    }
+  },
+  "categories": [
+    {
+      "category": "developer-cache",
+      "logicalBytes": {
+        "value": 4096,
+        "precision": "exact",
+        "source": "file-metadata"
+      },
+      "allocatedBytes": {
+        "value": 4096,
+        "precision": "exact",
+        "source": "file-metadata"
+      },
+      "itemCount": 4
+    }
+  ],
+  "findings": [
+    {
+      "fingerprint": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "ruleId": "developer.npm.cache",
+      "category": "developer-cache",
+      "disposition": "review-required",
+      "risk": "informational",
+      "confidence": "high",
+      "allocatedBytes": {
+        "value": 4096,
+        "precision": "exact",
+        "source": "rule-aggregate"
+      },
+      "evidenceCodes": [
+        "root-present",
+        "size-aggregated"
+      ],
+      "explanationKey": "developer.npm.cache.explanation",
+      "actionAvailability": "report-only"
+    }
+  ],
+  "diagnostics": {
+    "skippedByReason": [],
+    "errorsByCode": [],
+    "limitations": [
+      "phase0-contract-example"
+    ]
+  }
+}

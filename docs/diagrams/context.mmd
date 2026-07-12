@@ -1,0 +1,8 @@
+flowchart LR
+    User[Windows user] -->|Analyzes a selected local volume| CLYR[CLYR desktop app or CLI]
+    Support[Support engineer] <-->|User-controlled redacted report| User
+    Contributor[Rule contributor] -->|Detection-only YAML proposal| CLYR
+    CLYR -->|Read-only metadata and later approved actions| Windows[Windows APIs and local filesystems]
+    CLYR -->|Version and capability queries; later allowlisted operations| Tools[Installed first-party tools]
+    CLYR -->|Local aggregate snapshots and settings| LocalData[(Product-owned local data)]
+    CLYR -. no required connection .-> Internet[(Internet)]

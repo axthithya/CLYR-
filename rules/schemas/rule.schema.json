@@ -1,0 +1,364 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.clyr.dev/rules/v1/rule.schema.json",
+  "title": "CLYR declarative detection rule v1",
+  "description": "Phase 0/Phase 3 contract for a detection-only CLYR rule. The v1 schema deliberately has no executable command surface.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "version",
+    "name",
+    "category",
+    "description",
+    "risk",
+    "confidence",
+    "platform",
+    "detection",
+    "finding",
+    "action",
+    "explanation",
+    "privacy",
+    "compatibility",
+    "references",
+    "tests"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "description": "Major version of this rule document contract."
+    },
+    "id": {
+      "$ref": "#/$defs/ruleId"
+    },
+    "version": {
+      "$ref": "#/$defs/semanticVersion"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 80,
+      "pattern": "^[^\\r\\n<>]+$"
+    },
+    "category": {
+      "$ref": "#/$defs/category"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 500,
+      "pattern": "^[^\\r\\n<>]+$"
+    },
+    "risk": {
+      "enum": [
+        "informational",
+        "low",
+        "medium",
+        "high",
+        "prohibited"
+      ],
+      "description": "Invariant lowercase serialization of the canonical RiskLevel vocabulary. Report-only findings normally use informational; protected or malicious scopes may be prohibited."
+    },
+    "confidence": {
+      "enum": [
+        "confirmed",
+        "high",
+        "medium",
+        "low",
+        "unknown"
+      ]
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os"
+      ],
+      "properties": {
+        "os": {
+          "const": "windows"
+        },
+        "fileSystems": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "ntfs",
+              "refs",
+              "fat32",
+              "exfat"
+            ]
+          }
+        },
+        "requiredCapabilities": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,63}$"
+          }
+        }
+      }
+    },
+    "detection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "roots",
+        "followReparsePoints"
+      ],
+      "properties": {
+        "roots": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ruleRoot"
+          }
+        },
+        "includeNameGlobs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/safeNameGlob"
+          }
+        },
+        "excludeNameGlobs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/safeNameGlob"
+          }
+        },
+        "followReparsePoints": {
+          "const": false,
+          "description": "Rule-authored reparse-point traversal is prohibited."
+        },
+        "minimumAgeDays": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 36500,
+          "description": "Optional supporting signal; age alone never establishes safety."
+        },
+        "maximumDepth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "disposition",
+        "regenerability",
+        "exclusiveGroup",
+        "priority"
+      ],
+      "properties": {
+        "disposition": {
+          "enum": [
+            "safe-candidate",
+            "review-required",
+            "move-candidate",
+            "protected",
+            "unknown"
+          ]
+        },
+        "regenerability": {
+          "enum": [
+            "regenerable",
+            "user-data",
+            "system-managed",
+            "unknown"
+          ]
+        },
+        "exclusiveGroup": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9.-]+$",
+          "description": "Stable overlap-ownership group used during deterministic finding resolution."
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000,
+          "description": "Higher values win only after protected-resource policy has run."
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "requiresElevation",
+        "rollback"
+      ],
+      "properties": {
+        "type": {
+          "const": "report-only"
+        },
+        "requiresElevation": {
+          "const": false
+        },
+        "rollback": {
+          "const": "not-applicable"
+        }
+      },
+      "description": "All v1 Phase 0 rule documents are inert. Command, executable, script, argument, and free-form path fields are unknown and therefore rejected."
+    },
+    "explanation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "whyItExists",
+        "afterRemoval",
+        "userImpact"
+      ],
+      "properties": {
+        "whyItExists": {
+          "$ref": "#/$defs/explanationText"
+        },
+        "afterRemoval": {
+          "$ref": "#/$defs/explanationText"
+        },
+        "userImpact": {
+          "$ref": "#/$defs/explanationText"
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "readsFileContents",
+        "exportsFullPaths",
+        "pathDisclosure"
+      ],
+      "properties": {
+        "readsFileContents": {
+          "const": false
+        },
+        "exportsFullPaths": {
+          "const": false
+        },
+        "pathDisclosure": {
+          "enum": [
+            "aggregate-only",
+            "redacted"
+          ]
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimumEngineVersion",
+        "maximumEngineVersionExclusive"
+      ],
+      "properties": {
+        "minimumEngineVersion": {
+          "$ref": "#/$defs/semanticVersion"
+        },
+        "maximumEngineVersionExclusive": {
+          "$ref": "#/$defs/semanticVersion"
+        }
+      }
+    },
+    "references": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https://"
+      }
+    },
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixture"
+      ],
+      "properties": {
+        "fixture": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 100,
+          "pattern": "^[a-z0-9][a-z0-9-]+$"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "semanticVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "ruleId": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 120,
+      "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*){2,7}$"
+    },
+    "category": {
+      "enum": [
+        "windows-system-managed",
+        "windows-update-servicing",
+        "temporary-files",
+        "crash-dumps-diagnostics",
+        "browser-cache",
+        "application-cache",
+        "user-downloads",
+        "user-media",
+        "archives-installers",
+        "games-launchers",
+        "cloud-sync",
+        "developer-dependencies",
+        "developer-cache",
+        "containers",
+        "virtual-machines",
+        "wsl",
+        "android-sdk-emulators",
+        "build-output",
+        "logs",
+        "recycle-bin",
+        "restore-recovery",
+        "unknown"
+      ]
+    },
+    "ruleRoot": {
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 512,
+      "pattern": "^(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$))%(?:LOCALAPPDATA|APPDATA|USERPROFILE|TEMP|PROGRAMDATA|SYSTEMDRIVE)%(?:[\\\\/][A-Za-z0-9][A-Za-z0-9 ._()@+\\-]{0,127})*$",
+      "description": "A placeholder-rooted, fixed declarative path. Absolute paths, traversal, wildcards, shell metacharacters, and unknown environment variables are rejected. Expansion and component-aware containment are checked semantically."
+    },
+    "safeNameGlob": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$))[A-Za-z0-9*?][A-Za-z0-9 ._()@+*?\\-/\\\\]{0,127}$"
+    },
+    "explanationText": {
+      "type": "string",
+      "minLength": 15,
+      "maxLength": 500,
+      "pattern": "^[^\\r\\n<>]+$"
+    }
+  }
+}

@@ -1,0 +1,62 @@
+flowchart LR
+    User[User at interactive Windows session]
+    Rules[Untrusted declarative rule packs]
+    Disk[Untrusted local filesystem and metadata]
+
+    subgraph Standard[Standard-user integrity boundary]
+        App[CLYR WinUI app]
+        CLI[CLYR CLI]
+        Core[Core services and protected-resource policy]
+        Plan[Immutable ten-minute cleanup plan and dry run]
+        Confirm[Digest-bound explicit confirmation]
+        Journal[(Product-owned journal and receipts)]
+        Pipe[Unique first-instance local named-pipe server]
+        RuleValidator[Strict schema and rule validator]
+
+        App --> Core
+        CLI --> Core
+        RuleValidator --> Core
+        Core --> Plan
+        Plan --> Confirm
+        Confirm --> Journal
+        Journal --> Pipe
+    end
+
+    Rules --> RuleValidator
+    Disk -->|Read-only metadata in early phases| Core
+    User --> App
+    User --> CLI
+
+    UAC{Windows UAC consent after CLYR confirmation}
+    Pipe --> UAC
+
+    subgraph Elevated[High-integrity boundary - future Phase 6 only]
+        Helper[Short-lived CLYR elevated helper]
+        Revalidate[Authenticate peers and revalidate complete typed batch]
+        Registry[Compiled capability and adapter registry]
+        Executor[Minimum approved action executor]
+
+        Helper --> Revalidate
+        Registry --> Revalidate
+        Revalidate --> Executor
+    end
+
+    UAC -->|Denied: zero mutation| Journal
+    UAC -->|Approved: launch exact signed helper| Helper
+    Pipe <-->|One authenticated versioned request and receipt| Helper
+    Executor -->|Exact supported operation| WindowsAPI[Approved Windows or vendor mechanism]
+    WindowsAPI -->|Bounded result| Helper
+    Helper -->|Completed, PartiallyCompleted, or Failed receipt| Journal
+
+    Protected[Protected resource, changed target, stale plan, or Prohibited risk]
+    Rejected[Reject before mutation; no user or admin override]
+    Protected --> Rejected
+    Revalidate -->|Any item invalid| Rejected
+
+    Arbitrary[Arbitrary command, executable, wildcard, or generic path request]
+    Arbitrary --> Rejected
+    Rules -.->|Cannot cross directly| Helper
+
+    Phase0[Phase 0 status: documentation only; no cleanup or elevation exists]
+    Phase0 -.-> Plan
+

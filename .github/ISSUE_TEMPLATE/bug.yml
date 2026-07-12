@@ -1,0 +1,38 @@
+name: Bug report
+description: Report a reproducible CLYR defect using synthetic or redacted evidence.
+title: "[Bug]: "
+labels: ["type:bug", "status:needs-evidence"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include real personal paths, usernames, tokens, logs, databases, detailed exports, or security exploit details.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+      description: Use synthetic or redacted values only.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal safe reproduction
+      description: Never target a real system folder.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed personal data, paths, tokens, dumps, and secrets.
+          required: true
+        - label: This is not a privately reportable vulnerability.
+          required: true

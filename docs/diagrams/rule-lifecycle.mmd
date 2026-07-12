@@ -1,0 +1,20 @@
+flowchart TD
+    A["Author declarative YAML and synthetic fixture"] --> B["Bounded safe YAML parse"]
+    B --> C{"Draft 2020-12 schema valid?"}
+    C -->|No| R["Reject complete rule with stable diagnostic"]
+    C -->|Yes| D["Check engine compatibility and capabilities"]
+    D --> E{"Canonical roots contained and safe?"}
+    E -->|No| R
+    E -->|Yes| F["Apply protected-resource and overlap checks"]
+    F --> G{"Pack manifest and digests verified?"}
+    G -->|No| R
+    G -->|Yes| H["Compile immutable detection-only rule"]
+    H --> I["Evaluate normalized scan metadata read-only"]
+    I --> J["Emit finding candidates and typed evidence"]
+    J --> K["Protected precedence and deterministic ownership"]
+    K --> L["Report-only findings with rule-pack provenance"]
+    L --> M["Persist bounded aggregate snapshot"]
+    M --> N["Render UI, CLI, or privacy-safe export"]
+
+    P["No command, script, elevation, deletion, or movement in schema v1"] -. constrains .-> H
+    Q["Protected policy always wins"] -. constrains .-> K

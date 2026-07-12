@@ -1,0 +1,46 @@
+name: False-positive finding
+description: Report a classification that may mislead users; share no real path.
+title: "[False positive]: "
+labels: ["type:false-positive", "area:rules", "status:needs-evidence"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        False positives are safety issues. Use a fictional equivalent path and Summary fields only. Never attach a detailed report or real cache, database, or profile.
+  - type: input
+    id: rule
+    attributes:
+      label: Rule ID and version
+    validations:
+      required: true
+  - type: dropdown
+    id: concern
+    attributes:
+      label: Concern
+      options:
+        - Protected or valuable data matched
+        - Risk or confidence is too optimistic
+        - Size or accounting is misleading
+        - Consequence or regenerability is wrong
+        - Overlap or category ownership is wrong
+        - Privacy redaction is unsafe
+    validations:
+      required: true
+  - type: textarea
+    id: synthetic
+    attributes:
+      label: Synthetic equivalent and expected classification
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Official evidence
+      description: Owner URL, versions, behavior, failure/fallback, access date.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: No real path, report, log, account ID, token, or private filename is included.
+          required: true

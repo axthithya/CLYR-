@@ -1,0 +1,43 @@
+flowchart LR
+    subgraph OS["Windows and selected local volume — read-only observation"]
+        V["Volume and filesystem metadata"]
+        F["Directory entry metadata"]
+        S["Supported system or tool reports"]
+    end
+
+    subgraph ENGINE["Normal user process — planned core engine"]
+        W["Clyr.Windows capability adapters"]
+        E["Streaming enumerator"]
+        A["Bounded aggregators and top-N views"]
+        R["Validated detection-only rules"]
+        P["Protected-resource policy"]
+        O["Overlap and accounting ownership"]
+        C["Scan summary, coverage, and findings"]
+    end
+
+    subgraph LOCAL["Local outputs under user control"]
+        DB["SQLite aggregate snapshots\nno full index by default"]
+        UI["WinUI presentation"]
+        CLI["CLI presentation"]
+        X["Allowlisted support-safe export DTO"]
+        J["User-saved JSON report"]
+    end
+
+    V --> W
+    F --> E
+    S --> W
+    W --> E
+    E --> A
+    A --> R
+    A --> P
+    R --> O
+    P --> O
+    O --> C
+    C --> DB
+    C --> UI
+    C --> CLI
+    C --> X
+    X -->|"schema and privacy validation"| J
+
+    N["No cloud upload, telemetry, file-content read, or mutation"] -. boundary .-> ENGINE
+    H["Full paths remain local and are omitted from Summary v1"] -. privacy .-> X

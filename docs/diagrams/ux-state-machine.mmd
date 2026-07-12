@@ -1,0 +1,24 @@
+stateDiagram-v2
+    [*] --> NotScanned
+    NotScanned --> Scanning: user starts analysis
+    Scanning --> PartialResult: cancellation, removal, or isolated gaps
+    Scanning --> CompleteResult: full selected scope observed
+    Scanning --> NotScanned: fatal error with no useful result
+    PartialResult --> Scanning: retry or refine
+    CompleteResult --> StaleSnapshot: filesystem changes or age threshold
+    PartialResult --> StaleSnapshot: filesystem changes or age threshold
+    StaleSnapshot --> Scanning: rescan
+    CompleteResult --> ReportPreview: user chooses export
+    PartialResult --> ReportPreview: uncertainty retained
+    ReportPreview --> CompleteResult: cancel or save
+    CompleteResult --> FindingDetail
+    PartialResult --> FindingDetail
+    FindingDetail --> CompleteResult
+    FindingDetail --> PartialResult
+    FindingDetail --> PlanPreview: Phase 5+ and action available
+    PlanPreview --> FindingDetail: cancel or plan expired
+    PlanPreview --> Executing: Phase 6+ explicit confirmation
+    Executing --> VerifiedReceipt
+    Executing --> PartialReceipt
+    VerifiedReceipt --> CompleteResult
+    PartialReceipt --> CompleteResult

@@ -1,0 +1,27 @@
+name: Phase 0 documentation validation
+
+on:
+  pull_request:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  phase0:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate Phase 0 artifacts
+        shell: powershell
+        run: ./scripts/verify-phase0.ps1
+
+# Phase 1 must review and pin action commit SHAs, add SDK restore, format,
+# build/test, dependency/license/secret gates, and package dry run only when
+# those inputs exist. No release or community-script execution is permitted.

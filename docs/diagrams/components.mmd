@@ -1,0 +1,47 @@
+flowchart LR
+    subgraph Presentation
+        UI[WinUI views and view models]
+        CLI[CLI commands and formatters]
+    end
+    subgraph Application
+        Drives[Drive discovery use case]
+        Scan[Scan orchestration]
+        Findings[Classification and findings]
+        History[Snapshots and diffs]
+        Plans[Future cleanup planning]
+        Export[Report export]
+    end
+    subgraph Domain
+        Accounting[Storage accounting]
+        Protection[Protected-resource policy]
+        Risk[Risk and confidence policy]
+        Overlap[Finding overlap resolver]
+    end
+    subgraph Infrastructure
+        Win[Windows metadata adapters]
+        RuleLoader[Rule loader and validator]
+        Sqlite[SQLite repositories]
+        ToolAdapters[Compiled tool adapters]
+    end
+    UI --> Drives
+    UI --> Scan
+    UI --> Findings
+    UI --> History
+    UI -. Phase 5+ .-> Plans
+    UI --> Export
+    CLI --> Drives
+    CLI --> Scan
+    CLI --> Findings
+    CLI --> History
+    CLI -. Phase 5+ .-> Plans
+    CLI --> Export
+    Scan --> Accounting
+    Findings --> Protection
+    Findings --> Risk
+    Findings --> Overlap
+    Plans --> Protection
+    Drives --> Win
+    Scan --> Win
+    Findings --> RuleLoader
+    History --> Sqlite
+    Plans -. Phase 6+ .-> ToolAdapters

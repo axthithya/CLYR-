@@ -1,0 +1,13 @@
+flowchart TB
+    User[User] --> App[WinUI 3 app - standard user]
+    User --> CLI[CLYR CLI - standard user]
+    App --> Core[Core application services]
+    CLI --> Core
+    Core --> Rules[Rule engine]
+    Core --> Persistence[Persistence adapter]
+    Core --> Win[Windows adapters]
+    Persistence --> DB[(SQLite)]
+    Rules --> Packs[(Versioned local rule packs)]
+    Win --> OS[Windows APIs and eligible volumes]
+    Core -. confirmed typed plan, Phase 6+ .-> Helper[Short-lived elevated helper]
+    Helper -. allowlisted action only .-> OS

@@ -1,0 +1,42 @@
+schemaVersion: 1
+id: developer.npm.cache
+version: 1.0.0
+name: npm download cache
+category: developer-cache
+description: Reports npm's per-user download cache without changing or opening cached content.
+risk: informational
+confidence: high
+platform:
+  os: windows
+  fileSystems:
+    - ntfs
+    - refs
+detection:
+  roots:
+    - "%LOCALAPPDATA%/npm-cache"
+  followReparsePoints: false
+  minimumAgeDays: 7
+  maximumDepth: 32
+finding:
+  disposition: review-required
+  regenerability: regenerable
+  exclusiveGroup: developer.npm.cache
+  priority: 500
+action:
+  type: report-only
+  requiresElevation: false
+  rollback: not-applicable
+explanation:
+  whyItExists: npm caches downloaded package data to make later installations faster.
+  afterRemoval: A future supported cleanup could require packages to be downloaded again.
+  userImpact: This Phase 0 rule only reports size and cannot remove or modify the cache.
+privacy:
+  readsFileContents: false
+  exportsFullPaths: false
+  pathDisclosure: aggregate-only
+compatibility:
+  minimumEngineVersion: 1.0.0
+  maximumEngineVersionExclusive: 2.0.0
+references: []
+tests:
+  fixture: npm-cache-basic

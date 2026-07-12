@@ -1,0 +1,18 @@
+flowchart TD
+    A[Select eligible volume and mode] --> B[Create scan session]
+    B --> C[Discover volume capabilities]
+    C --> D[Enumerate entries as a bounded stream]
+    D --> E{Cancelled or volume removed?}
+    E -->|Cancelled| P[Persist or return explicitly partial result]
+    E -->|Removed| R[Return DriveRemoved partial state]
+    E -->|Continue| F{Excluded, reparse point, or unsupported?}
+    F -->|Yes| G[Record skipped reason and safe metadata]
+    F -->|No| H[Read metadata without opening content]
+    H --> I[Normalize and aggregate]
+    G --> I
+    I --> J[Resolve accounting and overlap]
+    J --> K[Apply detection-only rules]
+    K --> L[Protected policy wins]
+    L --> M[Generate findings and coverage]
+    M --> N[Persist bounded aggregate snapshot]
+    N --> O[Render Why is this drive full?]

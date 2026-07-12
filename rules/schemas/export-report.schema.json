@@ -1,0 +1,564 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.clyr.dev/exports/summary/v1/export-report.schema.json",
+  "title": "CLYR support-safe summary export v1",
+  "description": "Machine-readable, privacy-safe summary report. This schema intentionally contains no field for a full path, user name, file name, machine name, file content, or raw exception text.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "reportType",
+    "reportId",
+    "generatedAt",
+    "producer",
+    "compatibility",
+    "privacy",
+    "environment",
+    "rulePack",
+    "scan",
+    "categories",
+    "findings",
+    "diagnostics"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "reportType": {
+      "const": "clyr-summary"
+    },
+    "reportId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "const": "CLYR"
+        },
+        "version": {
+          "$ref": "#/$defs/semanticVersion"
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaMajor",
+        "minimumReaderMajor",
+        "unknownFieldPolicy"
+      ],
+      "properties": {
+        "schemaMajor": {
+          "const": 1
+        },
+        "minimumReaderMajor": {
+          "const": 1
+        },
+        "unknownFieldPolicy": {
+          "const": "reject"
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classification",
+        "redactionVersion",
+        "fullPathsIncluded",
+        "userNamesIncluded",
+        "fileNamesIncluded",
+        "fileContentsIncluded",
+        "uploadedAutomatically"
+      ],
+      "properties": {
+        "classification": {
+          "const": "support-safe"
+        },
+        "redactionVersion": {
+          "type": "integer",
+          "const": 1
+        },
+        "fullPathsIncluded": {
+          "const": false
+        },
+        "userNamesIncluded": {
+          "const": false
+        },
+        "fileNamesIncluded": {
+          "const": false
+        },
+        "fileContentsIncluded": {
+          "const": false
+        },
+        "uploadedAutomatically": {
+          "const": false
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "osFamily",
+        "osRelease",
+        "processArchitecture",
+        "fileSystem",
+        "systemVolume",
+        "volumeIdHash"
+      ],
+      "properties": {
+        "osFamily": {
+          "const": "windows"
+        },
+        "osRelease": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[A-Za-z0-9 .()-]+$"
+        },
+        "processArchitecture": {
+          "enum": [
+            "x64",
+            "arm64",
+            "x86",
+            "unknown"
+          ]
+        },
+        "fileSystem": {
+          "enum": [
+            "ntfs",
+            "refs",
+            "fat32",
+            "exfat",
+            "unknown"
+          ]
+        },
+        "systemVolume": {
+          "type": "boolean"
+        },
+        "volumeIdHash": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "rulePack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "digest"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9.-]{2,79}$"
+        },
+        "version": {
+          "$ref": "#/$defs/semanticVersion"
+        },
+        "digest": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scanId",
+        "mode",
+        "status",
+        "startedAt",
+        "endedAt",
+        "volume",
+        "coverage",
+        "accounting"
+      ],
+      "properties": {
+        "scanId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "mode": {
+          "enum": [
+            "quick",
+            "deep"
+          ]
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "partial",
+            "cancelled",
+            "failed"
+          ]
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "volume": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "capacityBytes",
+            "usedBytes",
+            "freeBytes"
+          ],
+          "properties": {
+            "capacityBytes": {
+              "$ref": "#/$defs/measurement"
+            },
+            "usedBytes": {
+              "$ref": "#/$defs/measurement"
+            },
+            "freeBytes": {
+              "$ref": "#/$defs/measurement"
+            }
+          }
+        },
+        "coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "enumeratedItemCount",
+            "skippedItemCount",
+            "inaccessibleItemCount"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "complete",
+                "partial",
+                "unknown"
+              ]
+            },
+            "enumeratedItemCount": {
+              "$ref": "#/$defs/nonNegativeInteger"
+            },
+            "skippedItemCount": {
+              "$ref": "#/$defs/nonNegativeInteger"
+            },
+            "inaccessibleItemCount": {
+              "$ref": "#/$defs/nonNegativeInteger"
+            }
+          }
+        },
+        "accounting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "logicalBytes",
+            "allocatedBytes",
+            "exclusiveAllocatedBytes",
+            "cloudPlaceholderLogicalBytes",
+            "cloudPlaceholderLocalBytes",
+            "knownReclaimableLowerBoundBytes",
+            "estimatedReclaimableBytes",
+            "reviewCandidateBytes",
+            "movableBytes",
+            "protectedBytes",
+            "unknownBytes",
+            "inaccessibleBytes"
+          ],
+          "properties": {
+            "logicalBytes": {
+              "$ref": "#/$defs/measurement"
+            },
+            "allocatedBytes": {
+              "$ref": "#/$defs/measurement"
+            },
+            "exclusiveAllocatedBytes": {
+              "$ref": "#/$defs/measurement"
+            },
+            "cloudPlaceholderLogicalBytes": {
+              "$ref": "#/$defs/measurement"
+            },
+            "cloudPlaceholderLocalBytes": {
+              "$ref": "#/$defs/measurement"
+            },
+            "knownReclaimableLowerBoundBytes": {
+              "$ref": "#/$defs/measurement"
+            },
+            "estimatedReclaimableBytes": {
+              "$ref": "#/$defs/measurement"
+            },
+            "reviewCandidateBytes": {
+              "$ref": "#/$defs/measurement"
+            },
+            "movableBytes": {
+              "$ref": "#/$defs/measurement"
+            },
+            "protectedBytes": {
+              "$ref": "#/$defs/measurement"
+            },
+            "unknownBytes": {
+              "$ref": "#/$defs/measurement"
+            },
+            "inaccessibleBytes": {
+              "$ref": "#/$defs/measurement"
+            }
+          }
+        }
+      }
+    },
+    "categories": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/categorySummary"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "$ref": "#/$defs/findingSummary"
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "skippedByReason",
+        "errorsByCode",
+        "limitations"
+      ],
+      "properties": {
+        "skippedByReason": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/countByCode"
+          }
+        },
+        "errorsByCode": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/countByCode"
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/code"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "semanticVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "code": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 80,
+      "pattern": "^[a-z][a-z0-9.-]+$"
+    },
+    "measurement": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "precision",
+            "source"
+          ],
+          "properties": {
+            "value": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "precision": {
+              "enum": [
+                "exact",
+                "lower-bound",
+                "estimate"
+              ]
+            },
+            "source": {
+              "enum": [
+                "file-metadata",
+                "filesystem-api",
+                "system-api",
+                "tool-adapter",
+                "rule-aggregate",
+                "derived"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "precision",
+            "source"
+          ],
+          "properties": {
+            "value": {
+              "type": "null"
+            },
+            "precision": {
+              "const": "unavailable"
+            },
+            "source": {
+              "const": "not-measured"
+            }
+          }
+        }
+      ]
+    },
+    "categorySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "logicalBytes",
+        "allocatedBytes",
+        "itemCount"
+      ],
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/code"
+        },
+        "logicalBytes": {
+          "$ref": "#/$defs/measurement"
+        },
+        "allocatedBytes": {
+          "$ref": "#/$defs/measurement"
+        },
+        "itemCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        }
+      }
+    },
+    "findingSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fingerprint",
+        "ruleId",
+        "category",
+        "disposition",
+        "risk",
+        "confidence",
+        "allocatedBytes",
+        "evidenceCodes",
+        "explanationKey",
+        "actionAvailability"
+      ],
+      "properties": {
+        "fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "ruleId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*){2,7}$"
+        },
+        "category": {
+          "$ref": "#/$defs/code"
+        },
+        "disposition": {
+          "enum": [
+            "safe-candidate",
+            "review-required",
+            "move-candidate",
+            "protected",
+            "unknown"
+          ]
+        },
+        "risk": {
+          "enum": [
+            "informational",
+            "low",
+            "medium",
+            "high",
+            "prohibited"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "confirmed",
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ]
+        },
+        "allocatedBytes": {
+          "$ref": "#/$defs/measurement"
+        },
+        "evidenceCodes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/code"
+          }
+        },
+        "explanationKey": {
+          "$ref": "#/$defs/code"
+        },
+        "actionAvailability": {
+          "const": "report-only"
+        }
+      }
+    },
+    "countByCode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "count"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/code"
+        },
+        "count": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        }
+      }
+    }
+  }
+}

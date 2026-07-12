@@ -1,0 +1,22 @@
+stateDiagram-v2
+    [*] --> Created
+    Created --> Discovering
+    Discovering --> Scanning: eligible volume
+    Scanning --> Aggregating: enumeration ended
+    Aggregating --> Classifying
+    Classifying --> Persisting
+    Persisting --> Completed
+    Discovering --> Failed: unsupported or fatal discovery error
+    Discovering --> DriveRemoved
+    Scanning --> Cancelled: before useful aggregate
+    Scanning --> Partial: cancelled with results or isolated errors
+    Scanning --> DriveRemoved
+    Scanning --> Failed: non-isolatable fault
+    Aggregating --> Partial: incomplete observation
+    Classifying --> Partial: recoverable rule failure
+    Persisting --> Partial: snapshot unavailable, result retained
+    Completed --> [*]
+    Cancelled --> [*]
+    Partial --> [*]
+    Failed --> [*]
+    DriveRemoved --> [*]
