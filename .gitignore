@@ -39,6 +39,7 @@ diagnostic-reports/
 quarantine/
 
 # Local tooling
+.tools/
 node_modules/
 .cache/
 *.tmp
@@ -49,3 +50,4 @@ node_modules/
 Thumbs.db
 Desktop.ini
 .DS_Store
+.tools/

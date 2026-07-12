@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Clyr.Contracts\Clyr.Contracts.csproj" />
+    <ProjectReference Include="..\Clyr.Core\Clyr.Core.csproj" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+  </ItemGroup>
+</Project>

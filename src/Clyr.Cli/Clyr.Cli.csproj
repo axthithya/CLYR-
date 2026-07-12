@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Clyr.Contracts\Clyr.Contracts.csproj" />
+    <ProjectReference Include="..\Clyr.Core\Clyr.Core.csproj" />
+    <ProjectReference Include="..\Clyr.Rules\Clyr.Rules.csproj" />
+  </ItemGroup>
+</Project>
