@@ -47,6 +47,7 @@ public sealed record ApplicationConfiguration(string Phase, bool DemoDataOnly)
 {
     public static ApplicationConfiguration PhaseOneDefaults { get; } = new("Phase 1", true);
     public static ApplicationConfiguration PhaseTwoDefaults { get; } = new("Phase 2", false);
+    public static ApplicationConfiguration PhaseThreeDefaults { get; } = new("Phase 3", false);
 }
 
 public interface IEnvironmentInfo

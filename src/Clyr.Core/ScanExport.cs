@@ -18,10 +18,37 @@ public sealed class ScanReportExporter : IScanReportExporter
     public string Serialize(ScanResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
+        if (result.Classification is not null) return SerializeClassified(result);
         var report = new
         {
             schemaVersion = 1,
             reportType = "clyr-scan-summary",
+            generatedAt = result.EndedAt,
+            privacy = new
+            {
+                classification = "support-safe",
+                fullPathsIncluded = false,
+                userNamesIncluded = false,
+                fileNamesIncluded = false,
+                fileContentsIncluded = false,
+                uploadedAutomatically = false
+            },
+            scan = result with
+            {
+                TopLevelDirectories = Redact(result.Root, result.TopLevelDirectories, "folder"),
+                LargestDirectories = Redact(result.Root, result.LargestDirectories, "directory"),
+                LargestFiles = Redact(result.Root, result.LargestFiles, "file")
+            }
+        };
+        return JsonSerializer.Serialize(report, Options);
+    }
+
+    private static string SerializeClassified(ScanResult result)
+    {
+        var report = new
+        {
+            schemaVersion = 2,
+            reportType = "clyr-classified-summary",
             generatedAt = result.EndedAt,
             privacy = new
             {

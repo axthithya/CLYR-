@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.clyr.dev/rules/v1/pack-manifest.schema.json",
+  "title": "CLYR built-in rule pack manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "version", "trust", "minimumEngineVersion", "maximumEngineVersionExclusive", "provenance", "license", "files"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "const": "clyr.builtin" },
+    "version": { "type": "string", "pattern": "^[0-9]+[.][0-9]+[.][0-9]+$" },
+    "trust": { "const": "built-in" },
+    "minimumEngineVersion": { "type": "string", "pattern": "^[0-9]+[.][0-9]+[.][0-9]+$" },
+    "maximumEngineVersionExclusive": { "type": "string", "pattern": "^[0-9]+[.][0-9]+[.][0-9]+$" },
+    "provenance": { "type": "string", "minLength": 3, "maxLength": 200 },
+    "license": { "type": "string", "minLength": 2, "maxLength": 80 },
+    "files": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "enum": ["rules.yaml", "categories.yaml"] },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    }
+  }
+}

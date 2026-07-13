@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Clyr.Contracts;
 using Clyr.Core;
+using Clyr.Rules;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 
@@ -15,10 +16,13 @@ public sealed partial class MainWindow
     private IReadOnlyList<DriveSummary> availableDrives = [];
 
     public MainWindow(IDemoDataService demo, ApplicationConfiguration configuration, IScanService scanService,
-        IDriveDiscovery driveDiscovery) : this(demo, configuration)
+        IDriveDiscovery driveDiscovery, RulePackLoadResult rulePack) : this(demo, configuration)
     {
         this.scanService = scanService;
         this.driveDiscovery = driveDiscovery;
+        RulesStatusText.Text = rulePack.Pack is null
+            ? "Built-in classification unavailable: " + string.Join("; ", rulePack.Diagnostics.Select(item => item.Code))
+            : $"{rulePack.Pack.Summary.Id} {rulePack.Pack.Summary.Version} verified; {rulePack.Pack.Summary.RuleCount} detection-only rules active.";
         LoadDrives();
     }
 
@@ -59,6 +63,12 @@ public sealed partial class MainWindow
             CurrentPathText.Text = result.AccountingNote;
             ResultList.ItemsSource = result.TopLevelDirectories.Select(item => $"{item.DisplayPath} — {FormatBytes(item.LogicalBytes)} ({item.Precision})").ToArray();
             CoverageText.Text = $"Coverage: {result.Coverage.FilesObserved:N0} files; {result.Coverage.DirectoriesObserved:N0} directories; {result.Issues.Sum(item => item.Count):N0} warnings; no content read.";
+            var classified = result.Classification;
+            ClassificationSummaryText.Text = classified is null
+                ? "Classification unavailable. Structural scan results remain valid."
+                : $"{classified.Summary} Classified {FormatBytes(classified.Coverage.ClassifiedBytes)}; Unknown observed {FormatBytes(classified.Coverage.UnknownBytes)}; inaccessible {classified.Coverage.InaccessibleEntries:N0}; skipped {classified.Coverage.SkippedEntries:N0}.";
+            FindingList.ItemsSource = classified?.Findings.Select(item =>
+                $"{item.Title} - {FormatBytes(item.LogicalBytes)} - {item.Category} - {item.Confidence} - {item.Status}\n{item.Explanation.WhatItMeans}\n{item.Explanation.SafetyStatus}").ToArray();
         }
         finally
         {

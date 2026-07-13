@@ -1,3 +1,3 @@
 # Built-in rule policy
 
-Built-in rules begin in Phase 3 and remain detection-only/report-only until separately approved action phases. Each rule needs authoritative evidence, a manifest hash, schema/protected-policy validation, positive/negative/malicious fixtures, overlap ownership, privacy review, and maintainer/CODEOWNER review. No executable rule is stored here.
+The Phase 3 built-in pack is detection-only/report-only. The manifest binds pack identity, engine compatibility, provenance, license, the closed category registry, ordered files, and SHA-256 digests. The catalog contains 36 inert metadata rules with positive/negative fixtures. Pack failure is atomic; no executable field or cleanup authority exists.

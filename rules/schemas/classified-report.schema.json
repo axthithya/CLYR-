@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.clyr.dev/reports/v2/classified-report.schema.json",
+  "title": "CLYR privacy-safe classified report v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reportType", "generatedAt", "privacy", "scan"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "reportType": { "const": "clyr-classified-summary" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "privacy": {
+      "type": "object",
+      "required": ["classification", "fullPathsIncluded", "userNamesIncluded", "fileNamesIncluded", "fileContentsIncluded", "uploadedAutomatically"],
+      "properties": {
+        "classification": { "const": "support-safe" },
+        "fullPathsIncluded": { "const": false },
+        "userNamesIncluded": { "const": false },
+        "fileNamesIncluded": { "const": false },
+        "fileContentsIncluded": { "const": false },
+        "uploadedAutomatically": { "const": false }
+      }
+    },
+    "scan": {
+      "type": "object",
+      "required": ["classification"],
+      "properties": {
+        "classification": {
+          "type": "object",
+          "required": ["categories", "findings", "coverage", "rulePack", "summary", "limitations"]
+        }
+      }
+    }
+  }
+}

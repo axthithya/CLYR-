@@ -34,9 +34,11 @@ public enum RiskLevel
 
 public enum FindingConfidence
 {
+    Unknown,
     Low,
     Medium,
-    High
+    High,
+    Confirmed
 }
 
 public sealed record DemoFinding(

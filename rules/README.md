@@ -2,7 +2,7 @@
 
 ## Current status
 
-This directory contains **Phase 0 contracts and synthetic examples only**. CLYR does not yet load these files, scan a drive, execute an action, or remove data. Initial rule-engine implementation is planned for Phase 3 and remains detection-only.
+This directory contains the Phase 3 verified first-party detection pack, schemas, and synthetic examples. Built-ins classify metadata only after manifest integrity checks. External rules can be validated but remain inactive. No rule can execute an action or remove data.
 
 Rules describe known storage locations and produce explainable findings. They are untrusted declarative data, never executable plugins.
 

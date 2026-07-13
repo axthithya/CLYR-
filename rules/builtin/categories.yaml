@@ -1,0 +1,25 @@
+schemaVersion: 1
+categories:
+  - WindowsSystemManaged
+  - WindowsUpdateServicing
+  - TemporaryFiles
+  - CrashDumpsDiagnostics
+  - BrowserCache
+  - ApplicationCache
+  - UserDownloads
+  - UserDocuments
+  - UserMedia
+  - ArchivesInstallers
+  - GamesLaunchers
+  - CloudSync
+  - DeveloperDependencies
+  - DeveloperCache
+  - Containers
+  - VirtualMachines
+  - Wsl
+  - AndroidSdkEmulators
+  - BuildOutput
+  - Logs
+  - RecycleBin
+  - RestoreRecovery
+  - Unknown

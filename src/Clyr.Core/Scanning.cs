@@ -27,7 +27,8 @@ public static class ScanPathValidator
     }
 }
 
-public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDiscovery drives, IClock clock) : IScanService
+public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDiscovery drives, IClock clock,
+    IClassificationProvider? classificationProvider = null) : IScanService
 {
     private const int MaximumIssues = 32;
     private int active;
@@ -49,6 +50,7 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
         if (!drive.IsReady || !drive.IsSupported) return Failed(request, "scan.drive-unsupported", drive.SupportReason);
 
         var started = clock.UtcNow;
+        var classification = classificationProvider?.Start(request with { Root = root }, drive);
         var policy = ScanPolicy.For(request);
         var topFiles = new BoundedRanking(policy.TopCount);
         var topDirectories = new BoundedRanking(policy.TopCount);
@@ -83,6 +85,7 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                 { CountException(exception); CompleteDirectory(); continue; }
 
                 if (entry is null) continue;
+                classification?.Observe(entry);
                 if ((entry.Traits & EntryTraits.ReparsePoint) != 0)
                 { reparse++; AddIssue(ScanIssueKind.ReparseSkipped, "scan.reparse-skipped", "A reparse point was not traversed."); continue; }
                 if ((entry.Traits & EntryTraits.Directory) != 0)
@@ -156,14 +159,17 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
             var ended = clock.UtcNow;
             var observed = Math.Max(0, bytes);
             long? unaccounted = drive.UsedBytes.HasValue ? Math.Max(0, drive.UsedBytes.Value - observed) : null;
+            var coverage = new ScanCoverage(files, directories, inaccessible, reparse, cloud, changed, skipped, false, false, false);
+            var classified = classification?.Complete(coverage, unaccounted);
             var result = new ScanResult(Guid.NewGuid(), status, request.Mode, root, drive.FileSystem, started, ended, observed,
                 drive.UsedBytes, unaccounted, MeasurementPrecision.Estimated,
                 "Logical metadata bytes; hard-linked content may be counted more than once. Allocated size is not measured in Phase 2.",
-                new(files, directories, inaccessible, reparse, cloud, changed, skipped, false, false, false),
+                coverage,
                 topLevel.Items, topDirectories.Items, topFiles.Items,
                 extensions.Where(x => x.Value.Count > 0).OrderByDescending(x => x.Value.Bytes)
                     .Select(x => new ExtensionSummary(x.Key, x.Value.Bytes, x.Value.Count)).ToArray(),
-                issues.Values.Select(x => new ScanIssueSummary(x.Kind, x.Code, x.Count, x.Detail)).ToArray(), failureCode, failureMessage);
+                issues.Values.Select(x => new ScanIssueSummary(x.Kind, x.Code, x.Count, x.Detail)).ToArray(), failureCode, failureMessage,
+                classified);
             progress?.Report(new(status, ended - started, files, directories, bytes, inaccessible + reparse + changed + skipped,
                 RedactPath(root), TerminalMessage(status)));
             return result;

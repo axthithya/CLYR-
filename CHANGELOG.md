@@ -4,6 +4,17 @@ All notable project changes are recorded here. The format follows Keep a Changel
 
 ## [Unreleased]
 
+### Added — Phase 3 detection-only classification (2026-07-13)
+
+- One-pass streaming classification with exclusive category ownership, secondary tags, deterministic protected/priority/specificity precedence, stable privacy-safe findings, explanations, confidence/status, and explicit Unknown/coverage accounting.
+- A 36-rule first-party Windows storage catalog with offline manifest/category-registry/SHA-256 verification, compatibility/provenance metadata, transactional failure, and positive/negative fixture coverage.
+- Classified report schema v2, CLI rule inspection and explanation commands, inactive external-rule validation, and WinUI cause/rule-status/results surfaces.
+- Phase 3 ADR, verifier, CI workflow, tamper/privacy/precedence/report/CLI tests, and a one-million-observation classification fixture.
+
+### Security — Phase 3
+
+- Detection remains metadata-only and report-only. There is no cleanup, deletion, movement, process execution, elevation, service, helper, persistence/history, or Phase 4 implementation.
+
 ### Added — Phase 2 read-only scanner (2026-07-13)
 
 - Capability-qualified discovery for local drives; ready fixed NTFS volumes are eligible and unsupported drives retain an explicit reason.

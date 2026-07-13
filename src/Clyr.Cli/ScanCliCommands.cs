@@ -14,11 +14,12 @@ public sealed partial class CliApplication
 
     public CliApplication(IEnvironmentInfo environment, IDemoDataService demo, RuleValidator rules,
         IPrivacyRedactor redactor, string version, IDriveDiscovery driveDiscovery, IScanService scanner,
-        IScanReportExporter exporter) : this(environment, demo, rules, redactor, version)
+        IScanReportExporter exporter, RulePackLoadResult? rulePack = null) : this(environment, demo, rules, redactor, version)
     {
         this.driveDiscovery = driveDiscovery;
         this.scanner = scanner;
         this.exporter = exporter;
+        this.rulePack = rulePack;
     }
 
     private int RunPhaseTwo(IReadOnlyList<string> arguments, TextWriter output, TextWriter error)
@@ -112,6 +113,13 @@ public sealed partial class CliApplication
         writer.WriteLine($"Observed logical size: {FormatBytes(result.LogicalBytesObserved)} ({result.Precision})");
         writer.WriteLine($"Coverage: {result.Coverage.FilesObserved} files, {result.Coverage.DirectoriesObserved} directories, {result.Issues.Sum(x => x.Count)} warnings");
         writer.WriteLine(result.AccountingNote);
+        if (result.Classification is not null)
+        {
+            writer.WriteLine(result.Classification.Summary);
+            writer.WriteLine($"Classified: {FormatBytes(result.Classification.Coverage.ClassifiedBytes)}; unknown observed: {FormatBytes(result.Classification.Coverage.UnknownBytes)}; inaccessible: {result.Classification.Coverage.InaccessibleEntries}; skipped: {result.Classification.Coverage.SkippedEntries}.");
+            foreach (var finding in result.Classification.Findings)
+                writer.WriteLine($"- {finding.Title}: {FormatBytes(finding.LogicalBytes)} [{finding.Category}; {finding.Confidence}; {finding.Status}]");
+        }
         foreach (var item in result.TopLevelDirectories) writer.WriteLine($"- {item.DisplayPath}: {FormatBytes(item.LogicalBytes)}");
         if (result.FailureCode is not null) writer.WriteLine(result.FailureCode + ": " + result.FailureMessage);
     }

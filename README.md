@@ -4,9 +4,9 @@
 
 CLYR is a planned native Windows storage diagnostic application for people who can see that a drive is full but cannot safely tell why. It will lead with evidence: what occupies space, how confident the measurement is, which regions were inaccessible, and why a finding needs attention. The reusable C# engine will support a WinUI 3 desktop experience and a command-line interface.
 
-## Project status: Phase 2 read-only scanner complete
+## Project status: Phase 3 detection-only classification complete
 
-**The repository now contains the Phase 2 metadata-only scanner, but no cleanup feature.** WinUI and CLI can discover eligible fixed NTFS volumes and run explicit Quick or Deep analysis. Scans never read file contents, follow reparse points, hydrate cloud placeholders, request elevation, or modify the scanned drive. Cleanup execution is not planned until Phase 6 and requires a separate security gate.
+**The repository now contains the Phase 3 metadata classifier and explanation surfaces, but no cleanup feature.** One bounded streaming pass assigns mutually exclusive storage categories, secondary tags, confidence, informational status, protected precedence, explicit Unknown/coverage gaps, and privacy-safe findings. The first-party pack must pass offline manifest, compatibility, category-registry, and SHA-256 verification before activation. External rules can be linted but never auto-activate.
 
 The primary target is Windows 11. Windows 10 22H2, ReFS, removable media, and packaged/unpackaged variants are **unverified**, not supported claims. See the [support matrix](docs/SUPPORT_MATRIX.md).
 
@@ -38,7 +38,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-winui.ps1
 
 The first command runs every Phase 0/1 regression plus Phase 2 scanner, Windows-adapter, schema, bounded-memory, and CLI drive-discovery gates. It deliberately does not start a real-drive scan. The second launches the unpackaged WinUI build, verifies navigation, drive overview, Quick/Deep controls, cancellation, and the read-only disclosure, then closes the process without scanning.
 
-The Phase 2 CLI adds explicit read-only drive discovery and scanning:
+The Phase 3 CLI keeps explicit read-only drive discovery/scanning and adds offline rule inspection and report explanation:
 
 ```text
 clyr --help
@@ -48,6 +48,10 @@ clyr demo
 clyr drives [--json]
 clyr scan C:\ [--quick|--deep] [--top N] [--json] [--output <file>]
 clyr rules validate <path>
+clyr rules list
+clyr rules verify
+clyr rules describe <rule-id>
+clyr explain <classified-report.json>
 ```
 
 ## Safety and privacy

@@ -1,3 +1,3 @@
 # Clyr.Cli boundary
 
-Planned for Phase 1: a standard-user CLI shell with stable help, version/doctor, exit codes, and later versioned JSON output over shared application services. It does not implement independent scan/action logic, invoke a shell, or add cleanup commands before the approved phase.
+Phase 3 adds offline rules list, rules verify, rules describe, inactive external rule validation, classified report v2, and report explanation over shared application services. It does not implement independent action logic, invoke a shell, or expose cleanup commands.

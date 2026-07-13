@@ -24,6 +24,8 @@ public sealed partial class MainWindow : Window
         PageTitle.Text = label;
         PageDescription.Text = label is "Overview" or "Settings"
             ? $"Read-only {configuration.Phase} engineering foundation."
-            : "Placeholder only. This capability is not implemented in Phase 1.";
+            : label is "Scan" or "Results"
+                ? "Read-only metadata analysis with deterministic built-in classification and explicit coverage."
+                : "Planned / unavailable. This capability is outside Phase 3.";
     }
 }

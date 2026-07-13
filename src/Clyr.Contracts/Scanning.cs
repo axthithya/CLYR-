@@ -24,7 +24,8 @@ public sealed record ScanResult(Guid ScanId, ScanStatus Status, ScanMode Mode, s
     long? UnaccountedBytes, MeasurementPrecision Precision, string AccountingNote, ScanCoverage Coverage,
     IReadOnlyList<RankedPath> TopLevelDirectories, IReadOnlyList<RankedPath> LargestDirectories,
     IReadOnlyList<RankedPath> LargestFiles, IReadOnlyList<ExtensionSummary> ExtensionFamilies,
-    IReadOnlyList<ScanIssueSummary> Issues, string? FailureCode, string? FailureMessage)
+    IReadOnlyList<ScanIssueSummary> Issues, string? FailureCode, string? FailureMessage,
+    ClassificationResult? Classification = null)
 {
     public bool IsPartial => Status is ScanStatus.Cancelled or ScanStatus.CompletedWithWarnings;
 }

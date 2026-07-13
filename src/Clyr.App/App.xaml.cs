@@ -1,4 +1,5 @@
 using Clyr.Core;
+using Clyr.Rules;
 using Clyr.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -38,9 +39,9 @@ public partial class App : Application
             .Build();
         var demoDataOnly = bool.TryParse(configurationRoot["Application:DemoDataOnly"], out var configuredDemoDataOnly)
             ? configuredDemoDataOnly
-            : ApplicationConfiguration.PhaseTwoDefaults.DemoDataOnly;
+            : ApplicationConfiguration.PhaseThreeDefaults.DemoDataOnly;
         var applicationConfiguration = new ApplicationConfiguration(
-            configurationRoot["Application:Phase"] ?? ApplicationConfiguration.PhaseTwoDefaults.Phase,
+            configurationRoot["Application:Phase"] ?? ApplicationConfiguration.PhaseThreeDefaults.Phase,
             demoDataOnly);
 
         var services = new ServiceCollection();
@@ -51,7 +52,10 @@ public partial class App : Application
         services.AddSingleton<IDemoDataService, DemoDataService>();
         services.AddSingleton<IDriveDiscovery, WindowsDriveDiscovery>();
         services.AddSingleton<IFileSystemEnumerator, WindowsFileSystemEnumerator>();
-        services.AddSingleton<IScanService, ScanCoordinator>();
+        services.AddSingleton(_ => BuiltInRulePackLoader.Load(Path.Combine(AppContext.BaseDirectory, "rules", "builtin")));
+        services.AddSingleton<IScanService>(provider => new ScanCoordinator(
+            provider.GetRequiredService<IFileSystemEnumerator>(), provider.GetRequiredService<IDriveDiscovery>(),
+            provider.GetRequiredService<IClock>(), provider.GetRequiredService<RulePackLoadResult>().Pack));
         services.AddSingleton<IScanReportExporter, ScanReportExporter>();
         services.AddSingleton<MainWindow>();
         return services.BuildServiceProvider();

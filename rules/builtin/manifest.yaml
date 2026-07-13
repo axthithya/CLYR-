@@ -1,0 +1,13 @@
+schemaVersion: 1
+id: clyr.builtin
+version: 1.0.0
+trust: built-in
+minimumEngineVersion: 1.0.0
+maximumEngineVersionExclusive: 2.0.0
+provenance: CLYR first-party reviewed source
+license: MIT
+files:
+  - path: rules.yaml
+    sha256: 875c52c3f0b17fa1697cb89afe9e98d8ba85771173d7c36a79e4b017040c977f
+  - path: categories.yaml
+    sha256: 0d23cac022aa0b37605daae07947e69a509a95f655f4ef95881db5fa803630cd

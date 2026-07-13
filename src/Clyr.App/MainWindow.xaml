@@ -17,7 +17,7 @@
             </NavigationView.MenuItems>
             <StackPanel Padding="32" Spacing="16">
                 <TextBlock Text="CLYR" FontSize="36" FontWeight="SemiBold" />
-                <TextBlock Text="Phase 2 analysis is local and read-only. CLYR reads metadata, never file contents." FontSize="18" TextWrapping="Wrap" />
+                <TextBlock Text="Phase 3 analysis and classification are local, metadata-only, and read-only. Findings never authorize cleanup." FontSize="18" TextWrapping="Wrap" />
                 <TextBlock x:Name="PageTitle" Text="Overview" FontSize="26" />
                 <TextBlock x:Name="PageDescription" Text="Read-only Phase 1 engineering foundation." TextWrapping="Wrap" />
                 <TextBlock x:Name="DriveSummaryText" Text="Discovering local drives…" TextWrapping="Wrap" />
@@ -34,6 +34,10 @@
                 <TextBlock x:Name="ScanStatusText" Text="Not started." FontSize="20" AutomationProperties.LiveSetting="Polite" />
                 <TextBlock x:Name="CurrentPathText" Text="No path is being inspected." TextWrapping="Wrap" />
                 <TextBlock x:Name="CoverageText" Text="Coverage will appear after analysis." TextWrapping="Wrap" />
+                <TextBlock x:Name="RulesStatusText" Text="Checking built-in rule integrity..." TextWrapping="Wrap" />
+                <TextBlock Text="Why is this drive full?" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock x:Name="ClassificationSummaryText" Text="Classification will appear after analysis." TextWrapping="Wrap" />
+                <ListView x:Name="FindingList" MaxHeight="300" AutomationProperties.Name="Classified storage findings" />
                 <TextBlock Text="Largest top-level directories" FontSize="20" FontWeight="SemiBold" />
                 <ListView x:Name="ResultList" MaxHeight="280" />
                 <ListView x:Name="DemoFindings" Visibility="Collapsed" />

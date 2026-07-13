@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Clyr.Contracts;
 using Json.Schema;
+using YamlDotNet.RepresentationModel;
 using YamlDotNet.Serialization;
 
 namespace Clyr.Rules;
@@ -33,6 +34,14 @@ public sealed class RuleValidator
         if (Encoding.UTF8.GetByteCount(yaml) > MaximumRuleBytes) return RuleValidationResult.Invalid("Rule input exceeds the safe size limit.");
         try
         {
+            using var reader = new StringReader(yaml);
+            var stream = new YamlStream();
+            stream.Load(reader);
+            var nodeCount = 0;
+            if (stream.Documents.Count != 1)
+                return RuleValidationResult.Invalid("Exactly one YAML document is required.");
+            if (!IsSafeNode(stream.Documents[0].RootNode, 0, ref nodeCount))
+                return RuleValidationResult.Invalid("YAML aliases, custom tags, anchors, or excessive structure are prohibited.");
             var deserializer = new DeserializerBuilder().WithDuplicateKeyChecking().WithAttemptingUnquotedStringTypeDeserialization().Build();
             var model = deserializer.Deserialize<object>(yaml);
             var json = new SerializerBuilder().JsonCompatible().Build().Serialize(model);
@@ -48,6 +57,23 @@ public sealed class RuleValidator
         catch (Exception exception) when (exception is YamlDotNet.Core.YamlException or JsonException or InvalidOperationException)
         {
             return RuleValidationResult.Invalid("Malformed YAML: " + exception.Message);
+        }
+
+        static bool IsSafeNode(YamlNode node, int depth, ref int nodes)
+        {
+            nodes++;
+            if (depth > 64 || nodes > 10_000 || !node.Anchor.IsEmpty || !node.Tag.IsEmpty) return false;
+            if (node is YamlMappingNode mapping)
+            {
+                foreach (var pair in mapping.Children)
+                    if (!IsSafeNode(pair.Key, depth + 1, ref nodes) || !IsSafeNode(pair.Value, depth + 1, ref nodes)) return false;
+            }
+            else if (node is YamlSequenceNode sequence)
+            {
+                foreach (var child in sequence.Children)
+                    if (!IsSafeNode(child, depth + 1, ref nodes)) return false;
+            }
+            return true;
         }
     }
 }

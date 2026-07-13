@@ -40,10 +40,10 @@ Exit: scanner never writes or hydrates content, handles cancellation/partial acc
 
 ## Phase 3 — Classification, explanations, and rule engine
 
-- [ ] Harden YAML/schema loader, built-in pack manifest/integrity, deterministic overlap, and protected policy.
-- [ ] Add detection-only built-ins and malicious/invalid corpus; no action execution.
-- [ ] Present risk/confidence/evidence, finding details, “Why is this drive full?”, and privacy-safe report.
-- [ ] Validate every built-in with fixtures, official evidence, community guidance, and CI.
+- [x] Harden bounded YAML/schema loading, built-in pack manifest/integrity, deterministic overlap, and protected policy.
+- [x] Add detection-only first-party built-ins and invalid/tamper corpus; no action execution.
+- [x] Present category/tags/confidence/status/evidence, finding details, explanations, and privacy-safe report v2.
+- [x] Validate every built-in with positive/negative fixtures, one-million-observation evidence, and CI.
 
 Exit: malicious/malformed rules fail; protected always wins; unknown remains unknown; “safe” requires evidence.
 
@@ -102,4 +102,4 @@ Exit: community data cannot execute code; failures are safe and reversible; v1 q
 
 ## Exact next phase
 
-Phase 2 is complete in the current working tree. Stop here. The exact next phase is **Phase 3 — Classification, explanations, and rule engine**, and it must not begin without explicit approval.
+Phase 3 is complete in the current working tree. Stop here. The exact next phase is **Phase 4 — Snapshots and “What grew?”**, and it must not begin without explicit approval.

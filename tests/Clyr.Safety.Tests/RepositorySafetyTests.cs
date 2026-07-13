@@ -65,7 +65,7 @@ public sealed class RepositorySafetyTests
     [Fact]
     public void ProductionSourceContainsNoMutationOrProcessExecutor()
     {
-        var forbidden = new[] { "Process.Start", "System.Diagnostics.Process", "File.Delete", "File.Move", "Directory.Delete", "RecycleBin", "requireAdministrator", "powershell.exe", "cmd.exe" };
+        var forbidden = new[] { "Process.Start", "System.Diagnostics.Process", "File.Delete", "File.Move", "Directory.Delete", "RecycleOption", "requireAdministrator", "powershell.exe", "cmd.exe" };
         foreach (var source in Directory.EnumerateFiles(Path.Combine(Root, "src"), "*.cs", SearchOption.AllDirectories))
         {
             if (source.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.Ordinal)) continue;
@@ -84,26 +84,28 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
-    public void PhaseTwoScannerExistsWithoutPhaseThreeOrMutationServices()
+    public void PhaseThreeClassifierExistsWithoutCleanupOrMutationServices()
     {
         var names = Directory.EnumerateFiles(Path.Combine(Root, "src"), "*.cs", SearchOption.AllDirectories).Select(Path.GetFileName);
         Assert.Contains(names, name => name is not null && name.Contains("Scanning", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(names, name => name is not null && (name.Contains("Cleanup", StringComparison.OrdinalIgnoreCase) || name.Contains("RuleEngine", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(names, name => name is not null && name.Contains("BuiltInRulePack", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(names, name => name is not null && name.Contains("Cleanup", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public void ApplicationCompositionAndNavigationExposeOnlyReadOnlyPhaseTwo()
+    public void ApplicationCompositionAndNavigationExposeOnlyReadOnlyPhaseThree()
     {
         var appSource = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "App.xaml.cs"));
         var navigation = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "MainWindow.xaml"));
         var settings = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "appsettings.json"));
         Assert.Contains("ServiceCollection", appSource, StringComparison.Ordinal);
         Assert.Contains("StartupErrorWindow", appSource, StringComparison.Ordinal);
-        Assert.Contains("Phase 2", settings, StringComparison.Ordinal);
+        Assert.Contains("Phase 3", settings, StringComparison.Ordinal);
         foreach (var destination in new[] { "Overview", "Scan", "Results", "History", "Developer Mode", "Privacy", "Licenses", "About" })
             Assert.Contains($"Content=\"{destination}\"", navigation, StringComparison.Ordinal);
         Assert.Contains("IsSettingsVisible=\"True\"", navigation, StringComparison.Ordinal);
-        Assert.Contains("Phase 2 analysis is local and read-only.", navigation, StringComparison.Ordinal);
+        Assert.Contains("Phase 3 analysis and classification are local", navigation, StringComparison.Ordinal);
+        Assert.Contains("Findings never authorize cleanup.", navigation, StringComparison.Ordinal);
         Assert.Contains("Cancel analysis", navigation, StringComparison.Ordinal);
         Assert.Contains("Quick Analysis", navigation, StringComparison.Ordinal);
         Assert.Contains("Deep Analysis", navigation, StringComparison.Ordinal);

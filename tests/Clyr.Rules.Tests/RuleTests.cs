@@ -55,6 +55,16 @@ public sealed class RuleTests
         Assert.False(validator.ValidateYaml(yaml).IsValid);
     }
 
+    [Theory]
+    [InlineData("value: &shared test\ncopy: *shared")]
+    [InlineData("value: !custom tagged")]
+    [InlineData("value: one\n---\nvalue: two")]
+    [InlineData("value: one\nvalue: two")]
+    public void UnsafeYamlStructuresAreRejected(string yaml)
+    {
+        Assert.False(validator.ValidateYaml(yaml).IsValid);
+    }
+
     private static string ValidYaml() => File.ReadAllText(Path.Combine(RepositoryRoot(), "rules", "examples", "npm-cache.valid.yaml"));
 
     private static string RepositoryRoot()
