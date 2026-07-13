@@ -11,5 +11,7 @@ if (!File.Exists(schemaPath))
 }
 var validator = new RuleValidator(File.ReadAllText(schemaPath));
 var environment = new WindowsEnvironmentInfo();
-var application = new CliApplication(environment, new DemoDataService(), validator, new PrivacyRedactor(environment), "CLYR 0.1.0-phase1");
+var drives = new WindowsDriveDiscovery();
+var scanner = new ScanCoordinator(new WindowsFileSystemEnumerator(), drives, new SystemClock());
+var application = new CliApplication(environment, new DemoDataService(), validator, new PrivacyRedactor(environment), "CLYR 0.2.0-phase2", drives, scanner, new ScanReportExporter());
 return application.Run(args, Console.Out, Console.Error);

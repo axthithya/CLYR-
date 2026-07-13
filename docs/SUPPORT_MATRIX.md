@@ -2,7 +2,7 @@
 
 ## Status vocabulary
 
-This is a **Phase 0 planning matrix**. There is no application or scanner, so nothing is Beta or Stable and no row is a current product support claim.
+This is a planning matrix with Phase 2 developer evidence. A local unpackaged metadata scanner exists, but nothing is Beta or Stable and no row is a public product support claim.
 
 | Release status | Meaning |
 |---|---|
@@ -59,9 +59,9 @@ Default scope is the discovered system volume, then user-selected fixed local vo
 
 | Volume/filesystem | Default selection | Planned read-only behavior | Precision and safety limit | Release status / tests | Fallback |
 |---|---|---|---|---|---|
-| Local fixed NTFS system volume | Yes, after explicit scan start | Quick/Deep analysis, partial results, top-N, logical size; allocated size/file identity where proven | Never follow reparse points by default; access denied is partial coverage; hard-link/allocation truth requires stable ID APIs | Planned Phase 2; synthetic trees, access denial, loops, sparse/compressed/hard-link fixtures | Logical/estimated values labeled; inaccessible/skipped bytes reported |
-| Other local fixed NTFS volume | User selected | Same engine, drive-agnostic | Not assumed to contain Windows; protected-resource and volume-boundary policy still applies | Planned Phase 2 | Capability unavailable/partial result |
-| ReFS fixed volume | Never implicit beyond explicit eligible selection until evaluated | Read-only enumeration candidate | NTFS assumptions about IDs, compression, sparse/allocation, Recycle Bin, USN, and links cannot be copied | Planned evaluation; no current tests | Logical-size partial report; mutation unavailable |
+| Local fixed NTFS system volume | Yes, after explicit scan start | Quick/Deep metadata analysis, partial results, bounded top-N, logical size | Reparse points are never followed; access denied is partial coverage; allocated size unavailable; hard links may double-count | Phase 2 developer-verified with fake/temporary fixtures and synthetic streams; no public support claim | Logical/estimated values labeled; inaccessible/skipped entries reported |
+| Other local fixed NTFS volume | User selected | Same engine, drive-agnostic | Not assumed to contain Windows; root must be explicitly selected | Phase 2 implemented; multi-volume public/manual support evidence remains pending | Capability unavailable/partial result |
+| ReFS fixed volume | Excluded until evaluated | Read-only enumeration candidate | NTFS assumptions about IDs, compression, sparse/allocation, Recycle Bin, USN, and links cannot be copied | Planned evaluation; no current tests | Unsupported capability; mutation unavailable |
 | FAT/FAT32/exFAT fixed/removable | Not default; explicit selection only if a future capability permits | Basic read-only logical enumeration candidate | No NTFS-equivalent ACL, IDs, hard links, allocation semantics, or safe mutation assumption | Planned evaluation; no current tests | Logical-only/unknown precision; no cleanup |
 | Removable USB/SD | Excluded by default | Future explicit read-only selection candidate | Device disappearance, write protection, filesystem variability, and user-media risk | Planned evaluation after fixed-volume scanner | Cancel/partial result; never auto-resume or mutate |
 | Network/UNC/mapped share | Excluded and unsupported | None | Remote identity, latency, offline files, credentials, server semantics, and nonlocal mutation risk | Unsupported | Explain and do not enumerate |
@@ -85,11 +85,11 @@ Every row includes the fields required by the Phase 0 support contract.
 |---|---|---|---|---|---|---|---|---|---|
 | WinUI app launch/navigation | Verified local Windows 11 developer lane | None | Unpackaged developer build; no installer | No | .NET 10.0.9, Windows App SDK 2.2.0 | Developer-only | Startup error window; no web fallback | Phase 1 UI Automation launch and all-navigation selection; Phase 9 clean install/accessibility | Verified for Phase 1 only |
 | CLI help/version/doctor/demo/rule validation | Verified local Windows 11 developer lane | Explicit rule path only for validation | No distribution package | No | .NET 10.0.9, first-party exact-token parser | Developer-only | Stable nonzero errors; no shell invocation | Phase 1 CLI and safety tests plus smoke commands | Verified for Phase 1 only |
-| Discover system volume and fixed drives | Claimed Windows 11 lane | Local volumes | App package identity, not scan authorization | No | Documented Windows drive/known-folder APIs | Full | Partial list with stable diagnostic; never assume C: is system | Phase 2 fake adapter + patched OS manual tests | Planned |
-| Analyze system volume | Claimed Windows 11 lane | NTFS first | Required for app channel | No | Windows filesystem APIs | Full | Partial result with skipped/inaccessible counts | Phase 2 fixture/integration/performance/cancellation | Planned |
+| Discover system volume and fixed drives | Developer Windows 11 lane | Local volumes | App package identity, not scan authorization | No | `DriveInfo` and Windows known-folder metadata | Full | Per-drive unsupported reason; never assume C: is system | Phase 2 unit tests and local CLI/UI smoke | Developer-verified; not public support |
+| Analyze system volume | Developer Windows 11 lane | Ready fixed NTFS | Unpackaged developer topology | No | Windows filesystem metadata APIs | Full | Partial result with skipped/inaccessible counts | Phase 2 fake/temporary fixture, performance, cancellation, safety | Developer-verified; not public support |
 | Analyze another fixed local volume | Same | NTFS first | Same | No | Same | Full | Explicitly selected eligible volume only | Phase 2 multi-volume fake/manual tests | Planned |
 | Analyze removable/non-NTFS | Future claimed lane | Capability-specific | Same | No | Filesystem-specific APIs | Full | Logical-only/unsupported; no mutation | Post-Phase 2 per-filesystem/device tests | Planned evaluation |
-| Logical-size totals/top-N | Same | Any approved readable local filesystem | Same | No | Streaming enumeration | Full | Estimated/partial label on inaccessible data | Phase 2 exact synthetic fixture expectations | Planned |
+| Logical-size totals/top-N | Same | Ready fixed NTFS | Same | No | Streaming enumeration | Full | Estimated/partial label; hard-link limitation | Phase 2 exact synthetic and million-entry fixture expectations | Developer-verified; not public support |
 | Allocated-size/sparse/compressed accounting | Same | Initially NTFS; capability-detected | Same | No normally | Windows allocation/file APIs | Full | Unavailable/estimated, never substitute logical as exact | Phase 2+ allocation/sparse/compressed fixtures and manual disk checks | Planned |
 | Hard-link deduplication | Same | Stable file-ID capable filesystem | Same | No normally | File identity/link APIs | Full | Potential double-count label if identity unavailable | Phase 2+ link corpus/property tests | Planned |
 | Reparse protection | Same | All approved filesystems | Same | No | Reparse metadata/final path APIs | Full | Skip target and show coverage | Phase 2 loops, mount, junction, symlink, path-race corpus | Planned |

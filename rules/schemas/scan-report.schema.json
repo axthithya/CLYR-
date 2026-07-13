@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.clyr.dev/exports/scan-summary/v1/scan-report.schema.json",
+  "title": "CLYR Phase 2 privacy-safe scan summary v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reportType", "generatedAt", "privacy", "scan"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "reportType": { "const": "clyr-scan-summary" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "fullPathsIncluded", "userNamesIncluded", "fileNamesIncluded", "fileContentsIncluded", "uploadedAutomatically"],
+      "properties": {
+        "classification": { "const": "support-safe" },
+        "fullPathsIncluded": { "const": false },
+        "userNamesIncluded": { "const": false },
+        "fileNamesIncluded": { "const": false },
+        "fileContentsIncluded": { "const": false },
+        "uploadedAutomatically": { "const": false }
+      }
+    },
+    "scan": {
+      "type": "object",
+      "required": ["scanId", "status", "mode", "root", "logicalBytesObserved", "precision", "accountingNote", "coverage", "topLevelDirectories", "largestDirectories", "largestFiles", "extensionFamilies", "issues"],
+      "properties": {
+        "scanId": { "type": "string", "format": "uuid" },
+        "status": { "enum": ["not-started", "preparing", "scanning", "cancelling", "cancelled", "completed", "completed-with-warnings", "failed"] },
+        "mode": { "enum": ["quick", "deep"] },
+        "root": { "type": "string", "pattern": "^[A-Z]:\\\\$" },
+        "logicalBytesObserved": { "type": "integer", "minimum": 0 },
+        "precision": { "enum": ["exact", "lower-bound", "estimated", "unavailable"] },
+        "accountingNote": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "coverage": { "type": "object" },
+        "topLevelDirectories": { "$ref": "#/$defs/ranking" },
+        "largestDirectories": { "$ref": "#/$defs/ranking" },
+        "largestFiles": { "$ref": "#/$defs/ranking" },
+        "extensionFamilies": { "type": "array", "maxItems": 10 },
+        "issues": { "type": "array", "maxItems": 32 }
+      }
+    }
+  },
+  "$defs": {
+    "ranking": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "required": ["displayPath", "logicalBytes", "fileCount", "precision"],
+        "properties": {
+          "displayPath": { "type": "string", "pattern": "^[A-Z]:\\\\<(folder|directory|file)-[1-9][0-9]*>$" },
+          "logicalBytes": { "type": "integer", "minimum": 0 },
+          "fileCount": { "type": "integer", "minimum": 0 },
+          "precision": { "enum": ["exact", "lower-bound", "estimated", "unavailable"] }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -20,6 +20,9 @@ This is the concise cross-project index. Architecture details live in the linked
 | D-014 | 2026-07-13 | Accepted | Use Microsoft.Data.Sqlite.Core 10.0.9 with SQLitePCLRaw.bundle_e_sqlite3 3.0.3. | Removes the vulnerable convenience-package native closure and resolves SourceGear.sqlite3 3.50.4.5 explicitly. |
 | D-015 | 2026-07-13 | Accepted | Use JsonSchema.Net 7.4.0, the last reviewed MIT binary line, for Draft 2020-12 validation. | Corvus 5.2.6 runtime compilation failed under .NET 10; newer JsonSchema.Net binaries carry additional fee terms. |
 | D-016 | 2026-07-13 | Accepted | Use an unpackaged framework-dependent WinUI developer build in Phase 1. | Proves stable WinUI without prematurely selecting production identity, installer, signing, or future helper topology. |
+| D-017 | 2026-07-13 | Accepted | Implement Phase 2 as one metadata-only bounded scanner shared by WinUI and CLI. | See ADR-0008; reparse traversal, content reads, cloud hydration, persistence, elevation, and mutation remain absent. |
+| D-018 | 2026-07-13 | Accepted | Report logical size only and label it Estimated because hard links are not deduplicated; allocated size is Unavailable. | Prevents false physical-usage precision while keeping the MVP bounded and testable. |
+| D-019 | 2026-07-13 | Accepted | Support ready fixed NTFS volumes for Phase 2 and report all other discovered drive capabilities as unsupported. | Avoids inferring safe behavior for ReFS, removable, network, optical, unready, or unverified filesystems. |
 
 ## Change protocol
 

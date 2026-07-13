@@ -84,25 +84,29 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
-    public void PhaseTwoServicesDoNotExist()
+    public void PhaseTwoScannerExistsWithoutPhaseThreeOrMutationServices()
     {
         var names = Directory.EnumerateFiles(Path.Combine(Root, "src"), "*.cs", SearchOption.AllDirectories).Select(Path.GetFileName);
-        Assert.DoesNotContain(names, name => name is not null && (name.Contains("Scanner", StringComparison.OrdinalIgnoreCase) || name.Contains("Cleanup", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(names, name => name is not null && name.Contains("Scanning", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(names, name => name is not null && (name.Contains("Cleanup", StringComparison.OrdinalIgnoreCase) || name.Contains("RuleEngine", StringComparison.OrdinalIgnoreCase)));
     }
 
     [Fact]
-    public void ApplicationCompositionAndNavigationRemainPhaseOneOnly()
+    public void ApplicationCompositionAndNavigationExposeOnlyReadOnlyPhaseTwo()
     {
         var appSource = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "App.xaml.cs"));
         var navigation = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "MainWindow.xaml"));
         var settings = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "appsettings.json"));
         Assert.Contains("ServiceCollection", appSource, StringComparison.Ordinal);
         Assert.Contains("StartupErrorWindow", appSource, StringComparison.Ordinal);
-        Assert.Contains("DemoDataOnly", settings, StringComparison.Ordinal);
+        Assert.Contains("Phase 2", settings, StringComparison.Ordinal);
         foreach (var destination in new[] { "Overview", "Scan", "Results", "History", "Developer Mode", "Privacy", "Licenses", "About" })
             Assert.Contains($"Content=\"{destination}\"", navigation, StringComparison.Ordinal);
         Assert.Contains("IsSettingsVisible=\"True\"", navigation, StringComparison.Ordinal);
-        Assert.Contains("Demo data — no real drives have been scanned.", navigation, StringComparison.Ordinal);
+        Assert.Contains("Phase 2 analysis is local and read-only.", navigation, StringComparison.Ordinal);
+        Assert.Contains("Cancel analysis", navigation, StringComparison.Ordinal);
+        Assert.Contains("Quick Analysis", navigation, StringComparison.Ordinal);
+        Assert.Contains("Deep Analysis", navigation, StringComparison.Ordinal);
         Assert.DoesNotContain("Microsoft.Data.Sqlite", appSource + navigation, StringComparison.Ordinal);
     }
 

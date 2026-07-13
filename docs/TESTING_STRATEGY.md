@@ -84,6 +84,10 @@ Format; warnings-as-errors Release build; unit/architecture/contract/schema test
 
 No-write scanner tests, cancellation and state tests, coverage/error fixtures, memory/I/O benchmarks, privacy export, detection/protection/malicious-rule corpus, migrations/diffs/retention/corruption, and journal fallback.
 
+Phase 2 implements 39 additional behavioral cases, bringing the solution total to 77: hostile drive-root validation; Quick/Deep bounds; nested roll-up; deterministic bounded rankings; structural extension families; reparse and cloud-placeholder handling; access denial; overlap; cancellation lifecycle; progress throttling/redaction; support-safe export/schema; CLI parsing/output separation/export; drive-label privacy; Windows discovery and temporary metadata fixtures; source-level no-content-read assertions; and 10k/100k/1M generated streams. No automated case scans a real drive root.
+
+The final 2026-07-13 local synthetic run measured 10k in 33 ms with 6,088 retained managed bytes/12,288 working-set growth bytes, 100k in 298 ms with 8,928/5,070,848 bytes, and 1M in 584 ms with 3,560/9,302,016 bytes, each with 25 retained top entries. Values vary with host/runtime and are regression evidence, not disk-throughput claims.
+
 ### Phases 5–8
 
 Fake-only dry run first; immutability/expiry/overlap/identity; then disposable action roots, TOCTOU/link swap, journal crash matrix, receipt/measurement, IPC fuzz, helper identity/lifecycle, external-tool bounds, and migration copy/verify/rollback. Each adapter/workflow has an independent release flag and evidence.
@@ -98,7 +102,7 @@ Phase 1 uses deterministic demo data plus `scripts/verify-winui.ps1`, which laun
 
 ## Quality-gate command
 
-`scripts/verify-phase0.ps1` remains the documentation regression entry point. `scripts/verify-phase1.ps1` extends it with restore, Release build, tests, format, package audit/inventory, CLI, and rule-validation gates; CI invokes the same logic. `scripts/verify-winui.ps1` is the interactive-session launch/navigation gate.
+`scripts/verify-phase0.ps1` remains the documentation regression entry point. `scripts/verify-phase1.ps1` extends it with restore, Release build, tests, format, package audit/inventory, CLI, and rule-validation gates. `scripts/verify-phase2.ps1` adds Windows-adapter, detailed synthetic benchmark, and CLI drive-discovery evidence while deliberately starting no real scan. `scripts/verify-winui.ps1` is the interactive-session launch/navigation/read-only scan-control gate.
 
 ## Test-data privacy
 

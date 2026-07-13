@@ -3,7 +3,7 @@ using Clyr.Rules;
 
 namespace Clyr.Cli;
 
-public sealed class CliApplication
+public sealed partial class CliApplication
 {
     private readonly IEnvironmentInfo environment;
     private readonly IDemoDataService demo;
@@ -28,6 +28,7 @@ public sealed class CliApplication
         if (command == "doctor") return Doctor(output);
         if (command == "demo") return Demo(output);
         if (command == "rules") return Rules(arguments, output, error);
+        if (command is "drives" or "scan") return RunPhaseTwo(arguments, output, error);
         error.WriteLine("Unknown command. Run clyr --help.");
         return 2;
     }
@@ -35,7 +36,7 @@ public sealed class CliApplication
     private static int Help(TextWriter output)
     {
         output.WriteLine("CLYR - trustworthy Windows storage understanding");
-        output.WriteLine("Commands: --help, --version, doctor, demo, rules validate <path>");
+        output.WriteLine("Commands: --help, --version, doctor, demo, drives [--json], scan <root> [--quick|--deep] [--top N] [--json] [--output <file>], rules validate <path>");
         return 0;
     }
 
@@ -43,7 +44,7 @@ public sealed class CliApplication
     {
         output.WriteLine("OS: " + environment.OperatingSystem);
         output.WriteLine("Architecture: " + environment.Architecture);
-        output.WriteLine("Status: read-only Phase 1 foundation; no drives have been scanned.");
+        output.WriteLine("Status: read-only Phase 2 scanner available; no drives have been scanned by this command.");
         return 0;
     }
 

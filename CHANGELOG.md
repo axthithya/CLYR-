@@ -4,6 +4,24 @@ All notable project changes are recorded here. The format follows Keep a Changel
 
 ## [Unreleased]
 
+### Added — Phase 2 read-only scanner (2026-07-13)
+
+- Capability-qualified discovery for local drives; ready fixed NTFS volumes are eligible and unsupported drives retain an explicit reason.
+- One UI-independent, single-session streaming scanner with bounded depth-first state, deterministic top-N, structural extension families, grouped issues, overlap rejection, cancellation, partial results, and throttled progress.
+- Windows metadata adapter that skips reparse points, recognizes cloud placeholder attributes without hydration, and observes logical file length without opening content.
+- Quick Analysis with a three-level bound and Deep Analysis with a defensive deep bound; both disclose logical-only accounting, hard-link double-count uncertainty, and unavailable allocated size.
+- CLI `drives` and `scan` commands with stable exit behavior, progress on stderr, human or JSON output, and explicit local export.
+- Functional WinUI drive overview, Quick/Deep selection, start/cancel lifecycle, coverage text, and ranked top-level results over the same Core service.
+- Versioned support-safe scan export/schema with ranked path tokens and explicit no-path/no-user/no-filename/no-content/no-upload declarations.
+- Phase 2 CI/verifier, updated UI Automation smoke, ADR-0008, and 39 additional tests for a current total of 77.
+
+### Security and measured evidence — Phase 2
+
+- No scan path can mutate, elevate, follow reparse points, hydrate cloud content, read file contents, start a process, or persist an implicit snapshot.
+- Automated tests use fake streams or isolated operating-system temporary fixtures; verification never starts a real-drive scan.
+- Synthetic retained-state measurements passed at 10k, 100k, and 1M observations with 25 retained rankings and retained managed memory far below the 256 MiB provisional budget.
+- Phase 3 classification/rule evaluation, persistence/history, cleanup planning, and execution remain unimplemented.
+
 ### Added — Phase 1 engineering foundation (2026-07-13)
 
 - Buildable .NET 10 solution with contracts, core, persistence, rules, Windows adapters, restricted CLI, and WinUI projects.

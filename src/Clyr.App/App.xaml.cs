@@ -38,9 +38,9 @@ public partial class App : Application
             .Build();
         var demoDataOnly = bool.TryParse(configurationRoot["Application:DemoDataOnly"], out var configuredDemoDataOnly)
             ? configuredDemoDataOnly
-            : ApplicationConfiguration.PhaseOneDefaults.DemoDataOnly;
+            : ApplicationConfiguration.PhaseTwoDefaults.DemoDataOnly;
         var applicationConfiguration = new ApplicationConfiguration(
-            configurationRoot["Application:Phase"] ?? ApplicationConfiguration.PhaseOneDefaults.Phase,
+            configurationRoot["Application:Phase"] ?? ApplicationConfiguration.PhaseTwoDefaults.Phase,
             demoDataOnly);
 
         var services = new ServiceCollection();
@@ -49,6 +49,10 @@ public partial class App : Application
         services.AddSingleton<IEnvironmentInfo, WindowsEnvironmentInfo>();
         services.AddSingleton<IPrivacyRedactor, PrivacyRedactor>();
         services.AddSingleton<IDemoDataService, DemoDataService>();
+        services.AddSingleton<IDriveDiscovery, WindowsDriveDiscovery>();
+        services.AddSingleton<IFileSystemEnumerator, WindowsFileSystemEnumerator>();
+        services.AddSingleton<IScanService, ScanCoordinator>();
+        services.AddSingleton<IScanReportExporter, ScanReportExporter>();
         services.AddSingleton<MainWindow>();
         return services.BuildServiceProvider();
     }

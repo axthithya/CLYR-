@@ -4,9 +4,9 @@
 
 CLYR is a planned native Windows storage diagnostic application for people who can see that a drive is full but cannot safely tell why. It will lead with evidence: what occupies space, how confident the measurement is, which regions were inaccessible, and why a finding needs attention. The reusable C# engine will support a WinUI 3 desktop experience and a command-line interface.
 
-## Project status: Phase 1 engineering foundation complete
+## Project status: Phase 2 read-only scanner complete
 
-**The repository now contains the Phase 1 engineering foundation, but no scanner or cleanup feature. Do not use it to modify real files.** The WinUI shell and CLI expose deterministic demo data and validation-only commands. Real-drive read-only scanning is not planned until Phase 2. Cleanup execution is not planned until Phase 6 and requires a separate security gate.
+**The repository now contains the Phase 2 metadata-only scanner, but no cleanup feature.** WinUI and CLI can discover eligible fixed NTFS volumes and run explicit Quick or Deep analysis. Scans never read file contents, follow reparse points, hydrate cloud placeholders, request elevation, or modify the scanned drive. Cleanup execution is not planned until Phase 6 and requires a separate security gate.
 
 The primary target is Windows 11. Windows 10 22H2, ReFS, removable media, and packaged/unpackaged variants are **unverified**, not supported claims. See the [support matrix](docs/SUPPORT_MATRIX.md).
 
@@ -32,19 +32,21 @@ Screenshots remain deferred until the demo-only shell is reviewed. No mock scree
 There is no installer or public package. On Windows 11 x64, use .NET SDK 10.0.301 and the stable Windows App Runtime 2.2 developer prerequisite, then run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-phase1.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-phase2.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-winui.ps1
 ```
 
-The first command runs documentation regression checks, restore, Release build, all tests, formatting, package audits, CLI smoke tests, and rule validation. The second launches the local unpackaged WinUI developer build, selects every navigation destination through UI Automation, verifies the demo disclosure, and closes the process.
+The first command runs every Phase 0/1 regression plus Phase 2 scanner, Windows-adapter, schema, bounded-memory, and CLI drive-discovery gates. It deliberately does not start a real-drive scan. The second launches the unpackaged WinUI build, verifies navigation, drive overview, Quick/Deep controls, cancellation, and the read-only disclosure, then closes the process without scanning.
 
-The Phase 1 CLI intentionally exposes only these non-scanning commands:
+The Phase 2 CLI adds explicit read-only drive discovery and scanning:
 
 ```text
 clyr --help
 clyr --version
 clyr doctor
 clyr demo
+clyr drives [--json]
+clyr scan C:\ [--quick|--deep] [--top N] [--json] [--output <file>]
 clyr rules validate <path>
 ```
 
@@ -66,7 +68,7 @@ CLYR uses C# 14 on .NET SDK 10.0.301, WinUI 3 on Windows App SDK 2.2.0, SQLite t
 Build from the repository root with the workspace-local SDK or an installed .NET 10.0.301 SDK:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-phase1.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-phase2.ps1
 ```
 
 The UI and CLI depend on application services; domain logic does not depend on Windows UI. Windows APIs and external tools are isolated behind adapters. Declarative community rules can detect and explain but cannot contain executable commands. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) and [TECH_STACK.md](docs/TECH_STACK.md).

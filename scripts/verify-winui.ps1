@@ -48,14 +48,22 @@ try {
     }
 
     Start-Sleep -Milliseconds 250
-    $expectedDisclosure = "Demo data $([char]0x2014) no real drives have been scanned."
+    $expectedDisclosure = "Phase 2 analysis is local and read-only. CLYR reads metadata, never file contents."
     $disclosure = [System.Windows.Automation.PropertyCondition]::new(
         [System.Windows.Automation.AutomationElement]::NameProperty,
         $expectedDisclosure)
     if ($null -eq $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $disclosure)) {
-        throw 'The required demo-data disclosure did not render.'
+        throw 'The required read-only Phase 2 disclosure did not render.'
     }
-    Write-Host 'WinUI launch, navigation, and demo disclosure PASSED.' -ForegroundColor Green
+    foreach ($controlName in @('Local volume selector', 'Quick Analysis', 'Deep Analysis', 'Start analysis', 'Cancel analysis')) {
+        $controlCondition = [System.Windows.Automation.PropertyCondition]::new(
+            [System.Windows.Automation.AutomationElement]::NameProperty,
+            $controlName)
+        if ($null -eq $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $controlCondition)) {
+            throw "Required Phase 2 control did not render: $controlName"
+        }
+    }
+    Write-Host 'WinUI launch, navigation, drive overview, scan modes, cancellation, and read-only disclosure PASSED.' -ForegroundColor Green
 }
 finally {
     if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }

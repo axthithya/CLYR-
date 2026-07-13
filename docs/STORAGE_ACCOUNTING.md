@@ -129,6 +129,12 @@ observedFreeSpaceDelta = freeBytesAfter - freeBytesBefore
 
 It is not the sum of deleted file lengths. The receipt records before/after timestamps, filesystem API source, completed/failed/skipped target allocation, and reasons the delta may differ: concurrent writes, delayed deallocation, sharing/hard links, Recycle Bin behavior, compression/deduplication, virtual-disk compaction, filesystem metadata, or measurement granularity. A negative delta is valid evidence that other writes occurred; it is never clamped to zero or misreported as recovered bytes.
 
+## Phase 2 implemented subset
+
+Phase 2 reports observed logical file length only. Drive capacity/used/free come from drive metadata and are never equated with enumerated totals. `unaccountedBytes` is the non-negative difference between drive-used and observed logical bytes when drive evidence is available; it is a reconciliation clue, not a hidden-junk claim.
+
+Allocated, exclusive allocated, ADS, sparse/compression physical effect, and stable hard-link identity are not measured. Because multiple names for one hard-linked stream can be observed more than once, scan totals and rankings are `Estimated` and carry a visible hard-link limitation. Inaccessible/skipped content remains outside observed totals and is represented by coverage counts rather than invented bytes.
+
 ## Required accounting tests
 
 - Empty, single-file, nested-folder, changing-file, overflow, cancellation, and partial-access fixtures.

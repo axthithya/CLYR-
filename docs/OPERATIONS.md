@@ -2,7 +2,9 @@
 
 ## Current operational status
 
-Phase 1 provides a local developer-only WinUI shell, restricted CLI, libraries, tests, and verification scripts. There is no installer, signed package, telemetry endpoint, scanner, cleanup capability, service, helper, or supported end-user operation.
+Phase 2 provides a local developer-only WinUI metadata scanner, CLI drive discovery/scanning, libraries, tests, and verification scripts. There is no installer, signed package, telemetry endpoint, classification engine, snapshot persistence, cleanup capability, service, helper, or supported public end-user release.
+
+The scanner runs as the standard user and only after an explicit drive root/mode choice. `doctor`, `drives`, UI launch, tests, and verification scripts never start a scan. Automated verification uses fakes and isolated temporary fixtures. A maintainer may separately choose a manual Quick scan after confirming the target and read-only disclosure.
 
 ## Repository preflight
 
@@ -38,7 +40,7 @@ The WinUI developer build is unpackaged and framework-dependent. It requests `as
 
 ## Planned product-owned data
 
-The Phase 1 unpackaged shell uses no application database or implicit log directory. Tests provide explicit temporary locations. Packaged runtime storage, aggregate snapshots, settings persistence, journals/receipts, and future quarantine remain deferred and must occupy separate stable product-owned locations. Never use the repository, current directory, arbitrary user directory, or scanned root as implicit runtime storage.
+The Phase 2 unpackaged scanner uses no application database or implicit log directory. Tests provide explicit temporary locations. Packaged runtime storage, aggregate snapshots, settings persistence, journals/receipts, and future quarantine remain deferred and must occupy separate stable product-owned locations. Never use the repository, current directory, arbitrary user directory, or scanned root as implicit runtime storage.
 
 | Data area | Operator concern | Recovery/control |
 |---|---|---|

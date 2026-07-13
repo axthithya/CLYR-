@@ -2,9 +2,17 @@
 
 ## Contract
 
-The Phase 2 scanner will be read-only. It observes a chosen eligible volume during a time interval; it is not a transactional filesystem snapshot. Files may appear, disappear, grow, shrink, move, lock, or change permissions while enumeration proceeds. Results therefore carry start/end times, mode/options, coverage, skipped/inaccessible counts, error summaries, and an exact/estimated/partial state.
+The implemented Phase 2 scanner is read-only. It observes a chosen eligible volume during a time interval; it is not a transactional filesystem snapshot. Files may appear, disappear, grow, shrink, move, lock, or change permissions while enumeration proceeds. Results therefore carry start/end times, mode/options, coverage, skipped/inaccessible counts, error summaries, and an exact/estimated/partial state.
 
-The scanner must never write to the scanned volume, open file contents during a standard size scan, hydrate cloud placeholders, decrypt EFS content, take ownership, change ACLs, unlock files, terminate processes, follow a reparse point by default, or request elevation merely to improve coverage.
+The scanner never writes to the scanned volume, opens file contents, hydrates cloud placeholders, decrypts EFS content, takes ownership, changes ACLs, unlocks files, terminates processes, follows a reparse point, or requests elevation to improve coverage.
+
+## Phase 2 implementation record
+
+`ScanCoordinator` performs single-session iterative depth-first enumeration through `IFileSystemEnumerator`; directory roll-up requires O(depth) state and rankings retain only configured top-N entries. Issues are grouped into at most 32 stable summaries. Progress is immutable and published no more than every 250 ms plus lifecycle/terminal events. WinUI and CLI compose the same service.
+
+Quick Analysis traverses at most three levels and retains 25 ranked items by default. Deep Analysis uses a defensive 512-level bound and retains 100 by default. The public override is clamped to 1–1,000. Phase 2 is deliberately single-worker to keep disk behavior predictable; no unbounded queue exists.
+
+The Windows adapter uses directory enumeration, file attributes, and logical `FileInfo.Length` metadata. It skips reparse entries before recursion and recognizes Offline/Recall attributes as cloud placeholders. Allocated size and stable hard-link identity are deferred: all observed size rankings are labeled Estimated and explain possible hard-link double counting. No scan snapshot is persisted in Phase 2.
 
 ## Modes
 

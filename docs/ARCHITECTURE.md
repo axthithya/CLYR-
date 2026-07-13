@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document preserves the Phase 0 architecture contract and records the Phase 1 implementation subset. Phase 1 now provides the typed contracts, UI-independent core, explicit SQLite persistence foundation, bounded detection-only rule validator, Windows environment/logging adapters, restricted CLI, and non-elevated WinUI demo shell. Drive discovery, scanning, cleanup, movement, process execution, and elevation remain unimplemented.
+This document preserves the baseline architecture contract and records the Phase 2 implementation subset. Phase 2 adds typed scan contracts, a UI-independent bounded streaming coordinator, fixed-volume discovery, a Windows metadata adapter, privacy-safe export, CLI scan commands, and non-elevated WinUI scan controls. Classification, snapshot persistence, cleanup, movement, process execution, and elevation remain unimplemented.
 
 ## Context
 
@@ -117,7 +117,7 @@ Authoritative source: `docs/diagrams/components.mmd`.
 5. Cross-process payloads are DTOs, not serialized domain objects. Unknown protocol versions fail closed.
 6. All process execution lives in compiled first-party adapters using direct executable launch with an argument list. No layer exposes a generic command runner.
 7. UI-thread work is presentation only. Long I/O is cancellable and reports throttled immutable progress snapshots.
-8. Architecture tests in Phase 1 enforce these references and forbidden namespaces/APIs.
+8. Architecture and safety tests enforce these references, the Phase 2 read-only boundary, and forbidden namespaces/APIs.
 
 ## Process boundary
 

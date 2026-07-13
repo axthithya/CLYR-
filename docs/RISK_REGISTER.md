@@ -51,6 +51,14 @@ Owners are accountable roles until maintainers are assigned by name. Every accep
 | R-028 | Documentation, schemas, diagrams, rule metadata, UI, tests, and code drift on action types or safety policy. | `Medium` | Every phase | Canonical enum contract; generated/schema validation; link/terminology checks; architecture/safety tests; phase consistency review; decision log. | Documentation + QA | Open | Human prose can still drift. Acceptance requires phase-gate review and code/schema conformance tests. |
 | R-029 | Windows/API/packaging behavior is assumed supported without tests, especially multi-session and filesystem identity. | `High` | Phase 2 and Phase 6 | Capability/support matrix; official evidence; isolated Windows tests; unsupported state explicit; no support claim/elevation when unverified. | Platform Owner | Open | Hardware/filesystem diversity remains. Ship only tested combinations and fail closed elsewhere. |
 
+## Phase 2 implementation review — 2026-07-13
+
+- R-015 is Mitigating: the Windows adapter uses attributes and length metadata only; content reads, hydration, ACL/ownership changes, elevation, and reparse traversal are absent and regression-tested. Provider diversity remains open.
+- R-016 is Mitigating: support-safe scan export substitutes bounded rank tokens and declares that paths, usernames, filenames, contents, and automatic upload are excluded. Detailed export remains unimplemented.
+- R-017 is Mitigating: traversal retains O(depth) frames, capped rankings, grouped issues, throttled progress, cancellation, and overlap rejection. The 1M synthetic stream stayed below the 256 MiB retained-memory budget; real SSD/HDD duration remains device-dependent.
+- R-018 remains Open with an honest bound: Phase 2 reports logical bytes as Estimated, warns that hard links may double-count, leaves allocated size unavailable, and keeps drive-used separate from observed/unaccounted bytes.
+- R-026 remains Prohibited and enforced: automated tests use fakes or isolated temporary fixtures, and the Phase 2 verifier never scans a real drive root.
+
 ## Open risk-reduction decisions
 
 | Decision | Impact | Owner | Needed by | Required evidence |

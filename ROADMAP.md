@@ -29,12 +29,12 @@ Exit: a clean checkout builds and tests; app/CLI demo shells run; no real scan o
 
 ## Phase 2 — Read-only drive scanner MVP
 
-- [ ] Capability-based drive discovery and system-volume labeling.
-- [ ] Streaming bounded enumeration, conservative concurrency, progress throttling, cancellation, and partial results.
-- [ ] Skip and report reparse points; isolate access-denied, locked, disappeared, changed, long-path, and removed-drive errors.
-- [ ] Aggregate logical size, top-N folders/files and extensions; add allocated/hard-link evidence only when proven.
-- [ ] Quick/Deep contracts, coverage/uncertainty, cloud-placeholder-safe metadata, CLI JSON, and responsive WinUI screens.
-- [ ] Fixture-only integration, state, cancellation, loop, mutation-observation, benchmark, and no-write tests.
+- [x] Capability-based drive discovery and system-volume labeling.
+- [x] Streaming bounded enumeration, progress throttling, cancellation, overlap rejection, and partial results.
+- [x] Skip/report reparse points and isolate access-denied, disappeared, and enumeration errors.
+- [x] Aggregate logical size, bounded top-N folders/files, and structural extension families; allocated size remains unavailable and hard-link double counting is disclosed.
+- [x] Quick/Deep contracts, coverage/uncertainty, cloud-placeholder-safe metadata, privacy-safe CLI JSON, and responsive WinUI controls.
+- [x] Fake/temporary-fixture integration, lifecycle, cancellation, loop, no-content-read, privacy, schema, and 10k/100k/1M benchmark tests.
 
 Exit: scanner never writes or hydrates content, handles cancellation/partial access, and exposes uncertainty; no cleanup controls.
 
@@ -102,4 +102,4 @@ Exit: community data cannot execute code; failures are safe and reversible; v1 q
 
 ## Exact next phase
 
-After Phase 1 approval, the exact next phase is **Phase 2 — Read-only C: drive scanner MVP**. Do not begin it without explicit approval.
+Phase 2 is complete in the current working tree. Stop here. The exact next phase is **Phase 3 — Classification, explanations, and rule engine**, and it must not begin without explicit approval.
