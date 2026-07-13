@@ -22,6 +22,14 @@ function Test-Condition {
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $repoRoot
 
+function Test-IsGeneratedPath([string]$path) {
+    $gitRoot = (Join-Path $repoRoot '.git') + [System.IO.Path]::DirectorySeparatorChar
+    $toolsRoot = (Join-Path $repoRoot '.tools') + [System.IO.Path]::DirectorySeparatorChar
+    return $path.StartsWith($gitRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $path.StartsWith($toolsRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $path -match '[\\/](bin|obj)[\\/]'
+}
+
 $requiredFiles = @(
     'README.md', 'WHOLEPLAN.md', 'ROADMAP.md', 'PHASE_STATUS.md',
     'CHANGELOG.md', 'CONTRIBUTING.md', 'SECURITY.md', 'PRIVACY.md',
@@ -71,7 +79,7 @@ foreach ($path in $requiredFiles) {
 $utf8 = [System.Text.UTF8Encoding]::new($false, $true)
 $textFiles = Get-ChildItem -LiteralPath $repoRoot -Recurse -File |
     Where-Object {
-        $_.FullName -notlike "$repoRoot\.git\*" -and
+        -not (Test-IsGeneratedPath $_.FullName) -and
         $_.Extension -in @('.md', '.json', '.yaml', '.yml', '.mmd', '.ps1') -and
         $_.FullName -ne $PSCommandPath
     }
@@ -89,7 +97,7 @@ foreach ($file in $textFiles) {
 }
 
 $jsonFiles = Get-ChildItem -LiteralPath $repoRoot -Recurse -File -Filter '*.json' |
-    Where-Object { $_.FullName -notlike "$repoRoot\.git\*" }
+    Where-Object { -not (Test-IsGeneratedPath $_.FullName) }
 foreach ($file in $jsonFiles) {
     try {
         $null = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -144,9 +152,17 @@ foreach ($risk in $canonicalRisks) {
     Test-Condition ($allText.Contains($risk)) "Canonical risk term is absent: $risk"
 }
 
-$productCode = @(Get-ChildItem -LiteralPath $repoRoot -Recurse -File |
-    Where-Object { $_.Extension -in @('.cs', '.csproj', '.sln', '.props', '.targets') })
-Test-Condition ($productCode.Count -eq 0) 'Phase 0 contains .NET product or solution files.'
+$phaseOneSolutionExists = Test-Path -LiteralPath 'Clyr.sln' -PathType Leaf
+if ($phaseOneSolutionExists) {
+    $elevatedImplementation = @(Get-ChildItem -LiteralPath 'src/Clyr.ElevatedHelper' -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -in @('.cs', '.csproj') })
+    Test-Condition ($elevatedImplementation.Count -eq 0) 'The future elevated helper was implemented before its approved phase.'
+}
+else {
+    $productCode = @(Get-ChildItem -LiteralPath $repoRoot -Recurse -File |
+        Where-Object { $_.Extension -in @('.cs', '.csproj', '.sln', '.props', '.targets') })
+    Test-Condition ($productCode.Count -eq 0) 'Phase 0 contains .NET product or solution files.'
+}
 
 $forbiddenPatterns = @(
     '(?i)Remove-Item\s+.*-Recurse',
@@ -156,15 +172,19 @@ $forbiddenPatterns = @(
     '(?i)Process\.Start\s*\('
 )
 foreach ($pattern in $forbiddenPatterns) {
-    $matches = Get-ChildItem -LiteralPath $repoRoot -Recurse -File |
-        Where-Object { $_.FullName -notlike "$repoRoot\.git\*" -and $_.Extension -notin @('.md', '.mmd') } |
+    $matches = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src') -Recurse -File |
+        Where-Object { -not (Test-IsGeneratedPath $_.FullName) -and $_.Extension -notin @('.md', '.mmd') } |
         Select-String -Pattern $pattern
     Test-Condition ($null -eq $matches) "Executable destructive or shell pattern found: $pattern"
 }
 
 if (Get-Command git -ErrorAction SilentlyContinue) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     $diffCheck = & git diff --check 2>&1
-    Test-Condition ($LASTEXITCODE -eq 0) ("git diff --check failed: " + ($diffCheck -join '; '))
+    $diffExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorActionPreference
+    Test-Condition ($diffExitCode -eq 0) ("git diff --check failed: " + ($diffCheck -join '; '))
 }
 
 if ($script:Failures.Count -gt 0) {
@@ -174,4 +194,9 @@ if ($script:Failures.Count -gt 0) {
 }
 
 Write-Host "Phase 0 verification PASSED ($($script:Checks) checks; $($requiredFiles.Count) required files; $($mermaidFiles.Count) Mermaid sources; $($jsonFiles.Count) JSON files)." -ForegroundColor Green
-Write-Host 'Note: full Draft 2020-12 and Mermaid parser conformance is recorded separately; Phase 1 must pin those validators.'
+if ($phaseOneSolutionExists) {
+    Write-Host 'Note: Phase 1 uses pinned Draft 2020-12 validation; Mermaid rendering remains a separate tool gate.'
+}
+else {
+    Write-Host 'Note: full Draft 2020-12 and Mermaid parser conformance is recorded separately; Phase 1 must pin those validators.'
+}

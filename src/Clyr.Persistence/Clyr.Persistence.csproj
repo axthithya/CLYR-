@@ -2,6 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Clyr.Contracts\Clyr.Contracts.csproj" />
     <ProjectReference Include="..\Clyr.Core\Clyr.Core.csproj" />
-    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
   </ItemGroup>
 </Project>

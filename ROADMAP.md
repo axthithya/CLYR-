@@ -17,13 +17,13 @@ Exit: applicable Phase 0 checks pass, no destructive or product implementation c
 
 ## Phase 1 — Solution skeleton and engineering foundation
 
-- [ ] Install/verify the latest patched .NET 10 SDK and record the environment blocker resolution.
-- [ ] Recheck official sources; pin SDK, stable Windows App SDK, NuGet/test packages, and Actions.
-- [ ] Create `Clyr.sln`, central props/packages, projects, dependency boundaries, nullable/analyzers/warnings-as-errors, and formatting.
-- [ ] Add DI/configuration, privacy-safe logging, versioned contracts, SQLite migration foundation, and fake filesystem/process adapters.
-- [ ] Add WinUI navigation and isolated demo-data shell; CLI help/doctor/rule validation; no real-drive scan.
-- [ ] Add test projects, architecture tests, fixture generator skeleton, CI, vulnerability/license/no-secret checks, and verification script.
-- [ ] Prove Release build/tests, app launch, CLI help, schema validation, no admin requirement, and no mutation.
+- [x] Install/verify the latest patched .NET 10 SDK and record the environment blocker resolution.
+- [x] Recheck official sources; pin SDK, stable Windows App SDK, NuGet/test packages, and Actions.
+- [x] Create `Clyr.sln`, central props/packages, projects, dependency boundaries, nullable/analyzers/warnings-as-errors, and formatting.
+- [x] Add DI/configuration, privacy-safe logging, versioned contracts, SQLite migration foundation, deterministic environment/clock fakes, and enforce that no filesystem/process execution adapter exists yet.
+- [x] Add WinUI navigation and isolated demo-data shell; CLI help/doctor/rule validation; no real-drive scan.
+- [x] Add test projects, architecture tests, fixture-generator responsibility skeleton, CI, vulnerability/license/no-secret checks, and verification scripts.
+- [x] Prove Release build/tests, app launch/navigation, CLI commands, schema validation, no admin requirement, and no mutation capability.
 
 Exit: a clean checkout builds and tests; app/CLI demo shells run; no real scan or cleanup exists.
 
@@ -102,4 +102,4 @@ Exit: community data cannot execute code; failures are safe and reversible; v1 q
 
 ## Exact next phase
 
-After Phase 0 approval, execute **Phase 1 — Solution skeleton and engineering foundation** only. Do not begin Phase 2 scanning in the same run.
+After Phase 1 approval, the exact next phase is **Phase 2 — Read-only C: drive scanner MVP**. Do not begin it without explicit approval.

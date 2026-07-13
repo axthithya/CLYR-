@@ -1,6 +1,6 @@
 # CLYR Risk Register
 
-Status: Phase 0 baseline. Most controls are design requirements and remain unimplemented.
+Status: Phase 0 baseline with the Phase 1 implementation review recorded below. Most scanner, planning, execution, packaging, and release controls remain unimplemented.
 Review cadence: at every phase exit, capability proposal, security-relevant dependency/rule change, packaging change, and incident/near miss.
 
 ## Rating and status rules
@@ -81,3 +81,10 @@ Owners are accountable roles until maintainers are assigned by name. Every accep
 ## Phase 0 closeout — 2026-07-12
 
 The baseline register passed the cross-document terminology and ownership review. Documentation controls reduced design ambiguity for R-001 through R-029 but did not close any future implementation risk. `Prohibited` risks R-026 and R-027 remain non-waivable. R-028 (documentation/code drift) remains Open and is now backed by the local Phase 0 verifier, schema conformance, Mermaid rendering, and link/structure audits; Phase 1 must extend those checks into compiled architecture and safety tests. The packaging identity, stable file identity, journal durability, quarantine, adapter, and retention decisions above remain open gates for their stated phases.
+
+## Phase 1 implementation review — 2026-07-13
+
+- R-016 is mitigating: privacy redaction and structured-local-log tests remove usernames and home paths; no network logging exists.
+- R-021 is mitigating: exact central pins, immutable CI action SHAs, restored-license inventory, and a zero-vulnerability audit are active. Final signing and SBOM remain Phase 9 work.
+- R-026 remains prohibited and enforced: tests use memory, repository fixtures, or random operating-system temporary paths only.
+- R-007 remains prohibited and enforced: the application manifest is `asInvoker`; there is no helper project, service, task, startup registration, or arbitrary process API.

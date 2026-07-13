@@ -1,6 +1,6 @@
 # ADR 0001: Native Windows Stack
 
-- **Status:** Accepted for planning; exact versions pending Phase 1 verification
+- **Status:** Accepted; Phase 1 versions verified
 - **Date:** 2026-07-10
 - **Decision owners:** Product architecture and Windows platform
 
@@ -18,8 +18,8 @@ Use C# on the latest patched .NET 10 LTS, WinUI 3 on the stable Windows App SDK 
 - C# contracts can be shared by app, CLI, tests, and a future minimal helper.
 - WinUI packaging/build/tooling increases Windows-specific test and signing work.
 - The project remains Windows-first, not cross-platform.
-- The current host has no .NET SDK, so Phase 1 is blocked until a supported .NET 10 SDK is installed and verified.
-- Stable-channel version evidence is currently inconsistent across official pages; Phase 1 must reconcile release notes, NuGet, templates, and support lifecycle rather than copying a stale number.
+- Phase 1 verified .NET SDK 10.0.301, Windows App SDK 2.2.0, Windows target 10.0.26100.0, and an unpackaged framework-dependent `win-x64` launch.
+- Production MSIX identity, signing, clean installation, and lifecycle evidence remain Phase 9 responsibilities.
 
 ## Alternatives
 
@@ -30,4 +30,4 @@ Use C# on the latest patched .NET 10 LTS, WinUI 3 on the stable Windows App SDK 
 
 ## Validation
 
-Phase 1 must prove restore, Release build, launch, accessibility shell, package identity behavior, CLI help, architecture boundaries, and Windows runner CI. A documented blocker requires a superseding ADR; no silent UI-framework substitution is allowed.
+Phase 1 proved restore, warning-free Release build, WinUI launch/navigation, CLI commands, architecture boundaries, and pinned Windows runner CI. Package identity and full accessibility certification remain later gates; no silent UI-framework substitution is allowed.

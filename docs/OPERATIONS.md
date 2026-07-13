@@ -2,7 +2,7 @@
 
 ## Current operational status
 
-Phase 0 is documentation only. There is no application, SDK project, package, database, service, telemetry endpoint, helper, release, or supported user operation. The only current runbook is repository/document verification. Commands for later phases are contracts and must not be presented as working until implemented.
+Phase 1 provides a local developer-only WinUI shell, restricted CLI, libraries, tests, and verification scripts. There is no installer, signed package, telemetry endpoint, scanner, cleanup capability, service, helper, or supported end-user operation.
 
 ## Repository preflight
 
@@ -28,13 +28,17 @@ Phase 0:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-phase0.ps1
 ```
 
-When Mermaid CLI is available, render every `.mmd` to a temporary output outside authoritative sources; do not commit binary diagrams in Phase 0. Phase 1 introduces one `scripts/verify.ps1` entry point for format, Release build, unit/safety/integration/contract/architecture tests, rule/export validation, dependency vulnerability/license inventory, secret scan, generated-doc checks, and applicable package dry run.
+When Mermaid CLI is available, render every `.mmd` to temporary output outside authoritative sources; do not commit rendered binaries. Phase 1 uses `scripts/verify-phase1.ps1` for the compiled and repository gates.
 
-The current host has .NET 8.0.28 runtimes but no SDK. Phase 1 must install and verify a supported .NET 10 SDK before any `dotnet` gate. Do not downgrade the architecture to fit the host.
+## Phase 1 developer operation
+
+Phase 1 is pinned to SDK 10.0.301. The workspace can use the ignored `.tools/dotnet` installation; CI installs the same SDK. Run `scripts/verify-phase1.ps1` from PowerShell to execute Phase 0 regression checks, restore, Release build, all tests, format verification, dependency/vulnerability reports, CLI smoke tests, and valid-rule validation. Run `scripts/verify-winui.ps1` in an interactive Windows session for launch, navigation-selection, and demo-disclosure evidence.
+
+The WinUI developer build is unpackaged and framework-dependent. It requests `asInvoker`, has no package capabilities, and creates no startup registration, service, task, or helper. SQLite initialization occurs only in `Clyr.Persistence.SqliteRuntime`; tests and composition roots call that idempotent boundary.
 
 ## Planned product-owned data
 
-Packaged and unpackaged path behavior is resolved/tested in Phase 1. Settings, aggregate snapshots, privacy-safe logs, demo data, action journals/receipts, and future quarantine must occupy separate stable product-owned locations. Never use the repository, current directory, arbitrary user directory, or scanned root as implicit runtime storage.
+The Phase 1 unpackaged shell uses no application database or implicit log directory. Tests provide explicit temporary locations. Packaged runtime storage, aggregate snapshots, settings persistence, journals/receipts, and future quarantine remain deferred and must occupy separate stable product-owned locations. Never use the repository, current directory, arbitrary user directory, or scanned root as implicit runtime storage.
 
 | Data area | Operator concern | Recovery/control |
 |---|---|---|

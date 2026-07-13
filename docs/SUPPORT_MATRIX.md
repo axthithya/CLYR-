@@ -83,8 +83,8 @@ Every row includes the fields required by the Phase 0 support contract.
 
 | Capability | Windows requirement | Filesystem requirement | Package identity | Admin | API/tool dependency | Offline behavior | Failure/fallback | Test coverage plan | Release status |
 |---|---|---|---|---|---|---|---|---|---|
-| WinUI app launch/navigation | Claimed Windows 11 lane | None beyond app install volume | Required for MSIX | No | .NET 10, Stable Windows App SDK | Full | Explain unsupported OS/runtime/package; no web fallback | Phase 1 unit/manual packaged launch; Phase 9 clean install/accessibility | Planned |
-| CLI help/version shell | Claimed Windows 11 lane | None | To decide: separate package/executable | No | .NET 10, System.CommandLine | Full | Stable nonzero error; no shell invocation | Phase 1 CLI tests/architecture tests | Planned |
+| WinUI app launch/navigation | Verified local Windows 11 developer lane | None | Unpackaged developer build; no installer | No | .NET 10.0.9, Windows App SDK 2.2.0 | Developer-only | Startup error window; no web fallback | Phase 1 UI Automation launch and all-navigation selection; Phase 9 clean install/accessibility | Verified for Phase 1 only |
+| CLI help/version/doctor/demo/rule validation | Verified local Windows 11 developer lane | Explicit rule path only for validation | No distribution package | No | .NET 10.0.9, first-party exact-token parser | Developer-only | Stable nonzero errors; no shell invocation | Phase 1 CLI and safety tests plus smoke commands | Verified for Phase 1 only |
 | Discover system volume and fixed drives | Claimed Windows 11 lane | Local volumes | App package identity, not scan authorization | No | Documented Windows drive/known-folder APIs | Full | Partial list with stable diagnostic; never assume C: is system | Phase 2 fake adapter + patched OS manual tests | Planned |
 | Analyze system volume | Claimed Windows 11 lane | NTFS first | Required for app channel | No | Windows filesystem APIs | Full | Partial result with skipped/inaccessible counts | Phase 2 fixture/integration/performance/cancellation | Planned |
 | Analyze another fixed local volume | Same | NTFS first | Same | No | Same | Full | Explicitly selected eligible volume only | Phase 2 multi-volume fake/manual tests | Planned |
@@ -98,7 +98,7 @@ Every row includes the fields required by the Phase 0 support contract.
 | “Why is this drive full?” explanations | Same | Uses available evidence | Same | No | Core aggregation/rules | Full | Show unknown/protected/coverage rather than invent cause | Phase 3 curated fixtures/false-positive review | Planned |
 | Privacy-safe Summary JSON export | Same | Destination selected by user | Same | No | System.Text.Json, Draft 2020-12 schema | Full | Produce no export on redaction/schema/write failure | Phase 2/3 golden/schema/privacy/failure tests | Planned |
 | Detailed local-only export | Same | User-selected destination | Same | No | Future separate schema/explicit UX | Full | Unavailable; never fall back from Summary to raw detail | Later privacy review and corpus | Planned later |
-| SQLite settings/snapshots | Same | App-owned local storage | Package identity determines app-data location | No | Microsoft.Data.Sqlite | Full | In-memory/recovery mode; preserve corrupt source evidence | Phase 1 adapter; Phase 4 migrations/corruption/interruption | Planned |
+| SQLite metadata migration foundation | Verified test lane only | In-memory or random OS temporary fixture | No production database path in Phase 1 | No | Microsoft.Data.Sqlite.Core 10.0.9; SQLite 3.50.4 | Foundation only | Reject newer schema; dispose and release fixture | Phase 1 initialization/version/idempotency/concurrency/release tests; Phase 4 product storage | Verified foundation; product storage planned |
 | Snapshot comparison / “What grew?” | Same | Prior compatible snapshots | Same | No | SQLite/core | Full | Compare partial coverage honestly or reject incompatible schema | Phase 4 migration/diff/retention tests | Planned |
 | NTFS USN acceleration | Same | Local NTFS with usable journal | Same | Possibly unavailable without rights; must have nonadmin fallback | USN APIs | Full | Full enumeration correctness path; reset/wrap handled | Phase 4 journal/reset/wrap/no-journal tests | Planned optional |
 | Duplicate detection | Same | Readable selected files; opt-in | Same | No | Bounded hashing | Full | Size/partial/full hash staged; no removal action | Later staged hash/cancel/privacy/performance tests | Planned later |
@@ -167,9 +167,9 @@ For every claimed environment, the release report records OS edition/version/bui
 
 ## Phase 1 pinning and verification notes
 
-- Install a supported x64 .NET 10 SDK; the local .NET 8.0.28 runtimes are insufficient and there is currently no SDK.
-- Reconcile Microsoft Windows App SDK sources and pin an exact Stable package only after NuGet/template/build/launch proof.
-- Generate a fresh packaged C# WinUI template and record target/min Windows versions and required Visual Studio 2026/Windows SDK components.
+- Verified locally with the workspace SDK 10.0.301, MSBuild 18.6.4, Windows target 10.0.26100.0, Windows SDK Build Tools 10.0.28000.2270, and Windows App SDK 2.2.0.
+- The `win-x64` unpackaged framework-dependent developer shell builds, launches, renders all navigation destinations, and remains a developer topology rather than a support or distribution claim.
+- Packaged template, production identity, clean install/upgrade/uninstall, signing, and self-contained evidence remain Phase 9 work.
 - Use an explicit Windows hosted-runner label and log its image version; do not infer client OS support from a Windows Server CI runner.
 - Pin all NuGet/test/native packages centrally and verify the `win-x64` closure, licenses, hashes, and vulnerabilities.
 - Decide only a **provisional** Phase 1 test matrix; public support stays Planned until Phase 9 signed acquisition and smoke evidence.

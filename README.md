@@ -4,9 +4,9 @@
 
 CLYR is a planned native Windows storage diagnostic application for people who can see that a drive is full but cannot safely tell why. It will lead with evidence: what occupies space, how confident the measurement is, which regions were inaccessible, and why a finding needs attention. The reusable C# engine will support a WinUI 3 desktop experience and a command-line interface.
 
-## Project status: Phase 0 complete — documentation only
+## Project status: Phase 1 engineering foundation complete
 
-**There is no installable application, scanner, or cleanup feature in this repository yet. Do not use this repository to modify real files.** Phase 0 defines the product, safety boundaries, architecture, schemas, UX, and verification strategy. Phase 1 will create a non-destructive solution skeleton; real-drive read-only scanning is not planned until Phase 2. Cleanup execution is not planned until Phase 6 and will require a separate security gate.
+**The repository now contains the Phase 1 engineering foundation, but no scanner or cleanup feature. Do not use it to modify real files.** The WinUI shell and CLI expose deterministic demo data and validation-only commands. Real-drive read-only scanning is not planned until Phase 2. Cleanup execution is not planned until Phase 6 and requires a separate security gate.
 
 The primary target is Windows 11. Windows 10 22H2, ReFS, removable media, and packaged/unpackaged variants are **unverified**, not supported claims. See the [support matrix](docs/SUPPORT_MATRIX.md).
 
@@ -25,28 +25,27 @@ CLYR's promise is transparency: nothing is silently removed, every recommendatio
 5. In later phases, compare snapshots and answer “What grew?”
 6. Only after dedicated security phases, generate an immutable dry run before any opt-in action.
 
-Screenshots will be added from the isolated demo-data mode after the Phase 1 UI shell exists. No mock screenshot is presented as a working product.
+Screenshots remain deferred until the demo-only shell is reviewed. No mock screenshot is presented as a working product.
 
 ## Installation and quick start
 
-Installation is not available in Phase 0. For a documentation review:
+There is no installer or public package. On Windows 11 x64, use .NET SDK 10.0.301 and the stable Windows App Runtime 2.2 developer prerequisite, then run:
 
 ```powershell
-git clone <future-repository-url>
-cd clyr
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-phase0.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-phase1.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-winui.ps1
 ```
 
-The repository currently has no configured remote, so `<future-repository-url>` is intentionally illustrative. The local verification script checks documentation, schemas, examples, naming, safety language, and obvious destructive code patterns. Mermaid rendering is an optional additional gate when Mermaid CLI is available.
+The first command runs documentation regression checks, restore, Release build, all tests, formatting, package audits, CLI smoke tests, and rule validation. The second launches the local unpackaged WinUI developer build, selects every navigation destination through UI Automation, verifies the demo disclosure, and closes the process.
 
-These are **planned**, non-functional CLI examples for later read-only phases:
+The Phase 1 CLI intentionally exposes only these non-scanning commands:
 
 ```text
-clyr drives
-clyr scan C:
-clyr scan C: --json
-clyr rules validate
+clyr --help
+clyr --version
 clyr doctor
+clyr demo
+clyr rules validate <path>
 ```
 
 ## Safety and privacy
@@ -62,7 +61,13 @@ Read [SAFETY_MODEL.md](docs/SAFETY_MODEL.md), [PRIVACY.md](PRIVACY.md), and [SEC
 
 ## Architecture
 
-CLYR uses C# on the latest patched .NET 10 LTS, WinUI 3 on the stable Windows App SDK channel, MVVM, SQLite, versioned YAML rules validated by JSON Schema, xUnit, and GitHub Actions on Windows runners. Exact versions are deliberately deferred to Phase 1 verification and central pinning.
+CLYR uses C# 14 on .NET SDK 10.0.301, WinUI 3 on Windows App SDK 2.2.0, SQLite through the explicit 3.50.4.5 native bundle, constrained YAML rules validated against Draft 2020-12 JSON Schema, xUnit, and GitHub Actions on Windows runners. All external versions are centrally pinned.
+
+Build from the repository root with the workspace-local SDK or an installed .NET 10.0.301 SDK:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-phase1.ps1
+```
 
 The UI and CLI depend on application services; domain logic does not depend on Windows UI. Windows APIs and external tools are isolated behind adapters. Declarative community rules can detect and explain but cannot contain executable commands. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) and [TECH_STACK.md](docs/TECH_STACK.md).
 

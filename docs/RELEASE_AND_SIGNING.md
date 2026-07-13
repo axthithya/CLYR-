@@ -242,13 +242,10 @@ Any signature state other than valid/trusted/timestamped as required blocks publ
 
 ### Phase 1
 
-- Install and pin a supported .NET 10 SDK.
-- Reconcile and pin Stable Windows App SDK.
-- Create non-production single-project MSIX package spike.
-- Record generated manifest, capabilities, target/min Windows versions, package mode, and clean local launch.
-- Decide framework-dependent versus self-contained experimentally, without publishing.
-- Create build/test CI only; no release/signing secret or production workflow.
-- Add central package pins, lock/audit/license inventory foundation.
+Implemented decision: the Phase 1 shell is an unpackaged, framework-dependent `win-x64` developer build using Windows App SDK 2.2.0. It is not signed, published, installed, or assigned a production package identity. The embedded manifest requests `asInvoker`; there are no capabilities, startup entries, services, scheduled tasks, or update channels. ADR 0006 records why final MSIX and multi-executable decisions remain deferred.
+
+- Completed: pinned .NET SDK and stable Windows App SDK, central package/audit/license inventory, build/test CI, explicit `asInvoker` manifest, and clean unpackaged launch evidence.
+- Deferred: MSIX package identity, signing, self-contained comparison, clean install/upgrade/uninstall, and publication remain Phase 9 work.
 
 ### Before Phase 6
 

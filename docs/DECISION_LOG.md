@@ -16,6 +16,10 @@ This is the concise cross-project index. Architecture details live in the linked
 | D-010 | 2026-07-10 | Accepted | Do not create empty project directories or fake build artifacts during Phase 0. | Planned structure is documented; projects are Phase 1 deliverables. |
 | D-011 | 2026-07-10 | Accepted | Defer exact SDK/package pins to a fresh authoritative check at Phase 1 start. | Avoids stale pins; the local host currently has no .NET SDK. |
 | D-012 | 2026-07-12 | Accepted | Close Phase 0 after the applicable documentation, schema, Mermaid, link, terminology, privacy, and repository checks passed. | Phase 1 remains separately approval-gated; no runtime/build capability is implied by Phase 0 completion. |
+| D-013 | 2026-07-13 | Accepted | Pin .NET SDK 10.0.301, Windows App SDK 2.2.0, and all packages through Central Package Management. | Stable reproducible Phase 1 builds; no floating or project-level versions. |
+| D-014 | 2026-07-13 | Accepted | Use Microsoft.Data.Sqlite.Core 10.0.9 with SQLitePCLRaw.bundle_e_sqlite3 3.0.3. | Removes the vulnerable convenience-package native closure and resolves SourceGear.sqlite3 3.50.4.5 explicitly. |
+| D-015 | 2026-07-13 | Accepted | Use JsonSchema.Net 7.4.0, the last reviewed MIT binary line, for Draft 2020-12 validation. | Corvus 5.2.6 runtime compilation failed under .NET 10; newer JsonSchema.Net binaries carry additional fee terms. |
+| D-016 | 2026-07-13 | Accepted | Use an unpackaged framework-dependent WinUI developer build in Phase 1. | Proves stable WinUI without prematurely selecting production identity, installer, signing, or future helper topology. |
 
 ## Change protocol
 

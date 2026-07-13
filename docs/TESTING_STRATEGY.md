@@ -74,6 +74,10 @@ Required files/headings; UTF-8/line endings; JSON parse; Draft 2020-12 schemas; 
 
 ### Phase 1
 
+Implemented Phase 1 coverage contains 38 behavioral tests across eight projects: contracts (3), core/privacy/configuration (4), persistence/SQLite (4), rules (7), Windows adapters/logging (2), CLI (8), safety/architecture (9), and integration (1). Tests use deterministic demo data, in-memory SQLite or random files under the operating-system temporary directory, approved repository rule fixtures, and fake environment values. No test targets a real Windows or application-data directory.
+
+The Release build treats warnings and analyzers as errors. The repository safety suite verifies Central Package Management, exact stable versions, dependency direction, a non-elevated manifest, forbidden mutation/process APIs, and the absence of Phase 2 service types. The persistence suite captures `sqlite_version()` and enforces the documented patched minimum from ADR 0007.
+
 Format; warnings-as-errors Release build; unit/architecture/contract/schema tests; app demo launch; CLI help/doctor; fake filesystem separation; dependency vulnerability/license inventory; no-secret scan; CI on pinned Windows runner/toolchain. No real scan or cleanup.
 
 ### Phases 2–4
@@ -90,11 +94,11 @@ Clean VM install/launch/upgrade/downgrade policy/uninstall, package/signature/pr
 
 ## UI and accessibility testing
 
-Phase 1 uses deterministic demo-data view-model tests and manual keyboard/screen-reader/theme/scaling smoke checks. A maintained WinUI/package-compatible automation approach must be proven before coverage is claimed. Phase 9 tests light, dark, high contrast, 200% text, keyboard-only, Narrator, reduced motion, chart alternatives, focus after errors/dialogs, and exact action announcements. Manual evidence names OS/build, package topology, assistive technology, and findings; screenshots never substitute for semantic checks.
+Phase 1 uses deterministic demo data plus `scripts/verify-winui.ps1`, which launches the unpackaged app, finds the `CLYR` window through Windows UI Automation, selects Overview, Scan, Results, History, Developer Mode, Privacy, Licenses, About, and Settings, verifies every selection, checks the exact demo disclosure, and closes the app. Keyboard, Narrator, theme, and scaling certification remain Phase 9 work.
 
 ## Quality-gate command
 
-`scripts/verify-phase0.ps1` is the Phase 0 entry point. Phase 1 replaces/extends it with one repository verification script that runs applicable gates in a documented order and returns nonzero on any failure. CI invokes the same logic. Optional unavailable tools produce a documented manual/unverified gate; required unavailable tools fail the active phase.
+`scripts/verify-phase0.ps1` remains the documentation regression entry point. `scripts/verify-phase1.ps1` extends it with restore, Release build, tests, format, package audit/inventory, CLI, and rule-validation gates; CI invokes the same logic. `scripts/verify-winui.ps1` is the interactive-session launch/navigation gate.
 
 ## Test-data privacy
 

@@ -4,6 +4,23 @@ All notable project changes are recorded here. The format follows Keep a Changel
 
 ## [Unreleased]
 
+### Added — Phase 1 engineering foundation (2026-07-13)
+
+- Buildable .NET 10 solution with contracts, core, persistence, rules, Windows adapters, restricted CLI, and WinUI projects.
+- Deterministic demo-data mode, typed JSON configuration, privacy redaction, structured local logging, typed outcomes, guarded startup errors, and dependency injection.
+- Explicit SQLite provider initialization and idempotent app-metadata migrations using native SQLite 3.50.4.5.
+- Constrained YAML parsing with Draft 2020-12 JSON Schema validation and malicious-rule rejection.
+- Restricted CLI commands: help, version, doctor, demo, and rules validate.
+- Branded non-elevated WinUI shell with placeholder navigation and the explicit no-real-scan demo label.
+- Thirty-eight behavioral tests covering contracts, configuration, privacy, rules, SQLite, CLI, architecture, safety, and integration, plus a WinUI launch/navigation smoke test.
+- Central Package Management, immutable-action CI, dependency/license inventory, and the Phase 1 verification entry point.
+
+### Security — Phase 1
+
+- Replaced the vulnerable SQLite convenience meta-package with Microsoft.Data.Sqlite.Core 10.0.9 plus SQLitePCLRaw.bundle_e_sqlite3 3.0.3.
+- Confirmed the resolved SourceGear.sqlite3 native package is 3.50.4.5 and the dependency audit reports no known vulnerable packages.
+- No scanner, cleanup, delete, move, shell execution, elevation, service, startup task, or functional helper was added.
+
 ### Added — Phase 0 (completed 2026-07-12)
 
 - Product brief, specification, personas, stories, misuse cases, C:-first journey, scope, non-goals, and complete phased plan.

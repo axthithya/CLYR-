@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This is the Phase 0 architecture contract. It describes planned components; none is implemented yet. CLYR is a native Windows application with a reusable CLI engine. The default product journey analyzes the system volume and says “Analyze C:” only when C: is the discovered target. The engine remains drive-agnostic for explicitly selected eligible local volumes.
+This document preserves the Phase 0 architecture contract and records the Phase 1 implementation subset. Phase 1 now provides the typed contracts, UI-independent core, explicit SQLite persistence foundation, bounded detection-only rule validator, Windows environment/logging adapters, restricted CLI, and non-elevated WinUI demo shell. Drive discovery, scanning, cleanup, movement, process execution, and elevation remain unimplemented.
 
 ## Context
 
@@ -152,7 +152,7 @@ Raw paths are sensitive transient data. Summary reports and logs use redacted to
 
 ## Storage and integrity model
 
-SQLite is planned for settings, aggregate snapshots, finding evidence, schema/rule versions, and later action journals/receipts. Data classes remain separated. Writes are transactional; migrations are versioned and tested from every supported version; integrity checks and corruption recovery are explicit; retention is bounded and user-controlled. WAL, custom pragmas, encryption, or compression require measured shutdown/recovery trade-offs before enablement.
+Phase 1 implements only an idempotent schema-version and application-metadata migration foundation. `Clyr.Persistence.SqliteRuntime` owns the single guarded native initialization call, and `AppMetadataDatabase` rejects newer schemas. Aggregate snapshots, settings storage, findings, retention, recovery, journals, and receipts remain future work. WAL, custom pragmas, encryption, or compression require measured shutdown/recovery trade-offs before enablement.
 
 The conceptual schema is in `DATA_MODEL.md`. Storage quantities and overlap ownership are in `STORAGE_ACCOUNTING.md`.
 

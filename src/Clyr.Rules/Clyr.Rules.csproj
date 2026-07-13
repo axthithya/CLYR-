@@ -3,5 +3,6 @@
     <ProjectReference Include="..\Clyr.Contracts\Clyr.Contracts.csproj" />
     <ProjectReference Include="..\Clyr.Core\Clyr.Core.csproj" />
     <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="JsonSchema.Net" />
   </ItemGroup>
 </Project>

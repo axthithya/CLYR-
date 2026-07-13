@@ -2,8 +2,8 @@
 
 | Phase | Status | Branch/Commit | Tests | Deliverables | Known gaps | Next |
 |---:|---|---|---|---|---|---|
-| 0 — Discovery/specification | **Complete** | `master`; no commits | 478 repository checks; 13 Mermaid renders; schemas/YAML/links/structure passed | Full documentation, schemas, examples, diagrams, governance, and responsibility scaffolds | No runtime artifacts by design; .NET SDK/version pins and real CODEOWNERS identity are Phase 1 gates | Await approval for Phase 1 |
-| 1 — Engineering foundation | Planned | — | Not run | Solution/UI/CLI/demo/test skeleton | .NET 10 SDK not installed locally; versions not pinned | Await Phase 0 approval |
+| 0 — Discovery/specification | **Complete** | `main`; preserved history | 507 current regression checks; 13 Mermaid renders; schemas/YAML/structure passed | Full documentation, schemas, examples, diagrams, governance, and responsibility scaffolds | No runtime artifacts by design; implementation evidence belongs to later phases | Preserved |
+| 1 — Engineering foundation | **Complete — awaiting approval** | `main`; working tree only, no Codex Git mutation | 38/38 passed; 0 failed; 0 skipped; WinUI launch/navigation passed | .NET solution, typed foundations, configuration/DI, privacy logging, SQLite migration base, detection-only rules, restricted CLI, WinUI demo shell, CI and inventories | No installer, scanner, cleanup, execution, movement, elevation, service, or helper by design | Stop; await approval for Phase 2 |
 | 2 — Read-only scanner | Planned | — | Not run | Drive discovery and safe scanner | No implementation | After Phase 1 approval |
 | 3 — Rules/explanations | Planned | — | Not run | Detection-only rules and report | No implementation | After Phase 2 approval |
 | 4 — Snapshots/growth | Planned | — | Not run | Aggregate history and diff | No implementation | After Phase 3 approval |
@@ -16,11 +16,11 @@
 
 ## Current working-tree evidence
 
-- Repository root at preflight: local workspace root (reported in the phase evidence, not stored as a machine-specific setting).
-- Initial branch/status: `master`, no commits, empty working tree before Phase 0.
-- Initial remotes: none.
-- Initial existing solution/docs: none.
-- Preservation result: no prior project or user changes conflicted with this bootstrap.
-- Local tool fact: .NET 8 runtimes are installed, but `dotnet --info` reports **no SDKs**. Phase 1 cannot build until a supported .NET 10 SDK is installed and verified.
+- Branch: `main`; baseline `dd23811`; Phase 1 changes remain uncommitted for the maintainer.
+- SDK/runtime: .NET SDK 10.0.301, MSBuild 18.6.4, .NET runtime 10.0.9, Windows 10.0.26200 x64.
+- Stable UI toolchain: Windows App SDK 2.2.0, WinUI 2.2.1, Windows SDK Build Tools 10.0.28000.2270, `net10.0-windows10.0.26100.0`, `win-x64`.
+- Persistence: Microsoft.Data.Sqlite.Core 10.0.9 plus SQLitePCLRaw.bundle_e_sqlite3 3.0.3; SourceGear.sqlite3 3.50.4.5; runtime SQLite 3.50.4.
+- Verification: restore, warning-free Release build, 38 tests, format, package vulnerability audit, CLI smoke commands, rule validation, 13 Mermaid renders, and WinUI launch/navigation all passed.
+- Security boundary: `asInvoker`; no capabilities, scanner, cleanup, deletion, movement, Recycle Bin operation, arbitrary process execution, service, startup registration, or functional helper.
 
-Phase 0 completed on 2026-07-12 after every applicable documentation/schema/diagram/repository gate passed. Build, compiler, unit, safety-binary, integration-binary, package, and runtime vulnerability gates remain inapplicable because Phase 0 intentionally has no solution, package graph, or executable product. Phase 1 must install the .NET 10 SDK, revalidate version evidence, provision real CODEOWNERS identities, and activate those gates.
+Phase 0 history remains preserved. Phase 1 completed locally on 2026-07-13 and is stopped at its approval gate. No Phase 2 implementation has begun.
