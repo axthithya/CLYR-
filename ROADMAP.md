@@ -49,9 +49,9 @@ Exit: malicious/malformed rules fail; protected always wins; unknown remains unk
 
 ## Phase 4 — Snapshots and “What grew?”
 
-- [ ] Implement versioned SQLite aggregate snapshots, transactional migration, integrity/recovery, retention, and user deletion.
-- [ ] Compare complete/partial snapshots and rank growth without leaking paths.
-- [ ] Add history UI/CLI diff and a fallback-first optional USN abstraction with reset/wrap behavior.
+- [x] Implement versioned SQLite aggregate snapshots, transactional migration, integrity/recovery, retention, and user deletion.
+- [x] Compare complete/partial/cancelled snapshots and rank aggregate growth without leaking child paths.
+- [x] Add functional history UI/CLI and a fallback-first unsupported USN abstraction; full scans remain authoritative.
 
 Exit: migrations/diffs/retention pass; no journal dependency; incomplete comparisons expose uncertainty.
 
@@ -102,4 +102,4 @@ Exit: community data cannot execute code; failures are safe and reversible; v1 q
 
 ## Exact next phase
 
-Phase 3 is complete in the current working tree. Stop here. The exact next phase is **Phase 4 — Snapshots and “What grew?”**, and it must not begin without explicit approval.
+Phase 4 is implemented in the current working tree and stopped at its approval gate. The exact next phase is **Phase 5 — Cleanup planning and dry-run only**, and it must not begin without explicit approval.

@@ -1,5 +1,6 @@
 using Clyr.Cli;
 using Clyr.Core;
+using Clyr.Persistence;
 using Clyr.Rules;
 using Clyr.Windows;
 
@@ -13,7 +14,12 @@ var validator = new RuleValidator(File.ReadAllText(schemaPath));
 var environment = new WindowsEnvironmentInfo();
 var drives = new WindowsDriveDiscovery();
 var packResult = BuiltInRulePackLoader.Load(Path.Combine(Environment.CurrentDirectory, "rules", "builtin"));
-var scanner = new ScanCoordinator(new WindowsFileSystemEnumerator(), drives, new SystemClock(), packResult.Pack);
+var dataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CLYR");
+var store = new SqliteSnapshotStore(Path.Combine(dataDirectory, "history.db"));
+var identity = new HmacDriveIdentityProvider(new WindowsVolumeIdentitySource(),
+    new FileIdentityKeyProvider(Path.Combine(dataDirectory, "identity.key")), drives);
+IScanService scanner = new ScanCoordinator(new WindowsFileSystemEnumerator(), drives, new SystemClock(), packResult.Pack);
+scanner = new SnapshotSavingScanService(scanner, new SnapshotFactory(identity, new ApplicationVersion("0.4.0-phase4")), store);
 var application = new CliApplication(environment, new DemoDataService(), validator, new PrivacyRedactor(environment),
-    "CLYR 0.3.0-phase3", drives, scanner, new ScanReportExporter(), packResult);
+    "CLYR 0.4.0-phase4", drives, scanner, new ScanReportExporter(), packResult, store);
 return application.Run(args, Console.Out, Console.Error);

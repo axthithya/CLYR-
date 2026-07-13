@@ -96,3 +96,13 @@ The baseline register passed the cross-document terminology and ownership review
 - R-021 is mitigating: exact central pins, immutable CI action SHAs, restored-license inventory, and a zero-vulnerability audit are active. Final signing and SBOM remain Phase 9 work.
 - R-026 remains prohibited and enforced: tests use memory, repository fixtures, or random operating-system temporary paths only.
 - R-007 remains prohibited and enforced: the application manifest is `asInvoker`; there is no helper project, service, task, startup registration, or arbitrary process API.
+## Phase 4 risks
+
+| Risk | Control | Residual |
+|---|---|---|
+| History reveals activity | Aggregate-only rows, no raw child paths/file inventory, bounded retention, explicit clear | Timing and aggregate sizes reveal coarse change |
+| Identifier becomes tracking data | Per-install HMAC; raw volume GUID never persisted/exported | Fingerprint is stable within one installation |
+| Key loss breaks continuity | Mark incomparable; never fall back to raw identity | Old baselines cannot be recovered |
+| Reformat or clone confuses identity | Identity/schema/filesystem/capacity/coverage checks | Platform clones may retain an identifier |
+| Corruption causes silent loss | Transactions, foreign keys, safe error, no automatic replacement | Explicit recovery may be needed |
+| Comparison implies cause | Non-causal wording and visible confidence/drift | Users may still infer causality |

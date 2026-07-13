@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clyr.dev/schemas/snapshot-v1.json",
+  "title": "CLYR aggregate snapshot v1",
+  "type": "object",
+  "required": ["id", "scanId", "schemaVersion", "applicationVersion", "capturedAtUtc", "mode", "state", "drive", "logicalBytesObserved", "classifiedBytes", "unknownBytes", "coverage", "categories", "findings", "warnings"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "scanId": { "type": "string", "format": "uuid" },
+    "schemaVersion": { "const": 1 },
+    "applicationVersion": { "type": "string", "minLength": 1 },
+    "capturedAtUtc": { "type": "string", "format": "date-time" },
+    "mode": { "enum": ["quick", "deep"] },
+    "state": { "enum": ["complete", "partial", "cancelled"] },
+    "drive": {
+      "type": "object",
+      "required": ["fingerprint", "identityQuality", "root", "fileSystem"],
+      "properties": {
+        "fingerprint": { "type": "string", "pattern": "^$|^[a-f0-9]{64}$" },
+        "identityQuality": { "enum": ["stable", "fallback", "unavailable"] },
+        "root": { "type": "string", "pattern": "^[A-Z]:\\\\$" },
+        "fileSystem": { "type": "string" },
+        "capacityBytes": { "type": ["integer", "null"] }, "usedBytes": { "type": ["integer", "null"] }, "freeBytes": { "type": ["integer", "null"] }
+      }, "additionalProperties": false
+    },
+    "logicalBytesObserved": { "type": "integer", "minimum": 0 }, "classifiedBytes": { "type": "integer", "minimum": 0 }, "unknownBytes": { "type": "integer", "minimum": 0 },
+    "unaccountedBytes": { "type": ["integer", "null"] }, "coverage": { "type": "object" },
+    "rulePackId": { "type": "string" }, "rulePackVersion": { "type": "string" }, "rulePackDigest": { "type": "string" },
+    "categories": { "type": "array", "items": { "type": "object" } }, "findings": { "type": "array", "items": { "type": "object" } },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

@@ -27,3 +27,17 @@ This is the concise cross-project index. Architecture details live in the linked
 ## Change protocol
 
 Anyone may propose a decision change. Changes affecting protected resources, privilege, executable adapters, update trust, data retention, license, or product claims require an ADR, threat-model update, tests appropriate to the active phase, and explicit maintainer approval.
+## Phase 4 decisions — 2026-07-13
+
+- Store aggregate history only in local SQLite; never store a file inventory.
+- HMAC a transient Windows volume GUID with a per-install 256-bit key; prefer lost comparability over recoverable raw identity.
+- Keep at least two snapshots per drive; default retention is 20.
+- Use deterministic full-scan comparison. USN remains explicitly unsupported until reset, wrap, privilege, and rename semantics are evidenced.
+- Significant means 250 MiB absolute, or both 50 MiB and 10 percent relative. Insights describe observations, never causes.
+## Phase 4 decisions — 2026-07-13
+
+- Store aggregate history only in local SQLite; never store a file inventory.
+- HMAC a transient Windows volume GUID with a per-install 256-bit key; prefer lost comparability over recoverable raw identity.
+- Keep at least two snapshots per drive; default retention is 20.
+- Use deterministic full-scan comparison. USN remains unsupported until reset, wrap, privilege, and rename semantics are evidenced.
+- Significant means 250 MiB absolute, or both 50 MiB and 10 percent relative. Insights describe observations, never causes.

@@ -51,3 +51,6 @@ There is no telemetry by default. Adding analytics, cloud upload, remote configu
 ## Product-owned locations
 
 Exact Windows paths depend on packaged identity and are verified in Phase 1. Settings, databases, logs, demo data, and any future quarantine must use distinct product-owned locations. Uninstall/history behavior must be tested and documented; no local path in this Phase 0 repository is a runtime claim.
+## Phase 4 local history
+
+History is optional, offline, bounded, and local. It stores aggregate measurements plus an HMAC-SHA-256 drive fingerprint. The random per-install key is never synchronized; the raw volume GUID is never stored, logged, exported, or displayed. Missing or rotated keys make snapshots incomparable. No file inventory, raw child path, username, machine name, SID, volume serial, content, or content hash is persisted. Disable prevents future saves; confirmed delete and clear remove only CLYR database rows.

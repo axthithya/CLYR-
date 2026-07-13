@@ -116,3 +116,6 @@ Never copy a real scan, user path, registry/database, dump, log, cloud item, pro
 - Skips name missing capability and do not inflate pass counts.
 - Results separate measured, inferred, unverified, and manual evidence.
 - A failed applicable gate prevents phase completion or release.
+## Phase 4 gates
+
+Gates cover migration/idempotency, transactional normalized round-trip, lifecycle eligibility, retention floor, settings, deletion isolation, key stability, compatibility and drift, new/removed groups, overflow saturation, significance boundaries, deterministic CLI JSON, confirmations, corruption translation, and all earlier regressions. Tests use fakes and temporary databases; verification starts no real drive scan.

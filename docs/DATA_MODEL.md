@@ -154,3 +154,6 @@ Deletion of local history must be transactional and verifiable. It must not dele
 - Specify stable file identity behavior and fallback precision across NTFS, ReFS, FAT/exFAT, removable, and unsupported volumes.
 
 These questions do not block Phase 1’s migration skeleton, but each must be resolved before the affected data is stored.
+## Phase 4 aggregate snapshot
+
+The immutable StorageSnapshot, SnapshotDrive, SnapshotCategory, SnapshotFinding, SnapshotSummary, and SnapshotComparison contracts are normative. SQLite schema version 2 normalizes snapshot, category, finding, warning, and settings rows. ScanId is unique for idempotency; foreign keys cascade aggregate child deletion. Only Complete, Partial, and Cancelled records are displayable. No scanned-file rows or raw child paths exist. See docs/PHASE4_HISTORY.md and ADR-0010.

@@ -21,7 +21,7 @@ public static class SqliteRuntime
 
 public sealed class AppMetadataDatabase
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
     private readonly string connectionString;
 
     public AppMetadataDatabase(string connectionString)
@@ -47,6 +47,34 @@ public sealed class AppMetadataDatabase
         if (version == 0)
         {
             command.CommandText = "CREATE TABLE AppMetadata (Key TEXT PRIMARY KEY, Value TEXT NOT NULL); INSERT INTO SchemaInfo(Version) VALUES (1);";
+            command.ExecuteNonQuery();
+            version = 1;
+        }
+        if (version == 1)
+        {
+            command.CommandText = """
+                CREATE TABLE Snapshot (Id TEXT PRIMARY KEY, ScanId TEXT NOT NULL UNIQUE, SchemaVersion INTEGER NOT NULL,
+                    ApplicationVersion TEXT NOT NULL, CapturedAtUtc TEXT NOT NULL, Mode TEXT NOT NULL, State TEXT NOT NULL,
+                    DriveFingerprint TEXT NOT NULL, IdentityQuality TEXT NOT NULL, Root TEXT NOT NULL, FileSystem TEXT NOT NULL,
+                    CapacityBytes INTEGER, UsedBytes INTEGER, FreeBytes INTEGER, LogicalBytesObserved INTEGER NOT NULL,
+                    ClassifiedBytes INTEGER NOT NULL, UnknownBytes INTEGER NOT NULL, UnaccountedBytes INTEGER,
+                    CoverageJson TEXT NOT NULL, RulePackId TEXT NOT NULL, RulePackVersion TEXT NOT NULL, RulePackDigest TEXT NOT NULL);
+                CREATE TABLE SnapshotCategory (SnapshotId TEXT NOT NULL REFERENCES Snapshot(Id) ON DELETE CASCADE,
+                    Category TEXT NOT NULL, LogicalBytes INTEGER NOT NULL, FileCount INTEGER NOT NULL, Precision TEXT NOT NULL,
+                    Status TEXT NOT NULL, PRIMARY KEY (SnapshotId, Category));
+                CREATE TABLE SnapshotFinding (SnapshotId TEXT NOT NULL REFERENCES Snapshot(Id) ON DELETE CASCADE,
+                    RuleId TEXT NOT NULL, RuleVersion TEXT NOT NULL, Category TEXT NOT NULL, Confidence TEXT NOT NULL,
+                    Status TEXT NOT NULL, LogicalBytes INTEGER NOT NULL, FileCount INTEGER NOT NULL,
+                    PRIMARY KEY (SnapshotId, RuleId, RuleVersion));
+                CREATE TABLE SnapshotWarning (SnapshotId TEXT NOT NULL REFERENCES Snapshot(Id) ON DELETE CASCADE,
+                    Ordinal INTEGER NOT NULL, Warning TEXT NOT NULL, PRIMARY KEY (SnapshotId, Ordinal));
+                CREATE TABLE HistorySettings (Id INTEGER PRIMARY KEY CHECK (Id = 1), IsEnabled INTEGER NOT NULL,
+                    RetentionPerDrive INTEGER NOT NULL, SavePartial INTEGER NOT NULL, SaveCancelled INTEGER NOT NULL);
+                INSERT INTO HistorySettings VALUES (1, 1, 20, 1, 1);
+                CREATE INDEX IX_Snapshot_DriveTime ON Snapshot(DriveFingerprint, CapturedAtUtc DESC);
+                CREATE INDEX IX_Snapshot_StateTime ON Snapshot(State, CapturedAtUtc DESC);
+                UPDATE SchemaInfo SET Version = 2;
+                """;
             command.ExecuteNonQuery();
         }
         transaction.Commit();

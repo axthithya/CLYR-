@@ -4,6 +4,19 @@ All notable project changes are recorded here. The format follows Keep a Changel
 
 ## [Unreleased]
 
+### Added — Phase 4 aggregate history and growth comparison (2026-07-13)
+
+- Transactional SQLite schema v2 for aggregate snapshots, category/finding aggregates, warnings, settings, foreign keys, indexes, idempotent saves, and bounded retention.
+- Per-install HMAC-SHA-256 volume identity; the raw volume identifier is never persisted or exported.
+- Typed lifecycle, compatibility/confidence, drift warnings, saturating signed deltas, significance thresholds, and deterministic non-causal insights.
+- Automatic eligible-scan capture; functional CLI and WinUI history, comparison, settings, confirmed delete, and clear.
+- Snapshot/comparison schemas, ADR-0010, Phase 4 verifier/CI, and focused tests.
+
+### Security — Phase 4
+
+- No file inventory, raw child path, user/machine identity, SID, serial, content, or content hash is stored. Failed scans are not persisted; corruption never triggers automatic database deletion.
+- USN remains unsupported. No cleanup, planning, execution, elevation, helper, hydration, content read, or scanned-file write was added. Phase 5 has not begun.
+
 ### Added — Phase 3 detection-only classification (2026-07-13)
 
 - One-pass streaming classification with exclusive category ownership, secondary tags, deterministic protected/priority/specificity precedence, stable privacy-safe findings, explanations, confidence/status, and explicit Unknown/coverage accounting.

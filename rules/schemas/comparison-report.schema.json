@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clyr.dev/schemas/comparison-report-v1.json",
+  "title": "CLYR aggregate comparison report v1",
+  "type": "object",
+  "required": ["beforeId", "afterId", "beforeUtc", "afterUtc", "compatibility", "metrics", "categories", "findings", "insights"],
+  "properties": {
+    "beforeId": { "type": "string", "format": "uuid" }, "afterId": { "type": "string", "format": "uuid" },
+    "beforeUtc": { "type": "string", "format": "date-time" }, "afterUtc": { "type": "string", "format": "date-time" },
+    "compatibility": { "type": "object", "required": ["kind", "confidence", "warnings"] },
+    "metrics": { "$ref": "#/$defs/deltas" }, "categories": { "$ref": "#/$defs/deltas" }, "findings": { "$ref": "#/$defs/deltas" },
+    "insights": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": { "deltas": { "type": "array", "items": { "type": "object", "required": ["metric", "kind", "isSignificant"] } } },
+  "additionalProperties": false
+}

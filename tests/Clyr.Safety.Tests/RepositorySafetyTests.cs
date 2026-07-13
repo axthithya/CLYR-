@@ -93,19 +93,21 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
-    public void ApplicationCompositionAndNavigationExposeOnlyReadOnlyPhaseThree()
+    public void ApplicationCompositionAndNavigationExposeOnlyReadOnlyPhaseFour()
     {
         var appSource = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "App.xaml.cs"));
         var navigation = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "MainWindow.xaml"));
         var settings = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "appsettings.json"));
         Assert.Contains("ServiceCollection", appSource, StringComparison.Ordinal);
         Assert.Contains("StartupErrorWindow", appSource, StringComparison.Ordinal);
-        Assert.Contains("Phase 3", settings, StringComparison.Ordinal);
+        Assert.Contains("Phase 4", settings, StringComparison.Ordinal);
         foreach (var destination in new[] { "Overview", "Scan", "Results", "History", "Developer Mode", "Privacy", "Licenses", "About" })
             Assert.Contains($"Content=\"{destination}\"", navigation, StringComparison.Ordinal);
         Assert.Contains("IsSettingsVisible=\"True\"", navigation, StringComparison.Ordinal);
-        Assert.Contains("Phase 3 analysis and classification are local", navigation, StringComparison.Ordinal);
-        Assert.Contains("Findings never authorize cleanup.", navigation, StringComparison.Ordinal);
+        Assert.Contains("Phase 4 history stores local aggregate snapshots only", navigation, StringComparison.Ordinal);
+        Assert.Contains("findings never authorize cleanup", navigation, StringComparison.Ordinal);
+        Assert.Contains("Compare selected", navigation, StringComparison.Ordinal);
+        Assert.Contains("Clear history", navigation, StringComparison.Ordinal);
         Assert.Contains("Cancel analysis", navigation, StringComparison.Ordinal);
         Assert.Contains("Quick Analysis", navigation, StringComparison.Ordinal);
         Assert.Contains("Deep Analysis", navigation, StringComparison.Ordinal);

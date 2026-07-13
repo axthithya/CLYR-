@@ -28,7 +28,7 @@ try {
     $window = $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $processCondition)
     if ($null -eq $window -or $window.Current.Name -ne 'CLYR') { throw 'The CLYR main window did not render.' }
 
-    foreach ($name in @('Overview', 'Scan', 'Results', 'History', 'Developer Mode', 'Privacy', 'Licenses', 'About', 'Settings')) {
+    foreach ($name in @('Overview', 'Scan', 'Results', 'Developer Mode', 'Privacy', 'Licenses', 'About', 'Settings', 'History')) {
         $nameCondition = [System.Windows.Automation.PropertyCondition]::new(
             [System.Windows.Automation.AutomationElement]::NameProperty,
             $name)
@@ -48,22 +48,22 @@ try {
     }
 
     Start-Sleep -Milliseconds 250
-    $expectedDisclosure = "Phase 2 analysis is local and read-only. CLYR reads metadata, never file contents."
+    $expectedDisclosure = "Phase 4 history stores local aggregate snapshots only. Analysis remains metadata-only and read-only; findings never authorize cleanup."
     $disclosure = [System.Windows.Automation.PropertyCondition]::new(
         [System.Windows.Automation.AutomationElement]::NameProperty,
         $expectedDisclosure)
     if ($null -eq $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $disclosure)) {
-        throw 'The required read-only Phase 2 disclosure did not render.'
+        throw 'The required read-only Phase 4 disclosure did not render.'
     }
-    foreach ($controlName in @('Local volume selector', 'Quick Analysis', 'Deep Analysis', 'Start analysis', 'Cancel analysis')) {
+    foreach ($controlName in @('Local volume selector', 'Quick Analysis', 'Deep Analysis', 'Start analysis', 'Cancel analysis', 'Local snapshot history')) {
         $controlCondition = [System.Windows.Automation.PropertyCondition]::new(
             [System.Windows.Automation.AutomationElement]::NameProperty,
             $controlName)
         if ($null -eq $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $controlCondition)) {
-            throw "Required Phase 2 control did not render: $controlName"
+            throw "Required read-only control did not render: $controlName"
         }
     }
-    Write-Host 'WinUI launch, navigation, drive overview, scan modes, cancellation, and read-only disclosure PASSED.' -ForegroundColor Green
+    Write-Host 'WinUI launch, navigation, drive overview, scan modes, history, cancellation, and read-only disclosure PASSED.' -ForegroundColor Green
 }
 finally {
     if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }

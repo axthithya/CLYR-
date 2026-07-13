@@ -22,10 +22,13 @@ public sealed partial class MainWindow : Window
     {
         var label = args.IsSettingsSelected ? "Settings" : (args.SelectedItemContainer?.Tag?.ToString() ?? "Overview");
         PageTitle.Text = label;
+        HistoryPanel.Visibility = label == "History" ? Visibility.Visible : Visibility.Collapsed;
+        if (label == "History") _ = LoadHistoryAsync();
         PageDescription.Text = label is "Overview" or "Settings"
             ? $"Read-only {configuration.Phase} engineering foundation."
             : label is "Scan" or "Results"
                 ? "Read-only metadata analysis with deterministic built-in classification and explicit coverage."
-                : "Planned / unavailable. This capability is outside Phase 3.";
+                : label == "History" ? "Local aggregate snapshots, retention, and deterministic comparisons."
+                : "Planned / unavailable. This capability is outside Phase 4.";
     }
 }

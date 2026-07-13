@@ -17,7 +17,7 @@
             </NavigationView.MenuItems>
             <StackPanel Padding="32" Spacing="16">
                 <TextBlock Text="CLYR" FontSize="36" FontWeight="SemiBold" />
-                <TextBlock Text="Phase 3 analysis and classification are local, metadata-only, and read-only. Findings never authorize cleanup." FontSize="18" TextWrapping="Wrap" />
+                <TextBlock Text="Phase 4 history stores local aggregate snapshots only. Analysis remains metadata-only and read-only; findings never authorize cleanup." FontSize="18" TextWrapping="Wrap" />
                 <TextBlock x:Name="PageTitle" Text="Overview" FontSize="26" />
                 <TextBlock x:Name="PageDescription" Text="Read-only Phase 1 engineering foundation." TextWrapping="Wrap" />
                 <TextBlock x:Name="DriveSummaryText" Text="Discovering local drives…" TextWrapping="Wrap" />
@@ -41,6 +41,20 @@
                 <TextBlock Text="Largest top-level directories" FontSize="20" FontWeight="SemiBold" />
                 <ListView x:Name="ResultList" MaxHeight="280" />
                 <ListView x:Name="DemoFindings" Visibility="Collapsed" />
+                <StackPanel x:Name="HistoryPanel" Visibility="Collapsed" Spacing="12">
+                    <TextBlock Text="Local snapshot history" FontSize="20" FontWeight="SemiBold" />
+                    <TextBlock Text="Only aggregate measurements and HMAC-protected drive identity are stored. Select two snapshots to compare." TextWrapping="Wrap" />
+                    <ListView x:Name="HistoryList" SelectionMode="Multiple" MaxHeight="300" AutomationProperties.Name="Local snapshot history" />
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Button Content="Refresh" Click="OnRefreshHistory" />
+                        <Button Content="Compare selected" Click="OnCompareHistory" />
+                        <Button Content="Delete selected" Click="OnDeleteHistory" />
+                        <Button Content="Clear history" Click="OnClearHistory" />
+                    </StackPanel>
+                    <TextBlock x:Name="ComparisonText" Text="No comparison selected." TextWrapping="Wrap" />
+                    <ToggleSwitch x:Name="HistoryEnabled" Header="Save snapshot history" Toggled="OnHistorySettingsChanged" />
+                    <NumberBox x:Name="HistoryRetention" Header="Snapshots retained per drive (2–1000)" Minimum="2" Maximum="1000" SpinButtonPlacementMode="Inline" ValueChanged="OnHistoryRetentionChanged" />
+                </StackPanel>
             </StackPanel>
         </NavigationView>
     </Grid>

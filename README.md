@@ -1,5 +1,7 @@
 # CLYR
 
+> Phase 4 adds offline, local, aggregate-only snapshot history and deterministic “what grew?” comparisons. It does not add cleanup, dry-run planning, execution, elevation, or Phase 5 behavior.
+
 > See what filled your C: drive. Understand it. Clear it safely.
 
 CLYR is a planned native Windows storage diagnostic application for people who can see that a drive is full but cannot safely tell why. It will lead with evidence: what occupies space, how confident the measurement is, which regions were inaccessible, and why a finding needs attention. The reusable C# engine will support a WinUI 3 desktop experience and a command-line interface.
