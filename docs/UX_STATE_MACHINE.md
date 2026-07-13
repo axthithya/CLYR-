@@ -100,3 +100,9 @@ Phase 1 tests demo/view-model transitions without drives. Later suites cover can
 - Invalid/stale evidence cannot enable execution.
 - Partial/failure states retain useful verified information without overstating it.
 - State names agree with domain, workflow, Mermaid, schema, and safety documents.
+
+## Phase 4.1 presentation routing
+
+Navigation is presentation state only and never starts, cancels, persists, deletes, or compares data by itself. One shared analysis session supplies Overview, Scan, and Results; dedicated History and Settings view models own aggregate-history commands and preferences. A page activation may refresh its view from those services, while navigating away preserves the active scan and its cancellation boundary. Returning to a page resets that page’s scroll position intentionally.
+
+The safe UI fixture follows the same view-model transitions with fake drive, scan, and snapshot services. It can demonstrate Idle → Scanning → Cancelling/Cancelled and Idle → Scanning → Completed without filesystem enumeration.

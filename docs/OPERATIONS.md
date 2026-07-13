@@ -2,9 +2,9 @@
 
 ## Current operational status
 
-Phase 2 provides a local developer-only WinUI metadata scanner, CLI drive discovery/scanning, libraries, tests, and verification scripts. There is no installer, signed package, telemetry endpoint, classification engine, snapshot persistence, cleanup capability, service, helper, or supported public end-user release.
+Phase 4 is approved and Phase 4.1 provides a local developer-only polished WinUI shell over read-only scanning, classification, and aggregate snapshot history. There is no installer, signed package, telemetry endpoint, cleanup capability, planning/execution engine, service, helper, elevation, or supported public end-user release.
 
-The scanner runs as the standard user and only after an explicit drive root/mode choice. `doctor`, `drives`, UI launch, tests, and verification scripts never start a scan. Automated verification uses fakes and isolated temporary fixtures. A maintainer may separately choose a manual Quick scan after confirming the target and read-only disclosure.
+The production scanner runs as the standard user and only after an explicit drive root/mode choice. UI Automation sets `CLYR_UI_FIXTURE=1` before launch and uses in-memory fake drive, scan, and snapshot services; it never enumerates a real drive. A maintainer may separately choose a manual Quick scan after confirming the target and read-only disclosure.
 
 ## Repository preflight
 
@@ -23,6 +23,22 @@ dotnet --info
 Record errors exactly. Preserve unrelated changes; never use `git reset --hard`, `git clean`, force push, history rewriting, or remote mutation to simplify work. Do not commit/push/tag/publish unless explicitly authorized.
 
 ## Local verification
+
+Phase 4.1:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-phase41.ps1
+```
+
+Use `-SkipUiAutomation` only in a noninteractive CI session. Interactive acceptance must run the default verifier, which launches and closes the fixture-only app.
+
+The responsive layout structural verifier runs automatically as part of the Phase 4.1 gate:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-responsive-layout.ps1
+```
+
+This verifies shared host usage, scroll contract, breakpoints, gutters, automation names, scan-control isolation, theme brush completeness, selected-card contrast, and safety boundaries without launching the app.
 
 Phase 0:
 

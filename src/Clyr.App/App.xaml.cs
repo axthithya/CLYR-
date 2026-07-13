@@ -51,16 +51,26 @@ public partial class App : Application
         services.AddSingleton<IEnvironmentInfo, WindowsEnvironmentInfo>();
         services.AddSingleton<IPrivacyRedactor, PrivacyRedactor>();
         services.AddSingleton<IDemoDataService, DemoDataService>();
-        services.AddSingleton<IDriveDiscovery, WindowsDriveDiscovery>();
+        var uiFixture = string.Equals(Environment.GetEnvironmentVariable("CLYR_UI_FIXTURE"), "1", StringComparison.Ordinal);
         var dataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CLYR");
-        services.AddSingleton<ISnapshotStore>(_ => new SqliteSnapshotStore(Path.Combine(dataDirectory, "history.db")));
-        services.AddSingleton<IIdentityKeyProvider>(_ => new FileIdentityKeyProvider(Path.Combine(dataDirectory, "identity.key")));
-        services.AddSingleton<IRawDriveIdentitySource, WindowsVolumeIdentitySource>();
-        services.AddSingleton<IDriveIdentityProvider, HmacDriveIdentityProvider>();
-        services.AddSingleton<IApplicationVersion>(_ => new ApplicationVersion("0.4.0-phase4"));
-        services.AddSingleton<IFileSystemEnumerator, WindowsFileSystemEnumerator>();
+        if (uiFixture)
+        {
+            services.AddSingleton<IDriveDiscovery, UiFixtureDriveDiscovery>();
+            services.AddSingleton<ISnapshotStore, UiFixtureSnapshotStore>();
+            services.AddSingleton<IScanService, UiFixtureScanService>();
+        }
+        else
+        {
+            services.AddSingleton<IDriveDiscovery, WindowsDriveDiscovery>();
+            services.AddSingleton<ISnapshotStore>(_ => new SqliteSnapshotStore(Path.Combine(dataDirectory, "history.db")));
+            services.AddSingleton<IIdentityKeyProvider>(_ => new FileIdentityKeyProvider(Path.Combine(dataDirectory, "identity.key")));
+            services.AddSingleton<IRawDriveIdentitySource, WindowsVolumeIdentitySource>();
+            services.AddSingleton<IDriveIdentityProvider, HmacDriveIdentityProvider>();
+            services.AddSingleton<IFileSystemEnumerator, WindowsFileSystemEnumerator>();
+        }
+        services.AddSingleton<IApplicationVersion>(_ => new ApplicationVersion("0.4.1-preview"));
         services.AddSingleton(_ => BuiltInRulePackLoader.Load(Path.Combine(AppContext.BaseDirectory, "rules", "builtin")));
-        services.AddSingleton<IScanService>(provider =>
+        if (!uiFixture) services.AddSingleton<IScanService>(provider =>
         {
             IScanService scanner = new ScanCoordinator(provider.GetRequiredService<IFileSystemEnumerator>(),
                 provider.GetRequiredService<IDriveDiscovery>(), provider.GetRequiredService<IClock>(),

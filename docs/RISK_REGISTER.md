@@ -106,3 +106,15 @@ The baseline register passed the cross-document terminology and ownership review
 | Reformat or clone confuses identity | Identity/schema/filesystem/capacity/coverage checks | Platform clones may retain an identifier |
 | Corruption causes silent loss | Transactions, foreign keys, safe error, no automatic replacement | Explicit recovery may be needed |
 | Comparison implies cause | Non-causal wording and visible confidence/drift | Users may still infer causality |
+
+## Phase 4.1 UI risks
+
+| Risk | Control | Residual |
+|---|---|---|
+| Shared controls make users believe every page can scan | Distinct page classes; full scan controls statically and dynamically verified on Scan only; responsive layout verifier enforces isolation | Future UI edits require the architecture regression gate |
+| Narrow windows hide actions or create sideways scrolling | Shared ResponsivePageHost with vertical-only scrolling; UI Automation viewport bounds verified at 1600×900, 1366×768, 1280×720, 1000×650, and 900×600; structural verifier confirms scroll contract, max width, and breakpoints | Actual DPI/text scaling remains a manual release check |
+| Visual charts exclude screen-reader users | Named contributor visualization plus a text alternative | Narrator reading order remains a manual release check |
+| UI automation accidentally scans a real drive | Explicit fixture composition with fake drive/scan/history services and no production adapter | Environment-variable misuse is process-local; production remains the default |
+| "Clear History" is mistaken for disk cleanup | Exact aggregate-history wording and confirmation; no cleanup controls or file mutation adapters; automation name `Clear History` explicitly scoped | Users may still skim; content review remains ongoing |
+| Missing automation IDs prevent assistive technology access | All critical elements have `AutomationProperties.Name`; static test `AllPagesHavePageRootAutomationNames` enforces coverage | New elements must be added to automation ID inventory |
+| Theme resources incomplete for a mode | All 11 brushes verified in Default, Light, and HighContrast theme dictionaries by structural verifier | Manual visual review of contrast ratios remains a release gate |

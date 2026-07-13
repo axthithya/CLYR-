@@ -4,6 +4,23 @@ All notable project changes are recorded here. The format follows Keep a Changel
 
 ## [Unreleased]
 
+### Added — Phase 4.1 polished UI/UX (2026-07-13)
+
+- Replaced the shared WinUI content stack with distinct Overview, Scan, Results, History, Developer Mode, Privacy, Licenses, About, and Settings pages backed by page-specific view models.
+- Added shared design tokens, reusable page headers and empty states, automatic compact navigation, page-level vertical scrolling, responsive result/mode layouts, polished read-only copy, accessible names, and text alternatives.
+- Implemented shared `ResponsivePageHost` with consistent breakpoints (Narrow <760px, Medium 760–1199px, Wide ≥1200px), dynamic gutters (16/24/32px), MaxWidth 1120px centered layout, and vertical-only scrolling.
+- Added stable `AutomationProperties.Name` values on all critical interactive elements, page roots, metric cards, empty states, settings controls, and shared scroll viewport.
+- Verified all 11 theme-aware brushes in Default, Light, and HighContrast theme dictionaries. Selected analysis cards use three contrast indicators: subtle tint, accent border, and check-mark.
+- Added a structural responsive layout verifier (`verify-responsive-layout.ps1`) that validates host usage, scroll contract, breakpoints, gutters, themes, automation names, scan isolation, and safety boundaries without launching the app.
+- Added a process-scoped fixture composition for safe UI Automation, UI architecture regression tests, accessibility documentation, a Phase 4.1 verifier, and CI validation.
+- Verified fixture scan start/cancellation/completion, result presentation, two-snapshot comparison, every navigation destination, viewport bounds at five window sizes (1600×900, 1366×768, 1280×720, 1000×650, 900×600), vertical scroll advancement, absence of horizontal scrolling, license search, and about version.
+- Added 4 new responsive architecture tests: shared host scroll contract, breakpoints/gutters, no unsafe fixed widths, page root automation names, and no cleanup/elevation language. Total test count: 124.
+
+### Security — Phase 4.1
+
+- Production drive, scanner, rule, and SQLite composition remains unchanged. Fixture mode uses only fake/in-memory services and never inspects a real drive.
+- No cleanup, dry-run planning, file mutation, process execution, elevation, helper, service, or Phase 5 behavior was added.
+
 ### Added — Phase 4 aggregate history and growth comparison (2026-07-13)
 
 - Transactional SQLite schema v2 for aggregate snapshots, category/finding aggregates, warnings, settings, foreign keys, indexes, idempotent saves, and bounded retention.

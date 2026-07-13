@@ -1,0 +1,43 @@
+<Page
+    x:Class="Clyr.App.Pages.OverviewPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Clyr.App.Controls"
+    Background="{ThemeResource AppBackgroundBrush}"
+    AutomationProperties.Name="Overview page">
+    <controls:ResponsivePageHost x:Name="PageHost" Title="Overview"
+        Subtitle="A calm summary of your system drive and latest private analysis."
+        AutomationProperties.Name="Overview responsive page host">
+        <controls:ResponsivePageHost.PageContent>
+            <StackPanel Spacing="24">
+                <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="System drive summary">
+                    <Grid ColumnSpacing="20">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel Spacing="10" MinWidth="0">
+                            <TextBlock x:Name="DriveTitle" Text="System drive" Style="{StaticResource SectionTitleStyle}"/>
+                            <TextBlock x:Name="DriveNumbers" Style="{StaticResource BodyMutedStyle}"/>
+                            <ProgressBar x:Name="DriveUsage" Minimum="0" Maximum="100" Height="8" AutomationProperties.Name="Drive used percentage"/>
+                            <TextBlock x:Name="DriveSupport" Style="{StaticResource BodyMutedStyle}"/>
+                        </StackPanel>
+                        <FontIcon Grid.Column="1" Glyph="&#xEDA2;" FontSize="36" Foreground="{ThemeResource WarmAccentBrush}" VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+                <Grid x:Name="ModeGrid" ColumnSpacing="20" RowSpacing="16">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="Overview Quick Analysis card"><StackPanel Spacing="10"><TextBlock Text="Quick Analysis" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="Recommended · faster · a useful first view of your drive." Style="{StaticResource BodyMutedStyle}"/><Button Content="Run Quick Analysis" Style="{StaticResource PrimaryActionStyle}" Click="RunQuick" AutomationProperties.Name="Run Quick Analysis from Overview"/></StackPanel></Border>
+                    <Border x:Name="OverviewDeepCard" Grid.Column="1" Style="{StaticResource CardStyle}" AutomationProperties.Name="Overview Deep Analysis card"><StackPanel Spacing="10"><TextBlock Text="Deep Analysis" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="More detailed and slower. It observes accessible directories more deeply." Style="{StaticResource BodyMutedStyle}"/><Button Content="Configure Deep Analysis" Style="{StaticResource SecondaryActionStyle}" Click="RunDeep" AutomationProperties.Name="Configure Deep Analysis from Overview"/></StackPanel></Border>
+                </Grid>
+                <StackPanel Spacing="16">
+                    <TextBlock Text="Latest analysis" Style="{StaticResource SectionTitleStyle}"/>
+                    <controls:EmptyState x:Name="NoAnalysis" Title="No analysis yet" Message="Run a private, read-only analysis to understand what is using space on your drive." Glyph="&#xE721;"/>
+                    <Border x:Name="LatestAnalysis" Style="{StaticResource CardStyle}" Visibility="Collapsed">
+                        <StackPanel Spacing="12"><TextBlock x:Name="LatestStatus" Style="{StaticResource CardTitleStyle}"/><TextBlock x:Name="LatestSummary" Style="{StaticResource BodyMutedStyle}"/><ItemsControl x:Name="TopContributors"/>
+                            <StackPanel x:Name="LatestActions" Orientation="Horizontal" Spacing="12" AutomationProperties.Name="Latest analysis actions"><Button Content="View Results" Click="ViewResults"/><Button Content="View History" Click="ViewHistory"/><Button Content="Run Again" Click="RunAgain"/></StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </controls:ResponsivePageHost.PageContent>
+    </controls:ResponsivePageHost>
+</Page>

@@ -1,0 +1,40 @@
+<UserControl
+    x:Class="Clyr.App.Controls.ResponsivePageHost"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Clyr.App.Controls"
+    AutomationProperties.Name="Responsive page host">
+    <ScrollViewer
+        x:Name="PageScroll"
+        HorizontalContentAlignment="Stretch"
+        HorizontalScrollBarVisibility="Disabled"
+        HorizontalScrollMode="Disabled"
+        VerticalScrollBarVisibility="Auto"
+        VerticalScrollMode="Auto"
+        IsTabStop="False"
+        AutomationProperties.Name="Page content viewport"
+        SizeChanged="ViewportSizeChanged">
+        <Grid x:Name="ViewportSurface" HorizontalAlignment="Stretch">
+            <Grid
+                x:Name="ContentContainer"
+                MaxWidth="1120"
+                HorizontalAlignment="Center"
+                RowSpacing="24"
+                AutomationProperties.Name="Page content container">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <controls:PageHeader
+                    x:Name="Header"
+                    Title="{x:Bind Title, Mode=OneWay}"
+                    Subtitle="{x:Bind Subtitle, Mode=OneWay}" />
+                <ContentPresenter
+                    Grid.Row="1"
+                    Content="{x:Bind PageContent, Mode=OneWay}"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch" />
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

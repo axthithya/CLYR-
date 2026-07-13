@@ -1,0 +1,47 @@
+<Page
+    x:Class="Clyr.App.Pages.HistoryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Clyr.App.Controls"
+    Background="{ThemeResource AppBackgroundBrush}"
+    AutomationProperties.Name="History page">
+    <controls:ResponsivePageHost x:Name="PageHost" Title="History"
+        Subtitle="Compare private aggregate snapshots stored only on this device."
+        AutomationProperties.Name="History responsive page host">
+        <controls:ResponsivePageHost.PageContent>
+            <StackPanel Spacing="24">
+                <Border Style="{StaticResource CardStyle}" Background="{ThemeResource PrivacyBannerBrush}" AutomationProperties.Name="Local history notice">
+                    <TextBlock Text="Local-only history stores aggregate measurements, never a file inventory. Clearing it does not delete files from your drive." TextWrapping="Wrap"/>
+                </Border>
+                <StackPanel x:Name="HistoryEmpty" Spacing="16" AutomationProperties.Name="History empty state">
+                    <controls:EmptyState Title="No scan history yet" Message="Completed analyses will appear here when local history is enabled." Glyph="&#xE81C;"/>
+                    <StackPanel x:Name="EmptyActions" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center"><Button Content="Run Analysis" Click="RunAnalysis" Style="{StaticResource PrimaryActionStyle}"/><Button Content="Open Settings" Click="OpenSettings"/></StackPanel>
+                </StackPanel>
+                <StackPanel x:Name="HistoryContent" Visibility="Collapsed" Spacing="18">
+                    <Grid x:Name="HistoryHeadingGrid" ColumnSpacing="16" RowSpacing="12">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <TextBlock Text="Saved analyses" Style="{StaticResource SectionTitleStyle}"/>
+                        <StackPanel x:Name="HistoryActions" Grid.Column="1" Orientation="Horizontal" Spacing="10"><Button Content="Refresh" Click="RefreshHistory"/><Button x:Name="CompareButton" Content="Compare selected" Click="CompareSelected" IsEnabled="False" AutomationProperties.Name="Compare two selected snapshots"/></StackPanel>
+                    </Grid>
+                    <ListView x:Name="HistoryList" SelectionMode="Multiple" SelectionChanged="HistorySelectionChanged" MaxHeight="430" AutomationProperties.Name="Local snapshot history">
+                        <ListView.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" Padding="4,8" ToolTipService.ToolTip="{Binding}"/></DataTemplate></ListView.ItemTemplate>
+                    </ListView>
+                    <StackPanel x:Name="DeleteActions" Orientation="Horizontal" Spacing="10"><Button Content="Delete selected history entry" Click="DeleteSelected"/><Button Content="Clear all history" Click="ClearHistory"/></StackPanel>
+                    <Border Style="{StaticResource CardStyle}">
+                        <Grid x:Name="HistorySettingsGrid" ColumnSpacing="16" RowSpacing="12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                            <StackPanel><TextBlock Text="History settings" Style="{StaticResource CardTitleStyle}"/><TextBlock x:Name="RetentionSummary" Style="{StaticResource BodyMutedStyle}"/></StackPanel>
+                            <Button x:Name="HistorySettingsButton" Grid.Column="1" Content="Open History Settings" Click="OpenSettings"/>
+                        </Grid>
+                    </Border>
+                    <Border x:Name="ComparisonPanel" Style="{StaticResource CardStyle}" Visibility="Collapsed" AutomationProperties.Name="Snapshot comparison">
+                        <StackPanel Spacing="12"><TextBlock Text="What changed?" Style="{StaticResource SectionTitleStyle}"/><TextBlock x:Name="ComparisonConfidence" Style="{StaticResource BodyMutedStyle}"/><ListView x:Name="DeltaList" MaxHeight="340"><ListView.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate></ListView.ItemTemplate></ListView><TextBlock x:Name="ComparisonWarnings" Style="{StaticResource BodyMutedStyle}"/></StackPanel>
+                    </Border>
+                </StackPanel>
+                <TextBlock x:Name="HistoryStatus" Style="{StaticResource BodyMutedStyle}" AutomationProperties.LiveSetting="Polite"/>
+            </StackPanel>
+        </controls:ResponsivePageHost.PageContent>
+    </controls:ResponsivePageHost>
+</Page>

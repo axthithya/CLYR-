@@ -114,3 +114,40 @@ Demo mode is an isolated deterministic provider with fictional volumes, paths, c
 - Every unavailable action has a reason; future actions have evidence and consequence.
 - C: language never overrides discovered system-volume truth.
 - Light/dark/high-contrast, scaling, keyboard, screen-reader, and reduced-motion checks are release gates.
+
+## Phase 4.1 implemented information architecture
+
+The desktop shell now routes to nine distinct pages: Overview summarizes the selected system drive and latest analysis; Scan owns drive/mode/progress/start/cancel; Results explains the latest completed or partial analysis; History owns local snapshots and two-point comparison; Developer Mode is an explicit read-only preview; Privacy, Licenses, About, and Settings contain page-specific content.
+
+Reusable design tokens define the restrained dark palette, warm accent, typography, cards, borders, trust badges, and action hierarchy. Each page owns a vertical scroller with horizontal scrolling disabled. Navigation compacts automatically, page navigation intentionally returns to the top, result graphics have text alternatives, and controls have automation names. See [ACCESSIBILITY.md](ACCESSIBILITY.md) for implemented and manual-release checks.
+
+The redesign does not introduce cleanup language or behavior. “Clear History” is limited to CLYR-owned aggregate snapshot rows and is described separately from drive cleanup.
+
+### Responsive layout architecture
+
+All nine pages are wrapped in a shared `ResponsivePageHost` control that provides:
+
+- **Consistent viewport centering**: content is horizontally centered with `MaxWidth="1120"`.
+- **Dynamic gutters**: 16px (Narrow), 24px (Medium), 32px (Wide).
+- **Breakpoints**: Narrow (<760px), Medium (760–1199px), Wide (≥1200px). Pages subscribe to a `LayoutModeChanged` event to reflow grids, stack panels, and card layouts.
+- **Vertical scrolling**: `VerticalScrollBarVisibility="Auto"`, `HorizontalScrollBarVisibility="Disabled"`. No page defines its own scroll viewer.
+- **Accessibility**: the shared scroll viewer is named `Page content viewport` for UI Automation.
+
+### Page-specific responsive behavior
+
+- **Overview/Scan**: Quick/Deep mode cards switch between side-by-side (Wide/Medium) and stacked (Narrow). Trust badge stacks below the title on narrow viewports.
+- **Results**: Four metric cards reflow from a single row (Wide) to 2×2 grid (Medium) to single column (Narrow). Contributor chart and details grid stack vertically on narrow viewports.
+- **History**: Actions panel reflows. Comparison panel stacks vertically on narrow viewports.
+- **Developer Mode**: Preview tiles use a responsive `ItemsWrapGrid` that adapts column count based on available width.
+- **Licenses**: Structured license entries reflow their key-value layout based on viewport width.
+- **Settings**: Action buttons reflow from horizontal to stacked on narrow viewports.
+
+### Selected analysis card contrast
+
+The selected analysis mode card uses three independent visual indicators to ensure accessibility across all themes:
+
+1. **Subtle accent tint** (`SubtleAccentBrush`): a low-opacity warm accent background fill.
+2. **Accent border** (`SelectedCardBorderBrush`): a visible warm-accent border distinct from unselected card borders.
+3. **Check-mark indicator** (`SelectionMark`): a visible checkmark icon confirming the selection.
+
+These are defined per-theme (Default, Light, HighContrast) in `App.xaml` and verified structurally by the responsive layout verifier.

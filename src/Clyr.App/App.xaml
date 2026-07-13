@@ -3,6 +3,146 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
-        <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+            <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+        </ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary.ThemeDictionaries>
+            <ResourceDictionary x:Key="Default">
+                <SolidColorBrush x:Key="AppBackgroundBrush" Color="#111315" />
+                <SolidColorBrush x:Key="CardBackgroundBrush" Color="#1B1E21" />
+                <SolidColorBrush x:Key="CardBorderBrush" Color="#34383D" />
+                <SolidColorBrush x:Key="MutedTextBrush" Color="#B8BEC4" />
+                <SolidColorBrush x:Key="WarmAccentBrush" Color="#F27A5A" />
+                <SolidColorBrush x:Key="SubtleAccentBrush" Color="#2D201D" />
+                <SolidColorBrush x:Key="SelectedCardBorderBrush" Color="#FF8C6D" />
+                <SolidColorBrush x:Key="TrustBadgeBackgroundBrush" Color="#1A2A24" />
+                <SolidColorBrush x:Key="TrustBadgeBorderBrush" Color="#477663" />
+                <SolidColorBrush x:Key="PrivacyBannerBrush" Color="#17231F" />
+                <SolidColorBrush x:Key="DisabledReadableBrush" Color="#91979D" />
+            </ResourceDictionary>
+            <ResourceDictionary x:Key="Light">
+                <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F5F7F9" />
+                <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FFFFFF" />
+                <SolidColorBrush x:Key="CardBorderBrush" Color="#D7DDE3" />
+                <SolidColorBrush x:Key="MutedTextBrush" Color="#4F5B66" />
+                <SolidColorBrush x:Key="WarmAccentBrush" Color="#B94729" />
+                <SolidColorBrush x:Key="SubtleAccentBrush" Color="#FFF0EA" />
+                <SolidColorBrush x:Key="SelectedCardBorderBrush" Color="#C64E2F" />
+                <SolidColorBrush x:Key="TrustBadgeBackgroundBrush" Color="#EAF6F0" />
+                <SolidColorBrush x:Key="TrustBadgeBorderBrush" Color="#79A38F" />
+                <SolidColorBrush x:Key="PrivacyBannerBrush" Color="#EDF7F2" />
+                <SolidColorBrush x:Key="DisabledReadableBrush" Color="#68737D" />
+            </ResourceDictionary>
+            <ResourceDictionary x:Key="HighContrast">
+                <SolidColorBrush x:Key="AppBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                <SolidColorBrush x:Key="CardBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                <SolidColorBrush x:Key="CardBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                <SolidColorBrush x:Key="MutedTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                <SolidColorBrush x:Key="WarmAccentBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                <SolidColorBrush x:Key="SubtleAccentBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                <SolidColorBrush x:Key="SelectedCardBorderBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                <SolidColorBrush x:Key="TrustBadgeBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                <SolidColorBrush x:Key="TrustBadgeBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                <SolidColorBrush x:Key="PrivacyBannerBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                <SolidColorBrush x:Key="DisabledReadableBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+            </ResourceDictionary>
+        </ResourceDictionary.ThemeDictionaries>
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource CardBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="22" />
+        </Style>
+        <Style x:Key="TrustBadgeStyle" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource TrustBadgeBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource TrustBadgeBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="12,6" />
+        </Style>
+        <Style x:Key="PageTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI Variable Display" />
+            <Setter Property="FontSize" Value="30" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="PageSubtitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="{ThemeResource MutedTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="MaxWidth" Value="760" />
+        </Style>
+        <Style x:Key="SectionTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="CardTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="BodyMutedStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{ThemeResource MutedTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="PrimaryActionStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+            <Setter Property="MinHeight" Value="42" />
+            <Setter Property="Padding" Value="18,10" />
+        </Style>
+        <Style x:Key="SecondaryActionStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="42" />
+            <Setter Property="Padding" Value="18,10" />
+        </Style>
+        <Style x:Key="AnalysisModeCardStyle" TargetType="ToggleButton">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource CardBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="MinHeight" Value="142" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" />
+                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalContentAlignment="Stretch" />
+                            <Border x:Name="SelectionMark" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                    Margin="12" Width="28" Height="28" CornerRadius="14" Background="{ThemeResource WarmAccentBrush}">
+                                <FontIcon Glyph="&#xE73E;" FontSize="13" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                            </Border>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="PointerOver">
+                                        <VisualState.Setters><Setter Target="Surface.BorderBrush" Value="{ThemeResource SelectedCardBorderBrush}" /></VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed"><VisualState.Setters><Setter Target="Surface.Opacity" Value="0.86" /></VisualState.Setters></VisualState>
+                                    <VisualState x:Name="Disabled"><VisualState.Setters><Setter Target="Surface.Opacity" Value="0.68" /></VisualState.Setters></VisualState>
+                                </VisualStateGroup>
+                                <VisualStateGroup x:Name="CheckStates">
+                                    <VisualState x:Name="Unchecked" />
+                                    <VisualState x:Name="Checked">
+                                        <VisualState.Setters>
+                                            <Setter Target="Surface.Background" Value="{ThemeResource SubtleAccentBrush}" />
+                                            <Setter Target="Surface.BorderBrush" Value="{ThemeResource SelectedCardBorderBrush}" />
+                                            <Setter Target="Surface.BorderThickness" Value="2" />
+                                            <Setter Target="SelectionMark.Visibility" Value="Visible" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

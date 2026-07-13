@@ -1,0 +1,26 @@
+<Page
+    x:Class="Clyr.App.Pages.PrivacyPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Clyr.App.Controls"
+    Background="{ThemeResource AppBackgroundBrush}"
+    AutomationProperties.Name="Privacy page">
+    <controls:ResponsivePageHost x:Name="PageHost" Title="Privacy"
+        Subtitle="CLYR is designed to explain storage without collecting your files or requiring an account."
+        AutomationProperties.Name="Privacy responsive page host">
+        <controls:ResponsivePageHost.PageContent>
+            <StackPanel Spacing="20">
+                <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Your data stays here" Style="{StaticResource SectionTitleStyle}"/><TextBlock Text="Analysis runs locally. There is no cloud upload, no telemetry by default, and no account requirement." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+                <Grid x:Name="ReadGrid" ColumnSpacing="20" RowSpacing="20">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="What CLYR reads" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="File and directory metadata · logical sizes · filesystem structure · timestamps and attributes when required" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+                    <Border x:Name="DoesNotReadCard" Grid.Column="1" Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="What CLYR does not read" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="File contents · document text · passwords · browser history · email · source-code contents · cloud-only file contents" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+                </Grid>
+                <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Cloud files" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="CLYR avoids downloading cloud placeholders. Cloud metadata can differ from space physically stored on this device." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+                <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Local history" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="Only aggregate snapshots are stored locally. Raw volume identity is protected, full scanned paths are not stored, and history can be disabled or cleared." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+                <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Exports" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="Reports are privacy-safe by default, personal paths are redacted, and CLYR never uploads an export automatically." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+            </StackPanel>
+        </controls:ResponsivePageHost.PageContent>
+    </controls:ResponsivePageHost>
+</Page>

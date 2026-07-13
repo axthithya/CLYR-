@@ -55,6 +55,16 @@ Exit: malicious/malformed rules fail; protected always wins; unknown remains unk
 
 Exit: migrations/diffs/retention pass; no journal dependency; incomplete comparisons expose uncertainty.
 
+## Phase 4.1 — Polished read-only UI/UX
+
+- [x] Replace the shared content surface with distinct Overview, Scan, Results, History, Developer Mode, Privacy, Licenses, About, and Settings pages.
+- [x] Keep full scan controls on Scan only; preserve the Phase 4 read-only service, history, and comparison behavior.
+- [x] Add a restrained design-token system, reusable headers/empty states, automatic navigation compaction, page scrolling, responsive card reflow, accessible names, and text alternatives.
+- [x] Add fixture-only UI Automation for cancellation, completion, results, comparison, page identity, narrow-window scrolling, and absence of cleanup controls.
+- [x] Add UI architecture regression tests, accessibility guidance, a dedicated verifier, and CI.
+
+Exit: the presentation layer is distinct, navigable, scrollable, accessible by automation, and still contains no cleanup, planning, mutation, elevation, or Phase 5 behavior.
+
 ## Phase 5 — Cleanup planning and dry-run only
 
 - [ ] Implement strongly typed actions, immutable digest-bound plans, ten-minute expiry, rule/version/identity binding, and overlap rejection.
@@ -102,4 +112,4 @@ Exit: community data cannot execute code; failures are safe and reversible; v1 q
 
 ## Exact next phase
 
-Phase 4 is implemented in the current working tree and stopped at its approval gate. The exact next phase is **Phase 5 — Cleanup planning and dry-run only**, and it must not begin without explicit approval.
+Phase 4 is complete and approved. Phase 4.1 is implemented in the current working tree and stopped at its approval gate. The next numbered phase remains **Phase 5 — Cleanup planning and dry-run only**, and it must not begin without explicit approval.

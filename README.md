@@ -1,14 +1,14 @@
 # CLYR
 
-> Phase 4 adds offline, local, aggregate-only snapshot history and deterministic “what grew?” comparisons. It does not add cleanup, dry-run planning, execution, elevation, or Phase 5 behavior.
+> Phase 4.1 adds a polished, distinct-page WinUI experience over the approved Phase 4 read-only analysis and aggregate history. It does not add cleanup, dry-run planning, execution, elevation, or Phase 5 behavior.
 
 > See what filled your C: drive. Understand it. Clear it safely.
 
 CLYR is a planned native Windows storage diagnostic application for people who can see that a drive is full but cannot safely tell why. It will lead with evidence: what occupies space, how confident the measurement is, which regions were inaccessible, and why a finding needs attention. The reusable C# engine will support a WinUI 3 desktop experience and a command-line interface.
 
-## Project status: Phase 3 detection-only classification complete
+## Project status: Phase 4.1 polished UI/UX awaiting approval
 
-**The repository now contains the Phase 3 metadata classifier and explanation surfaces, but no cleanup feature.** One bounded streaming pass assigns mutually exclusive storage categories, secondary tags, confidence, informational status, protected precedence, explicit Unknown/coverage gaps, and privacy-safe findings. The first-party pack must pass offline manifest, compatibility, category-registry, and SHA-256 verification before activation. External rules can be linted but never auto-activate.
+**The repository contains read-only scanning, detection-only classification, local aggregate history, deterministic comparison, and a redesigned WinUI shell—but no cleanup feature.** Overview, Scan, Results, History, Developer Mode, Privacy, Licenses, About, and Settings are distinct pages. Full scan controls exist only on Scan. A fixture-only UI mode supports safe automation without inspecting a real drive.
 
 The primary target is Windows 11. Windows 10 22H2, ReFS, removable media, and packaged/unpackaged variants are **unverified**, not supported claims. See the [support matrix](docs/SUPPORT_MATRIX.md).
 
@@ -24,21 +24,21 @@ CLYR's promise is transparency: nothing is silently removed, every recommendatio
 2. Run a cancellable, read-only quick analysis without following reparse points or hydrating cloud placeholders.
 3. Show progressive results, scan coverage, largest causes, protected areas, and uncertainty.
 4. Explain each finding and export a privacy-safe report.
-5. In later phases, compare snapshots and answer “What grew?”
+5. Compare local aggregate snapshots and answer “What grew?” without retaining a file inventory.
 6. Only after dedicated security phases, generate an immutable dry run before any opt-in action.
 
-Screenshots remain deferred until the demo-only shell is reviewed. No mock screenshot is presented as a working product.
+No mock screenshot is presented as a working product.
 
 ## Installation and quick start
 
 There is no installer or public package. On Windows 11 x64, use .NET SDK 10.0.301 and the stable Windows App Runtime 2.2 developer prerequisite, then run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-phase2.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-phase41.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-winui.ps1
 ```
 
-The first command runs every Phase 0/1 regression plus Phase 2 scanner, Windows-adapter, schema, bounded-memory, and CLI drive-discovery gates. It deliberately does not start a real-drive scan. The second launches the unpackaged WinUI build, verifies navigation, drive overview, Quick/Deep controls, cancellation, and the read-only disclosure, then closes the process without scanning.
+The first command runs all Phase 0–4 regressions plus the Phase 4.1 build, 124 tests, formatting, architecture checks, responsive layout structural verification (shared host, scroll contract, breakpoints, gutters, themes, automation IDs, scan isolation, and safety boundaries), and the full UI Automation gate. The second launches a fixture-only unpackaged WinUI build, verifies viewport bounds at five window sizes (1600×900 through 900×600) across all nine pages, and closes without inspecting a real drive.
 
 The Phase 3 CLI keeps explicit read-only drive discovery/scanning and adds offline rule inspection and report explanation:
 
@@ -74,7 +74,7 @@ CLYR uses C# 14 on .NET SDK 10.0.301, WinUI 3 on Windows App SDK 2.2.0, SQLite t
 Build from the repository root with the workspace-local SDK or an installed .NET 10.0.301 SDK:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-phase2.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-phase41.ps1
 ```
 
 The UI and CLI depend on application services; domain logic does not depend on Windows UI. Windows APIs and external tools are isolated behind adapters. Declarative community rules can detect and explain but cannot contain executable commands. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) and [TECH_STACK.md](docs/TECH_STACK.md).

@@ -3,59 +3,22 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="CLYR">
-    <Grid>
-        <NavigationView x:Name="Navigation" PaneTitle="CLYR" IsSettingsVisible="True" SelectionChanged="OnSelectionChanged">
+    <Grid Background="{ThemeResource AppBackgroundBrush}">
+        <NavigationView x:Name="Navigation" PaneTitle="CLYR" IsSettingsVisible="True"
+                        PaneDisplayMode="Auto" OpenPaneLength="240" CompactPaneLength="48"
+                        CompactModeThresholdWidth="900" ExpandedModeThresholdWidth="1180"
+                        SelectionChanged="OnSelectionChanged" AutomationProperties.Name="CLYR navigation">
             <NavigationView.MenuItems>
-                <NavigationViewItem Content="Overview" Tag="Overview" />
-                <NavigationViewItem Content="Scan" Tag="Scan" />
-                <NavigationViewItem Content="Results" Tag="Results" />
-                <NavigationViewItem Content="History" Tag="History" />
-                <NavigationViewItem Content="Developer Mode" Tag="Developer Mode" />
-                <NavigationViewItem Content="Privacy" Tag="Privacy" />
-                <NavigationViewItem Content="Licenses" Tag="Licenses" />
-                <NavigationViewItem Content="About" Tag="About" />
+                <NavigationViewItem Content="Overview" Tag="Overview" ToolTipService.ToolTip="Overview"><NavigationViewItem.Icon><SymbolIcon Symbol="Home"/></NavigationViewItem.Icon></NavigationViewItem>
+                <NavigationViewItem Content="Scan" Tag="Scan" ToolTipService.ToolTip="Analyze a drive"><NavigationViewItem.Icon><SymbolIcon Symbol="Find"/></NavigationViewItem.Icon></NavigationViewItem>
+                <NavigationViewItem Content="Results" Tag="Results" ToolTipService.ToolTip="Latest results"><NavigationViewItem.Icon><SymbolIcon Symbol="AllApps"/></NavigationViewItem.Icon></NavigationViewItem>
+                <NavigationViewItem Content="History" Tag="History" ToolTipService.ToolTip="Local history"><NavigationViewItem.Icon><SymbolIcon Symbol="Clock"/></NavigationViewItem.Icon></NavigationViewItem>
+                <NavigationViewItem Content="Developer Mode" Tag="Developer Mode" ToolTipService.ToolTip="Developer Mode preview"><NavigationViewItem.Icon><FontIcon Glyph="&#xE943;"/></NavigationViewItem.Icon></NavigationViewItem>
+                <NavigationViewItem Content="Privacy" Tag="Privacy" ToolTipService.ToolTip="Privacy"><NavigationViewItem.Icon><SymbolIcon Symbol="Permissions"/></NavigationViewItem.Icon></NavigationViewItem>
+                <NavigationViewItem Content="Licenses" Tag="Licenses" ToolTipService.ToolTip="Open-source licenses"><NavigationViewItem.Icon><SymbolIcon Symbol="Document"/></NavigationViewItem.Icon></NavigationViewItem>
+                <NavigationViewItem Content="About" Tag="About" ToolTipService.ToolTip="About CLYR"><NavigationViewItem.Icon><SymbolIcon Symbol="Help"/></NavigationViewItem.Icon></NavigationViewItem>
             </NavigationView.MenuItems>
-            <StackPanel Padding="32" Spacing="16">
-                <TextBlock Text="CLYR" FontSize="36" FontWeight="SemiBold" />
-                <TextBlock Text="Phase 4 history stores local aggregate snapshots only. Analysis remains metadata-only and read-only; findings never authorize cleanup." FontSize="18" TextWrapping="Wrap" />
-                <TextBlock x:Name="PageTitle" Text="Overview" FontSize="26" />
-                <TextBlock x:Name="PageDescription" Text="Read-only Phase 1 engineering foundation." TextWrapping="Wrap" />
-                <TextBlock x:Name="DriveSummaryText" Text="Discovering local drives…" TextWrapping="Wrap" />
-                <ComboBox x:Name="DriveSelector" Header="Local volume" MinWidth="620" AutomationProperties.Name="Local volume selector" />
-                <StackPanel Orientation="Horizontal" Spacing="20">
-                    <RadioButton x:Name="QuickMode" Content="Quick Analysis" GroupName="ScanMode" IsChecked="True" AutomationProperties.HelpText="Faster scan limited to three directory levels." />
-                    <RadioButton x:Name="DeepMode" Content="Deep Analysis" GroupName="ScanMode" AutomationProperties.HelpText="Full metadata traversal. It can take substantially longer." />
-                </StackPanel>
-                <TextBlock Text="Quick is depth-limited. Deep traverses accessible directories. Both skip reparse points, avoid cloud hydration, and report logical size only; hard links may be counted more than once." TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    <Button x:Name="StartScanButton" Content="Start analysis" Click="OnStartScan" IsEnabled="False" />
-                    <Button x:Name="CancelScanButton" Content="Cancel analysis" Click="OnCancelScan" IsEnabled="False" />
-                </StackPanel>
-                <TextBlock x:Name="ScanStatusText" Text="Not started." FontSize="20" AutomationProperties.LiveSetting="Polite" />
-                <TextBlock x:Name="CurrentPathText" Text="No path is being inspected." TextWrapping="Wrap" />
-                <TextBlock x:Name="CoverageText" Text="Coverage will appear after analysis." TextWrapping="Wrap" />
-                <TextBlock x:Name="RulesStatusText" Text="Checking built-in rule integrity..." TextWrapping="Wrap" />
-                <TextBlock Text="Why is this drive full?" FontSize="20" FontWeight="SemiBold" />
-                <TextBlock x:Name="ClassificationSummaryText" Text="Classification will appear after analysis." TextWrapping="Wrap" />
-                <ListView x:Name="FindingList" MaxHeight="300" AutomationProperties.Name="Classified storage findings" />
-                <TextBlock Text="Largest top-level directories" FontSize="20" FontWeight="SemiBold" />
-                <ListView x:Name="ResultList" MaxHeight="280" />
-                <ListView x:Name="DemoFindings" Visibility="Collapsed" />
-                <StackPanel x:Name="HistoryPanel" Visibility="Collapsed" Spacing="12">
-                    <TextBlock Text="Local snapshot history" FontSize="20" FontWeight="SemiBold" />
-                    <TextBlock Text="Only aggregate measurements and HMAC-protected drive identity are stored. Select two snapshots to compare." TextWrapping="Wrap" />
-                    <ListView x:Name="HistoryList" SelectionMode="Multiple" MaxHeight="300" AutomationProperties.Name="Local snapshot history" />
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Button Content="Refresh" Click="OnRefreshHistory" />
-                        <Button Content="Compare selected" Click="OnCompareHistory" />
-                        <Button Content="Delete selected" Click="OnDeleteHistory" />
-                        <Button Content="Clear history" Click="OnClearHistory" />
-                    </StackPanel>
-                    <TextBlock x:Name="ComparisonText" Text="No comparison selected." TextWrapping="Wrap" />
-                    <ToggleSwitch x:Name="HistoryEnabled" Header="Save snapshot history" Toggled="OnHistorySettingsChanged" />
-                    <NumberBox x:Name="HistoryRetention" Header="Snapshots retained per drive (2–1000)" Minimum="2" Maximum="1000" SpinButtonPlacementMode="Inline" ValueChanged="OnHistoryRetentionChanged" />
-                </StackPanel>
-            </StackPanel>
+            <ContentControl x:Name="ContentHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
         </NavigationView>
     </Grid>
 </Window>

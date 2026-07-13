@@ -1,0 +1,27 @@
+<Page
+    x:Class="Clyr.App.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Clyr.App.Controls"
+    Background="{ThemeResource AppBackgroundBrush}"
+    AutomationProperties.Name="Settings page">
+    <controls:ResponsivePageHost x:Name="PageHost" Title="Settings"
+        Subtitle="Control appearance, local history, privacy defaults, and accessibility preferences."
+        AutomationProperties.Name="Settings responsive page host">
+        <controls:ResponsivePageHost.PageContent>
+            <StackPanel Spacing="20">
+                <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="Appearance settings"><StackPanel Spacing="10"><TextBlock Text="Appearance" Style="{StaticResource SectionTitleStyle}"/><ComboBox x:Name="ThemeSelector" Header="App theme" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="ThemeChanged"><ComboBoxItem Content="System"/><ComboBoxItem Content="Light"/><ComboBoxItem Content="Dark"/></ComboBox><TextBlock Text="Light mode uses a soft neutral canvas, crisp white cards, strong text, and a restrained warm accent. High contrast follows Windows." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+                <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="History settings">
+                    <StackPanel Spacing="12"><TextBlock Text="History" Style="{StaticResource SectionTitleStyle}"/><ToggleSwitch x:Name="HistoryEnabled" Header="Save scan history" AutomationProperties.Name="Settings history toggle"/><NumberBox x:Name="Retention" Header="Analyses retained per drive" Minimum="2" Maximum="1000" SpinButtonPlacementMode="Inline" HorizontalAlignment="Stretch" AutomationProperties.Name="Settings retention control"/><TextBlock x:Name="HistorySummary" Style="{StaticResource BodyMutedStyle}"/>
+                        <StackPanel x:Name="SettingsActions" Orientation="Horizontal" Spacing="12"><Button Content="Save History Settings" Click="SaveHistory" Style="{StaticResource PrimaryActionStyle}"/><Button Content="Clear History" Click="ClearHistory" AutomationProperties.Name="Clear History"/></StackPanel>
+                        <TextBlock Text="Clearing history deletes only CLYR’s local history. It does not delete files from your drive." Style="{StaticResource BodyMutedStyle}"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="Privacy settings"><StackPanel Spacing="8"><TextBlock Text="Privacy" Style="{StaticResource SectionTitleStyle}"/><ToggleSwitch Header="Privacy-safe export by default" IsOn="True" IsEnabled="False"/><TextBlock Text="CLYR is local-only and never uploads reports automatically. Detailed export is not available in this preview." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+                <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="Accessibility settings"><StackPanel Spacing="8"><TextBlock Text="Accessibility" Style="{StaticResource SectionTitleStyle}"/><ToggleSwitch Header="Reduce nonessential motion" IsOn="True" IsEnabled="False"/><TextBlock Text="The interface uses restrained motion, keyboard-reachable controls, text alternatives for visual data, and Windows high-contrast colors where available." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+                <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="Application settings"><StackPanel Spacing="8"><TextBlock Text="Application" Style="{StaticResource SectionTitleStyle}"/><TextBlock Text="CLYR preview · diagnostics stay local · non-destructive settings only" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+                <TextBlock x:Name="SettingsStatus" AutomationProperties.LiveSetting="Polite" Style="{StaticResource BodyMutedStyle}"/>
+            </StackPanel>
+        </controls:ResponsivePageHost.PageContent>
+    </controls:ResponsivePageHost>
+</Page>

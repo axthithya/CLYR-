@@ -3,68 +3,152 @@ param()
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class ClyrWindowNative {
+  [DllImport("user32.dll", SetLastError=true)]
+  public static extern bool MoveWindow(IntPtr hWnd, int x, int y, int width, int height, bool repaint);
+}
+'@
 
 $root = Split-Path -Parent $PSScriptRoot
 $app = Join-Path $root 'src\Clyr.App\bin\Release\net10.0-windows10.0.26100.0\win-x64\Clyr.App.exe'
 if (-not (Test-Path -LiteralPath $app -PathType Leaf)) { throw "WinUI executable not found: $app" }
-
 $localDotnet = Join-Path $root '.tools\dotnet'
-if (Test-Path -LiteralPath (Join-Path $localDotnet 'dotnet.exe')) {
-    $env:DOTNET_ROOT = $localDotnet
-    $env:PATH = "$localDotnet;$env:PATH"
+if (Test-Path -LiteralPath (Join-Path $localDotnet 'dotnet.exe')) { $env:DOTNET_ROOT = $localDotnet; $env:PATH = "$localDotnet;$env:PATH" }
+
+function Find-Named([System.Windows.Automation.AutomationElement]$rootElement, [string]$name) {
+    $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $name)
+    return $rootElement.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+}
+function Require-Named([System.Windows.Automation.AutomationElement]$rootElement, [string]$name) {
+    $item = Find-Named $rootElement $name
+    if ($null -eq $item) { throw "Required UI element did not render: $name" }
+    return $item
+}
+function Select-Page([System.Windows.Automation.AutomationElement]$window, [string]$name) {
+    $candidates = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants,
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $name))
+    $item = $null
+    for ($i=0; $i -lt $candidates.Count; $i++) { if ($candidates.Item($i).Current.ControlType -eq [System.Windows.Automation.ControlType]::ListItem) { $item=$candidates.Item($i); break } }
+    if ($null -eq $item) { throw "Navigation item not found: $name" }
+    $item.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    Start-Sleep -Milliseconds 250
+    return $item
+}
+function Invoke-Named([System.Windows.Automation.AutomationElement]$window, [string]$name) {
+    $item = Require-Named $window $name
+    $item.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
 }
 
+$previousFixture = $env:CLYR_UI_FIXTURE
+$env:CLYR_UI_FIXTURE = '1'
 $process = Start-Process -FilePath $app -PassThru
-Start-Sleep -Seconds 5
+Start-Sleep -Seconds 4
 try {
     if ($process.HasExited) { throw "Clyr.App exited with code $($process.ExitCode)." }
     $desktop = [System.Windows.Automation.AutomationElement]::RootElement
-    $processCondition = [System.Windows.Automation.PropertyCondition]::new(
-        [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
-        $process.Id)
-    $window = $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $processCondition)
+    $window = $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children,
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id))
     if ($null -eq $window -or $window.Current.Name -ne 'CLYR') { throw 'The CLYR main window did not render.' }
+    [ClyrWindowNative]::MoveWindow($process.MainWindowHandle, 40, 40, 1280, 720, $true) | Out-Null
 
-    foreach ($name in @('Overview', 'Scan', 'Results', 'Developer Mode', 'Privacy', 'Licenses', 'About', 'Settings', 'History')) {
-        $nameCondition = [System.Windows.Automation.PropertyCondition]::new(
-            [System.Windows.Automation.AutomationElement]::NameProperty,
-            $name)
-        $candidates = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $nameCondition)
-        $item = $null
-        for ($index = 0; $index -lt $candidates.Count; $index++) {
-            if ($candidates.Item($index).Current.ControlType -eq [System.Windows.Automation.ControlType]::ListItem) {
-                $item = $candidates.Item($index)
-                break
+    Select-Page $window 'Overview' | Out-Null
+    Require-Named $window 'Overview page' | Out-Null
+    Require-Named $window 'System drive summary' | Out-Null
+    if ($null -ne (Find-Named $window 'Start Analysis')) { throw 'Overview incorrectly exposes full scan controls.' }
+
+    Select-Page $window 'Scan' | Out-Null
+    Require-Named $window 'Quick Analysis mode card' | Out-Null
+    Require-Named $window 'Deep Analysis mode card' | Out-Null
+    Invoke-Named $window 'Start Analysis'
+    Start-Sleep -Milliseconds 300
+    $cancel = Require-Named $window 'Cancel Analysis'
+    if (-not $cancel.Current.IsEnabled) { throw 'Cancellation was not enabled during fixture analysis.' }
+    $cancel.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Seconds 2
+    Invoke-Named $window 'Start Analysis'
+    Start-Sleep -Seconds 2
+
+    Select-Page $window 'Results' | Out-Null
+    Require-Named $window 'Results page' | Out-Null
+    Require-Named $window 'Contributor visualization' | Out-Null
+    Require-Named $window 'Contributor text alternatives' | Out-Null
+    if ($null -ne (Find-Named $window 'Start Analysis')) { throw 'Results incorrectly exposes scan controls.' }
+
+    Select-Page $window 'History' | Out-Null
+    $history = Require-Named $window 'Local snapshot history'
+    $historyItems = $history.FindAll([System.Windows.Automation.TreeScope]::Children,
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::ListItem))
+    if ($historyItems.Count -lt 2) { throw 'Fixture history did not expose two snapshots.' }
+    $historyItems.Item(0).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    $historyItems.Item(1).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).AddToSelection()
+    Invoke-Named $window 'Compare two selected snapshots'
+    Start-Sleep -Milliseconds 300
+    Require-Named $window 'Snapshot comparison' | Out-Null
+
+    $expectations = @{
+        'Developer Mode'='Developer Mode page'; 'Privacy'='Privacy page'; 'Licenses'='Licenses page';
+        'About'='About page'; 'Settings'='Settings page'
+    }
+    foreach ($entry in $expectations.GetEnumerator()) { Select-Page $window $entry.Key | Out-Null; Require-Named $window $entry.Value | Out-Null; if ($null -ne (Find-Named $window 'Start Analysis')) { throw "$($entry.Key) incorrectly exposes scan controls." } }
+    Select-Page $window 'Settings' | Out-Null
+    Require-Named $window 'Settings page' | Out-Null
+    Require-Named $window 'History settings' | Out-Null
+    Require-Named $window 'Appearance settings' | Out-Null
+
+    Select-Page $window 'Licenses' | Out-Null
+    Require-Named $window 'Licenses page' | Out-Null
+    Require-Named $window 'Search third-party licenses' | Out-Null
+    Require-Named $window 'Third-party license inventory' | Out-Null
+
+    Select-Page $window 'About' | Out-Null
+    Require-Named $window 'About page' | Out-Null
+    Require-Named $window 'About version text' | Out-Null
+
+    # Scroll verification at 1000x650
+    Select-Page $window 'Settings' | Out-Null
+    [ClyrWindowNative]::MoveWindow($process.MainWindowHandle, 40, 40, 1000, 650, $true) | Out-Null
+    Start-Sleep -Milliseconds 400
+    $scroller = Require-Named $window 'Page content viewport'
+    $scrollPattern = $null
+    if (-not $scroller.TryGetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern, [ref]$scrollPattern)) { throw 'Settings page did not expose an accessible scroll pattern.' }
+    if (-not $scrollPattern.Current.VerticallyScrollable) { throw 'Settings page was not vertically scrollable at 1000x650.' }
+    $before = $scrollPattern.Current.VerticalScrollPercent
+    $scrollPattern.ScrollVertical([System.Windows.Automation.ScrollAmount]::LargeIncrement)
+    Start-Sleep -Milliseconds 250
+    if ($scrollPattern.Current.VerticalScrollPercent -le $before) { throw 'Vertical scrolling did not advance.' }
+    if ($scrollPattern.Current.HorizontallyScrollable) { throw 'An accidental horizontal scrollbar appeared.' }
+
+    # Multi-size viewport bounds verification
+    $sizes = @(@(1600,900), @(1366,768), @(1280,720), @(1000,650), @(900,600))
+    $boundsPages = @('Overview','Scan','Results','History','Developer Mode','Privacy','Licenses','About','Settings')
+    foreach ($size in $sizes) {
+        [ClyrWindowNative]::MoveWindow($process.MainWindowHandle, 20, 20, $size[0], $size[1], $true) | Out-Null
+        Start-Sleep -Milliseconds 300
+        foreach ($page in $boundsPages) {
+            Select-Page $window $page | Out-Null
+            Start-Sleep -Milliseconds 150
+            $host = Find-Named $window 'Page content viewport'
+            if ($null -eq $host) { throw "$page did not render Page content viewport at $($size[0])x$($size[1])." }
+            $hostRect = $host.Current.BoundingRectangle
+            if ($hostRect.Width -le 0) { throw "$page had zero-width viewport at $($size[0])x$($size[1])." }
+            $hostScroll = $null
+            if ($host.TryGetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern, [ref]$hostScroll) -and $hostScroll.Current.HorizontallyScrollable) {
+                throw "$page had an accidental horizontal scrollbar at $($size[0])x$($size[1])."
             }
         }
-        if ($null -eq $item) { throw "Navigation item not found: $name" }
-        $selection = $item.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
-        $selection.Select()
-        Start-Sleep -Milliseconds 150
-        if (-not $selection.Current.IsSelected) { throw "Navigation item did not select: $name" }
+        Write-Host "  Bounds verified at $($size[0])x$($size[1])." -ForegroundColor DarkGreen
     }
 
-    Start-Sleep -Milliseconds 250
-    $expectedDisclosure = "Phase 4 history stores local aggregate snapshots only. Analysis remains metadata-only and read-only; findings never authorize cleanup."
-    $disclosure = [System.Windows.Automation.PropertyCondition]::new(
-        [System.Windows.Automation.AutomationElement]::NameProperty,
-        $expectedDisclosure)
-    if ($null -eq $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $disclosure)) {
-        throw 'The required read-only Phase 4 disclosure did not render.'
-    }
-    foreach ($controlName in @('Local volume selector', 'Quick Analysis', 'Deep Analysis', 'Start analysis', 'Cancel analysis', 'Local snapshot history')) {
-        $controlCondition = [System.Windows.Automation.PropertyCondition]::new(
-            [System.Windows.Automation.AutomationElement]::NameProperty,
-            $controlName)
-        if ($null -eq $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $controlCondition)) {
-            throw "Required read-only control did not render: $controlName"
-        }
-    }
-    Write-Host 'WinUI launch, navigation, drive overview, scan modes, history, cancellation, and read-only disclosure PASSED.' -ForegroundColor Green
+    $clean = Find-Named $window 'Clean'
+    if ($null -ne $clean) { throw 'A cleanup control appeared in the UI.' }
+    Write-Host 'Phase 4.1 UI Automation PASSED: distinct pages, fixture scan/cancel/complete, results, history comparison, license/about verification, multi-size bounds (1600x900 to 900x600), vertical scroll, no horizontal scroll, and no cleanup control.' -ForegroundColor Green
 }
 finally {
     if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+    $env:CLYR_UI_FIXTURE = $previousFixture
 }

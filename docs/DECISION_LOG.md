@@ -27,6 +27,15 @@ This is the concise cross-project index. Architecture details live in the linked
 ## Change protocol
 
 Anyone may propose a decision change. Changes affecting protected resources, privilege, executable adapters, update trust, data retention, license, or product claims require an ADR, threat-model update, tests appropriate to the active phase, and explicit maintainer approval.
+
+## Phase 4.1 decisions — 2026-07-13
+
+- D-020 Accepted: use distinct WinUI pages and page-specific view models while sharing one UI-independent analysis session. This removes control duplication without changing Core, persistence, rules, or Windows scanning behavior.
+- D-021 Accepted: expose a process-scoped `CLYR_UI_FIXTURE=1` composition only for deterministic UI Automation. Production composition remains the default, and the fixture performs no drive enumeration or filesystem mutation.
+- D-022 Accepted: treat actual Windows DPI/text-scaling checks as an explicit manual release gate; automated window resizing is useful reflow evidence but is not represented as operating-system scaling evidence.
+- D-023 Accepted: use a shared `ResponsivePageHost` control with consistent breakpoints (Narrow <760px, Medium 760–1199px, Wide ≥1200px), dynamic gutters (16/24/32px), max content width 1120px, and centered layout for all nine pages. Individual page XAML no longer contains scroll viewers.
+- D-024 Accepted: require stable `AutomationProperties.Name` values on all critical interactive elements and page roots; verify with both UI Automation tests and static XAML analysis.
+- D-025 Accepted: add a structural responsive layout verifier (`verify-responsive-layout.ps1`) that validates shared host usage, scroll contract, breakpoints, gutters, theme completeness, scan-control isolation, automation names, and safety boundaries without launching the app. The UI Automation verifier (`verify-winui.ps1`) additionally tests viewport bounds at five window sizes (1600×900 through 900×600).
 ## Phase 4 decisions — 2026-07-13
 
 - Store aggregate history only in local SQLite; never store a file inventory.

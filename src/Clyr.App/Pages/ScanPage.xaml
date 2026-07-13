@@ -1,0 +1,49 @@
+<Page
+    x:Class="Clyr.App.Pages.ScanPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Clyr.App.Controls"
+    Background="{ThemeResource AppBackgroundBrush}"
+    AutomationProperties.Name="Scan page">
+    <controls:ResponsivePageHost x:Name="PageHost" Title="Analyze a drive"
+        Subtitle="Choose a local drive and analysis depth. CLYR reads metadata only and never changes your files."
+        AutomationProperties.Name="Scan responsive page host">
+        <controls:ResponsivePageHost.PageContent>
+            <StackPanel Spacing="24">
+                <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="10"><TextBlock Text="Local drive" Style="{StaticResource CardTitleStyle}"/><ComboBox x:Name="DriveSelector" HorizontalAlignment="Stretch" SelectionChanged="DriveChanged" AutomationProperties.Name="Local volume selector"/><TextBlock x:Name="DriveDetails" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+                <Grid x:Name="ModeCards" ColumnSpacing="20" RowSpacing="16">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <ToggleButton x:Name="QuickCard" IsChecked="True" Click="QuickSelected" Style="{StaticResource AnalysisModeCardStyle}" AutomationProperties.Name="Quick Analysis mode card" AutomationProperties.HelpText="Selected. Recommended faster depth-limited analysis">
+                        <StackPanel Spacing="8"><TextBlock Text="Quick Analysis" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="Recommended" Foreground="{ThemeResource WarmAccentBrush}" FontWeight="SemiBold"/><TextBlock Text="Faster and depth-limited. Best for a first look." Style="{StaticResource BodyMutedStyle}"/></StackPanel>
+                    </ToggleButton>
+                    <ToggleButton x:Name="DeepCard" Grid.Column="1" Click="DeepSelected" Style="{StaticResource AnalysisModeCardStyle}" AutomationProperties.Name="Deep Analysis mode card" AutomationProperties.HelpText="Slower analysis of accessible directories">
+                        <StackPanel Spacing="8"><TextBlock Text="Deep Analysis" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="More detailed"/><TextBlock Text="Scans accessible directories more deeply and can take substantially longer." Style="{StaticResource BodyMutedStyle}"/></StackPanel>
+                    </ToggleButton>
+                </Grid>
+                <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="Scan progress card">
+                    <StackPanel Spacing="14">
+                        <TextBlock x:Name="ScanState" Text="Ready to analyze" Style="{StaticResource SectionTitleStyle}" AutomationProperties.LiveSetting="Polite"/>
+                        <ProgressBar x:Name="ActiveProgress" IsIndeterminate="True" Visibility="Collapsed" Height="5"/>
+                        <Grid x:Name="MetricsGrid" ColumnSpacing="16" RowSpacing="12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                            <StackPanel><TextBlock Text="Files" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="FileCount" Text="—" FontSize="18"/></StackPanel>
+                            <StackPanel x:Name="DirectoryMetric" Grid.Column="1"><TextBlock Text="Directories" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="DirectoryCount" Text="—" FontSize="18"/></StackPanel>
+                            <StackPanel x:Name="ObservedMetric" Grid.Column="2"><TextBlock Text="Observed" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="ObservedSize" Text="—" FontSize="18"/></StackPanel>
+                        </Grid>
+                        <TextBlock x:Name="CurrentLocation" Text="Private location details appear redacted while analysis runs." Style="{StaticResource BodyMutedStyle}"/>
+                        <StackPanel x:Name="ScanActions" Orientation="Horizontal" Spacing="12">
+                            <Button x:Name="StartButton" Content="Start Analysis" Style="{StaticResource PrimaryActionStyle}" Click="StartAnalysis" AutomationProperties.Name="Start Analysis"/>
+                            <Button x:Name="CancelButton" Content="Cancel Analysis" Style="{StaticResource SecondaryActionStyle}" Click="CancelAnalysis" IsEnabled="False" AutomationProperties.Name="Cancel Analysis"/>
+                            <Button x:Name="ResultsButton" Content="View Results" Click="ViewResults" Visibility="Collapsed"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardStyle}" Background="{ThemeResource PrivacyBannerBrush}" AutomationProperties.Name="Private read-only analysis notice">
+                    <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE72E;"/><TextBlock Grid.Column="1" Text="Private and read-only. No file contents are read, no cloud-only files are downloaded, and no files are changed." TextWrapping="Wrap"/></Grid>
+                </Border>
+            </StackPanel>
+        </controls:ResponsivePageHost.PageContent>
+    </controls:ResponsivePageHost>
+</Page>
