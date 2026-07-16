@@ -32,8 +32,9 @@ public sealed class CleanupPlanValidator
         foreach (var item in plan.Items)
         {
             if (item.Eligibility != CleanupEligibility.DryRunEligible
-                || item.Action.ExecutionAvailability != ExecutionAvailability.ExecutionNotAvailableInPhase5)
-                diagnostics.Add(Error("plan.action-unavailable", "A plan item crossed the Phase 5 action boundary.", item.ItemId));
+                || item.Action.ExecutionAvailability is not (ExecutionAvailability.ExecutionNotAvailableInPhase5
+                    or ExecutionAvailability.Phase6BuiltInExecutable))
+                diagnostics.Add(Error("plan.action-unavailable", "A plan item crossed the supported action boundary.", item.ItemId));
             foreach (var target in item.Targets)
             {
                 if (target.CanonicalPath is null) continue;

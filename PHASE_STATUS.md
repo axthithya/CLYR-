@@ -9,7 +9,7 @@
 | 4 — Snapshots/growth | **Complete and approved** | `main`; Phase 4 baseline preserved | 114/114 passed at Phase 4 exit | Versioned aggregate SQLite history, HMAC drive identity, retention/deletion, deterministic comparisons, CLI/WinUI, schemas/ADR | Logical estimates; USN deliberately unsupported; cloned volume identity remains documented | Preserved |
 | 4.1 — Polished UI/UX | **Complete and approved** | main; commit e6014ab | 124/124 passed at Phase 4.1 exit | Shared responsive host, distinct pages/view models, Light/Dark/High Contrast resources, fixture-only automation, accessibility guidance | Actual OS DPI/text scaling and Windows High Contrast remain manual release checks | Preserved |
 | 5 — Dry-run planning | **Implemented and verified — awaiting approval** | Current working tree over e6014ab; no Git mutations by instruction | 163/163 passed; complete Phase 0–5 verifier passed | Eligibility/action model, immutable digest-bound plans, stale/protected validation, CLI, Review Plan UI, schema/export, disabled executor | Exact browser cache roots need narrower future evidence; actual High Contrast/DPI/text scaling remain manual | Stop; await approval |
-| 6 — Low-risk execution | Planned | — | Not run | Tiny allowlist and helper | Security questions open; no implementation | After Phase 5 approval |
+| 6 — Low-risk execution | **Core engine slice implemented — not complete, not approved** | Current working tree over c04f586; no Git mutation | 190/190 passed (177 prior + 13 new execution tests); no verifier run | Non-elevated execution engine for one enabled built-in action (`builtin.clyr-owned-temp-artifacts`), one-time token, per-target TOCTOU revalidation, exact bounded manifest, cancellation, privacy-safe receipts | Elevated helper, IPC, CLI `plan execute`/`execution *`, WinUI execution surface, SQLite receipt persistence, fixture-only UAC smoke test, and full doc/ADR sweep are not implemented; see docs/PHASE6_EXECUTION.md | Follow-up turn continues Phase 6 |
 | 7 — Developer Mode | Planned | — | Not run | First-party tool adapters | No implementation | After Phase 6 approval |
 | 8 — Move workflows | Planned | — | Not run | Supported migrations | No implementation | After Phase 7 approval |
 | 9 — Public beta | Planned | — | Not run | Hardening/signing/MSIX/SBOM | No release identity/artifacts | After Phase 8 approval |
@@ -30,4 +30,22 @@
 - Optional real-drive smoke: an explicit Quick C:\ scan ran metadata-only to process exit with no export/write destination. The last captured progressive observation before console detachment was 95,679 files, 29,963 directories, 51.45 GiB logical bytes, and 11,154 depth/coverage skips; this is not an exact whole-drive total.
 - Security boundary: `asInvoker`; metadata-only scan, CLYR-owned aggregate database writes, and immutable dry-run plan/report persistence only. No content reads, hydration, reparse traversal, scanned-file mutation, cleanup execution, movement, Recycle Bin operation, arbitrary process execution, elevation, service, startup registration, functional helper, or Phase 6 behavior.
 
-Phase 0–4.1 history remains preserved. Phase 5 is implemented and fully verified in the working tree; it is stopped at the approval gate. Phase 6 has not begun.
+Phase 0–4.1 history remains preserved. Phase 5 is implemented and fully verified over commit c04f586 (approval-gated). Phase 6 has begun as an in-progress core-engine slice — see below.
+
+## Phase 6 working-tree evidence (in progress, not approved)
+
+- Working tree: Phase 6 core execution engine over committed Phase 5 (c04f586); no Git mutation performed.
+- Scope: non-elevated execution pipeline only — one enabled built-in action, one-time token, per-target TOCTOU
+  revalidation, exact bounded manifest, cancellation, in-memory privacy-safe receipts. See docs/PHASE6_EXECUTION.md.
+- Not implemented: elevated helper (`Clyr.ElevatedHelper` remains a placeholder README), secure IPC, CLI
+  `plan execute`/`execution *` commands, WinUI execution surface, SQLite receipt persistence, fixture-only UAC
+  smoke test, and the full documentation/ADR sweep.
+- Build: `dotnet build Clyr.sln --configuration Release` — 0 warnings, 0 errors.
+- Tests: 190/190 passed (Cli 32, Contracts 3, Core 81, Integration 1, Persistence 10, Rules 24, Safety 21,
+  Windows 5). 13 of the 81 Core tests are new Phase 6 execution tests; 2 of the 21 Safety tests are new
+  Phase 6 repository-boundary checks; all other counts and tests are unchanged from Phase 5.
+- Format: `dotnet format Clyr.sln --verify-no-changes` passed.
+- No Phase 0–5 verifier, IPC test, helper test, CLI test, WinUI Automation, responsive check, or UAC smoke
+  test has been run for Phase 6 — those require the deferred surfaces above.
+- Per the Phase 6 specification's own fallback: **Phase 6 is not complete** because the elevated helper, IPC,
+  and the required fixture-only UAC smoke test have not been implemented or performed.

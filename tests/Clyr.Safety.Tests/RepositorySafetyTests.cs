@@ -63,14 +63,40 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
-    public void ProductionSourceContainsNoMutationOrProcessExecutor()
+    public void ProductionSourceContainsNoProcessExecutorOrElevationOutsideTheReviewedExecutionBoundary()
     {
-        var forbidden = new[] { "Process.Start", "System.Diagnostics.Process", "File.Delete", "File.Move", "Directory.Delete", "RecycleOption", "requireAdministrator", "powershell.exe", "cmd.exe" };
+        // These must never appear anywhere in production source, including the Phase 6 execution boundary itself.
+        var alwaysForbidden = new[]
+        {
+            "Process.Start", "System.Diagnostics.Process", "RecycleOption", "requireAdministrator",
+            "powershell.exe", "cmd.exe", "ProcessStartInfo"
+        };
+        // File/Directory mutation APIs may exist only inside the reviewed, narrow Phase 6 execution boundary.
+        var boundaryOnly = new[] { "File.Delete", "File.Move", "Directory.Delete" };
+        var executionBoundary = Path.Combine(Root, "src", "Clyr.Core", "Execution") + Path.DirectorySeparatorChar;
         foreach (var source in Directory.EnumerateFiles(Path.Combine(Root, "src"), "*.cs", SearchOption.AllDirectories))
         {
             if (source.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.Ordinal)) continue;
             var text = File.ReadAllText(source);
-            foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+            foreach (var token in alwaysForbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+            if (!source.StartsWith(executionBoundary, StringComparison.OrdinalIgnoreCase))
+                foreach (var token in boundaryOnly) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ExecutionBoundaryContainsNoShellPackageManagerOrContainerCommands()
+    {
+        var forbidden = new[]
+        {
+            "npm ", "npm.exe", "pnpm", "yarn", "pip ", "pip.exe", "nuget.exe", "gradle", "mvn ", "flutter", "cargo ",
+            "docker", "wsl", "dism.exe", "reg.exe", "sc.exe", "takeown", "icacls", "attrib +", "vssadmin"
+        };
+        var executionBoundary = Path.Combine(Root, "src", "Clyr.Core", "Execution");
+        foreach (var source in Directory.EnumerateFiles(executionBoundary, "*.cs", SearchOption.AllDirectories))
+        {
+            var text = File.ReadAllText(source);
+            foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.OrdinalIgnoreCase);
         }
     }
 

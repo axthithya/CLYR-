@@ -15,10 +15,10 @@ public readonly record struct CleanupPlanId
 }
 
 public enum CleanupEligibility { NotEligible, ManualReviewOnly, DryRunEligible, Protected, Unsupported, InsufficientEvidence }
-public enum CleanupActionType { ReportOnly, ReviewFiles, RecycleFiles, QuarantineFiles, TrustedToolCommand, WindowsSupportedCleanup, MoveKnownFolder, ManualInstructions }
+public enum CleanupActionType { ReportOnly, ReviewFiles, RecycleFiles, QuarantineFiles, TrustedToolCommand, WindowsSupportedCleanup, MoveKnownFolder, ManualInstructions, TrustedBuiltInCleanup }
 public enum CleanupPlanStatus { Draft, Valid, Stale, Expired, Invalid, Discarded }
 public enum RollbackCapability { None, RecycleBinPotential, QuarantinePotential, ToolManaged, Manual, Unknown }
-public enum ExecutionAvailability { ExecutionNotAvailableInPhase5 }
+public enum ExecutionAvailability { ExecutionNotAvailableInPhase5, Phase6BuiltInExecutable }
 public enum PlanDiagnosticSeverity { Information, Warning, Error }
 public enum TargetState { Observed, Inaccessible, Protected, CloudPlaceholder, Changed, Missing, ReviewRequired }
 
