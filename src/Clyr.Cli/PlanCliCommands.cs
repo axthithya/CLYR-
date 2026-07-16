@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Clyr.Contracts;
 using Clyr.Core;
+using Clyr.Core.Execution;
 
 namespace Clyr.Cli;
 
@@ -30,7 +31,8 @@ public sealed partial class CliApplication
             if (args.Count >= 3 && args[1] == "validate") return PlanValidate(args, output, error);
             if (args.Count >= 3 && args[1] == "export") return PlanExport(args, output, error);
             if (args.Count == 3 && args[1] == "discard") return PlanDiscard(args[2], output, error);
-            error.WriteLine("Usage: clyr plan candidates --snapshot <id> [--json] | create --snapshot <id> --finding <id> [--finding <id>] [--json] | show <plan-id> [--json] | validate <plan-id> [--json] | export <plan-id> --output <path> | discard <plan-id>");
+            if (args.Count >= 3 && args[1] == "execute") return PlanExecute(args, output, error);
+            error.WriteLine("Usage: clyr plan candidates --snapshot <id> [--json] | create --snapshot <id> --finding <id> [--finding <id>] [--json] | show <plan-id> [--json] | validate <plan-id> [--json] | export <plan-id> --output <path> | discard <plan-id> | execute <plan-id> --confirm-digest <prefix> [--json]");
             return 2;
         }
         catch (InvalidOperationException exception)
@@ -51,7 +53,7 @@ public sealed partial class CliApplication
             return Usage(error, "A valid --snapshot <id> is required.");
         var snapshot = snapshotStore!.GetAsync(id).GetAwaiter().GetResult();
         if (snapshot is null) return Missing(error, "Snapshot not found.");
-        var candidates = CleanupCandidateFactory.FromSnapshot(snapshot);
+        var candidates = CandidatesFor(snapshot);
         if (args.Contains("--json", StringComparer.Ordinal))
             output.WriteLine(JsonSerializer.Serialize(candidates.Select(SafeCandidate), PlanJson));
         else
@@ -68,7 +70,7 @@ public sealed partial class CliApplication
         if (findings.Length == 0) return Usage(error, "At least one --finding <id> is required.");
         var snapshot = snapshotStore!.GetAsync(id).GetAwaiter().GetResult();
         if (snapshot is null) return Missing(error, "Snapshot not found.");
-        var candidates = CleanupCandidateFactory.FromSnapshot(snapshot);
+        var candidates = CandidatesFor(snapshot);
         var plan = CleanupPlanBuilder.Create(new(snapshot.ScanId, snapshot.Id, snapshot.Drive.Fingerprint,
             snapshot.RulePackId, snapshot.RulePackVersion, snapshot.RulePackDigest, version,
             "support-safe", DateTimeOffset.UtcNow, candidates, findings));
@@ -79,7 +81,10 @@ public sealed partial class CliApplication
             output.WriteLine($"Integrity-checked cleanup plan {plan.Id}");
             output.WriteLine($"Digest: {plan.Digest}");
             output.WriteLine($"Potential logical bytes affected: {plan.TotalImpact.ObservedLogicalBytes}; items: {plan.TotalImpact.ItemCount}");
-            output.WriteLine("Status: Dry-run only — no files will be changed. ExecutionNotAvailableInPhase5.");
+            var executable = plan.Items.Any(item => item.Action.ExecutionAvailability == ExecutionAvailability.Phase6BuiltInExecutable);
+            output.WriteLine(executable
+                ? "Status: dry-run plan. One or more items are eligible for Phase 6 built-in execution via 'plan execute'."
+                : "Status: Dry-run only — no files will be changed. ExecutionNotAvailableInPhase5.");
         }
         return 0;
     }
@@ -127,6 +132,14 @@ public sealed partial class CliApplication
         if (!cleanupPlanStore!.Discard(id)) return Missing(error, "Plan not found.");
         output.WriteLine("In-memory dry-run plan record discarded. No user or system file was changed.");
         return 0;
+    }
+
+    private static List<CleanupCandidate> CandidatesFor(StorageSnapshot snapshot)
+    {
+        var candidates = CleanupCandidateFactory.FromSnapshot(snapshot).ToList();
+        var builtIn = ClyrOwnedTempArtifactScanner.Scan(new SystemClock());
+        if (builtIn is not null) candidates.Add(builtIn);
+        return candidates;
     }
 
     private static PlanValidationResult Validate(CleanupPlan plan, StorageSnapshot? snapshot)

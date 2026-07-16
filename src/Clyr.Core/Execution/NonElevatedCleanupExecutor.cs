@@ -74,66 +74,9 @@ public sealed class NonElevatedCleanupExecutor(IExecutionTokenService tokenServi
         return new ExecutionOutcome(finalState, results.ToImmutable(), receipt);
     }
 
-    private ExecutionItemResult ExecuteTarget(string itemId, CleanupTarget target, ExecutionCapability capability, string trustedRoot)
-    {
-        var validation = WindowsPathSafetyValidator.Validate(target.CanonicalPath ?? string.Empty, trustedRoot, target.IsReparsePoint);
-        if (!validation.IsValid)
-        {
-            var outcome = validation.Code switch
-            {
-                "path.reparse" => ExecutionItemOutcome.SkippedReparsePoint,
-                _ when validation.IsProtected => ExecutionItemOutcome.SkippedProtected,
-                _ => ExecutionItemOutcome.SkippedOutsideApprovedRoot
-            };
-            return new(itemId, target.TargetId, outcome, validation.Code, validation.Message, null);
-        }
-
-        var path = validation.CanonicalPath!;
-        if (!File.Exists(path))
-            return new(itemId, target.TargetId, ExecutionItemOutcome.NotFound, "target.not-found", "The target no longer exists.", null);
-
-        FileInfo info;
-        try { info = new FileInfo(path); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return new(itemId, target.TargetId, ExecutionItemOutcome.SkippedAccessDenied, "target.probe-failed", "The target could not be re-probed.", null);
-        }
-
-        if ((info.Attributes & FileAttributes.ReparsePoint) != 0)
-            return new(itemId, target.TargetId, ExecutionItemOutcome.SkippedReparsePoint, "target.reparse", "The target became a reparse point.", null);
-        if (IsCloudPlaceholder(info.Attributes))
-            return new(itemId, target.TargetId, ExecutionItemOutcome.SkippedCloudPlaceholder, "target.cloud-placeholder", "The target became a cloud placeholder.", null);
-
-        var stillStale = clock.UtcNow - info.LastWriteTimeUtc >= capability.MinimumAge;
-        var identityMatches = info.Length == target.LogicalBytes && info.LastWriteTimeUtc == target.LastWriteAtUtc;
-        if (!identityMatches || !stillStale)
-            return new(itemId, target.TargetId, ExecutionItemOutcome.SkippedChanged, "target.changed", "The target's identity or age no longer matches the validated plan.", null);
-
-        try
-        {
-            File.Delete(path);
-            return new(itemId, target.TargetId, ExecutionItemOutcome.Removed, "target.removed", "The target was removed.", info.Length);
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return new(itemId, target.TargetId, ExecutionItemOutcome.SkippedAccessDenied, "target.access-denied", "The target could not be removed without elevated or forced access.", null);
-        }
-        catch (IOException)
-        {
-            return new(itemId, target.TargetId, ExecutionItemOutcome.SkippedLocked, "target.locked", "The target is in use or locked.", null);
-        }
-        catch (Exception ex)
-        {
-            return new(itemId, target.TargetId, ExecutionItemOutcome.Failed, "target.failed", ex.GetType().Name, null);
-        }
-    }
-
-    private static bool IsCloudPlaceholder(FileAttributes attributes)
-    {
-        const FileAttributes recallOnOpen = (FileAttributes)0x00040000;
-        const FileAttributes recallOnDataAccess = (FileAttributes)0x00400000;
-        return (attributes & (FileAttributes.Offline | recallOnOpen | recallOnDataAccess)) != 0;
-    }
+    private ExecutionItemResult ExecuteTarget(string itemId, CleanupTarget target, ExecutionCapability capability, string trustedRoot) =>
+        ExecutionTargetProcessor.Process(clock, itemId, target.TargetId, target.CanonicalPath, target.LogicalBytes,
+            target.LastWriteAtUtc, target.IsReparsePoint, trustedRoot, capability.MinimumAge);
 
     private static long? TryGetFreeBytes(string root)
     {

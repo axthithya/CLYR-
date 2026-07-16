@@ -21,7 +21,7 @@ public static class SqliteRuntime
 
 public sealed class AppMetadataDatabase
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
     private readonly string connectionString;
 
     public AppMetadataDatabase(string connectionString)
@@ -74,6 +74,27 @@ public sealed class AppMetadataDatabase
                 CREATE INDEX IX_Snapshot_DriveTime ON Snapshot(DriveFingerprint, CapturedAtUtc DESC);
                 CREATE INDEX IX_Snapshot_StateTime ON Snapshot(State, CapturedAtUtc DESC);
                 UPDATE SchemaInfo SET Version = 2;
+                """;
+            command.ExecuteNonQuery();
+            version = 2;
+        }
+        if (version == 2)
+        {
+            command.CommandText = """
+                CREATE TABLE ExecutionReceipt (
+                    Id TEXT PRIMARY KEY, SchemaVersion INTEGER NOT NULL, SourcePlanId TEXT NOT NULL,
+                    SourcePlanDigest TEXT NOT NULL, ApplicationVersion TEXT NOT NULL, RulePackVersion TEXT NOT NULL,
+                    DriveIdentityFingerprint TEXT NOT NULL, StartedAtUtc TEXT NOT NULL, CompletedAtUtc TEXT,
+                    FinalState TEXT NOT NULL, Cancelled INTEGER NOT NULL, ElevationUsed INTEGER NOT NULL,
+                    TotalItems INTEGER NOT NULL, RemovedCount INTEGER NOT NULL, SkippedCount INTEGER NOT NULL,
+                    FailedCount INTEGER NOT NULL, PlannedLogicalBytes INTEGER NOT NULL, RemovedLogicalBytes INTEGER NOT NULL,
+                    SkippedLogicalBytes INTEGER NOT NULL, FailedLogicalBytes INTEGER NOT NULL,
+                    DriveFreeBytesBefore INTEGER, DriveFreeBytesAfter INTEGER, ObservedFreeSpaceDeltaBytes INTEGER,
+                    OutcomeCategoriesJson TEXT NOT NULL, WarningsJson TEXT NOT NULL, LimitationsJson TEXT NOT NULL,
+                    PrivacyMode TEXT NOT NULL, Digest TEXT NOT NULL);
+                CREATE INDEX IX_ExecutionReceipt_Time ON ExecutionReceipt(StartedAtUtc DESC);
+                CREATE INDEX IX_ExecutionReceipt_State ON ExecutionReceipt(FinalState, StartedAtUtc);
+                UPDATE SchemaInfo SET Version = 3;
                 """;
             command.ExecuteNonQuery();
         }

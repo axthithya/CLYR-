@@ -100,6 +100,10 @@ public sealed record ExecutionSummary(
 
 public sealed record ExecutionCancellationResult(bool Requested, bool Honored, bool PartialResultsPreserved);
 
+public sealed record ExecutionReceiptSummary(
+    ExecutionId ExecutionId, CleanupPlanId SourcePlanId, DateTimeOffset StartedAtUtc, DateTimeOffset? CompletedAtUtc,
+    ExecutionState FinalState, int RemovedCount, int SkippedCount, int FailedCount, long RemovedLogicalBytes);
+
 public sealed class ExecutionReceipt
 {
     public ExecutionReceipt(int schemaVersion, ExecutionId executionId, CleanupPlanId sourcePlanId, string sourcePlanDigest,

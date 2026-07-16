@@ -33,6 +33,7 @@ public sealed partial class CliApplication
         if (command == "explain") return Explain(arguments, output, error);
         if (command == "snapshots") return Snapshots(arguments, output, error);
         if (command == "plan") return Plans(arguments, output, error);
+        if (command == "execution") return Execution(arguments, output, error);
         error.WriteLine("Unknown command. Run clyr --help.");
         return 2;
     }
@@ -40,7 +41,7 @@ public sealed partial class CliApplication
     private static int Help(TextWriter output)
     {
         output.WriteLine("CLYR - trustworthy Windows storage understanding");
-        output.WriteLine("Commands: --help, --version, doctor, demo, drives [--json], scan <root> [--quick|--deep] [--top N] [--json] [--output <file>], rules list|verify|describe <id>|validate <path>, explain <report.json>, snapshots list|show|compare|delete|clear|settings, plan candidates|create|show|validate|export|discard");
+        output.WriteLine("Commands: --help, --version, doctor, demo, drives [--json], scan <root> [--quick|--deep] [--top N] [--json] [--output <file>], rules list|verify|describe <id>|validate <path>, explain <report.json>, snapshots list|show|compare|delete|clear|settings, plan candidates|create|show|validate|export|discard|execute, execution status|receipt|list|export|discard-receipt");
         return 0;
     }
 

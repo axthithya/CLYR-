@@ -37,6 +37,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Clyr.Safety.Tests", "tests\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Clyr.Windows.Tests", "tests\Clyr.Windows.Tests\Clyr.Windows.Tests.csproj", "{EBE5273B-62C6-4E2C-96FD-AE4726159B26}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Clyr.ElevatedHelper", "src\Clyr.ElevatedHelper\Clyr.ElevatedHelper.csproj", "{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -227,6 +229,18 @@ Global
 		{EBE5273B-62C6-4E2C-96FD-AE4726159B26}.Release|x64.Build.0 = Release|Any CPU
 		{EBE5273B-62C6-4E2C-96FD-AE4726159B26}.Release|x86.ActiveCfg = Release|Any CPU
 		{EBE5273B-62C6-4E2C-96FD-AE4726159B26}.Release|x86.Build.0 = Release|Any CPU
+		{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD}.Debug|x64.Build.0 = Debug|Any CPU
+		{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD}.Debug|x86.Build.0 = Debug|Any CPU
+		{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD}.Release|x64.ActiveCfg = Release|Any CPU
+		{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD}.Release|x64.Build.0 = Release|Any CPU
+		{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD}.Release|x86.ActiveCfg = Release|Any CPU
+		{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -247,5 +261,6 @@ Global
 		{E7580040-0FFE-475B-ACB8-0EF43ECB4F5D} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{27E3C1CE-7CBC-445F-8935-1EFE2102B6C5} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{EBE5273B-62C6-4E2C-96FD-AE4726159B26} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{B0F6C3CE-82F4-44BE-9A96-DDFBBE4517AD} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

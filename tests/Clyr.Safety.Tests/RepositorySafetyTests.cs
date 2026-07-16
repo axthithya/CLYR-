@@ -66,21 +66,27 @@ public sealed class RepositorySafetyTests
     public void ProductionSourceContainsNoProcessExecutorOrElevationOutsideTheReviewedExecutionBoundary()
     {
         // These must never appear anywhere in production source, including the Phase 6 execution boundary itself.
-        var alwaysForbidden = new[]
-        {
-            "Process.Start", "System.Diagnostics.Process", "RecycleOption", "requireAdministrator",
-            "powershell.exe", "cmd.exe", "ProcessStartInfo"
-        };
+        var alwaysForbidden = new[] { "RecycleOption", "powershell.exe", "cmd.exe" };
         // File/Directory mutation APIs may exist only inside the reviewed, narrow Phase 6 execution boundary.
-        var boundaryOnly = new[] { "File.Delete", "File.Move", "Directory.Delete" };
+        var mutationBoundaryOnly = new[] { "File.Delete", "File.Move", "Directory.Delete" };
+        // A process launch may exist only in the one file that performs the controlled, known-binary UAC launch.
+        var processLaunchBoundaryOnly = new[] { "Process.Start", "System.Diagnostics.Process", "ProcessStartInfo" };
         var executionBoundary = Path.Combine(Root, "src", "Clyr.Core", "Execution") + Path.DirectorySeparatorChar;
+        var launcherFile = Path.Combine(executionBoundary, "ElevatedHelperLauncher.cs");
+        // requireAdministrator may exist only in the elevated helper's own application manifest, scanned separately below.
+        var helperManifestGuard = Path.Combine(Root, "src", "Clyr.ElevatedHelper", "app.manifest");
+        Assert.Contains("requireAdministrator", File.ReadAllText(helperManifestGuard), StringComparison.Ordinal);
+
         foreach (var source in Directory.EnumerateFiles(Path.Combine(Root, "src"), "*.cs", SearchOption.AllDirectories))
         {
             if (source.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.Ordinal)) continue;
             var text = File.ReadAllText(source);
             foreach (var token in alwaysForbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+            Assert.DoesNotContain("requireAdministrator", text, StringComparison.Ordinal);
             if (!source.StartsWith(executionBoundary, StringComparison.OrdinalIgnoreCase))
-                foreach (var token in boundaryOnly) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+                foreach (var token in mutationBoundaryOnly) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+            if (!string.Equals(source, launcherFile, StringComparison.OrdinalIgnoreCase))
+                foreach (var token in processLaunchBoundaryOnly) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
         }
     }
 
@@ -110,7 +116,7 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
-    public void PhaseFivePlanningExistsWithoutMutationImplementation()
+    public void PlanningAndExecutionVocabularyExistOnlyWithinReviewedFiles()
     {
         var names = Directory.EnumerateFiles(Path.Combine(Root, "src"), "*.cs", SearchOption.AllDirectories).Select(Path.GetFileName);
         Assert.Contains(names, name => name is not null && name.Contains("Scanning", StringComparison.OrdinalIgnoreCase));
@@ -120,7 +126,17 @@ public sealed class RepositorySafetyTests
             SearchOption.AllDirectories).Where(path => !path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar,
                 StringComparison.OrdinalIgnoreCase)).Select(File.ReadAllText));
         Assert.Contains("ExecutionNotAvailableInPhase5", planning, StringComparison.Ordinal);
-        Assert.DoesNotContain("plan execute", planning, StringComparison.OrdinalIgnoreCase);
+
+        // 'plan execute' is a legitimate Phase 6 command, but only inside the reviewed CLI/Core execution surface —
+        // never inside WinUI, which has no execution flow implemented yet.
+        var executionCommandFiles = new[] { "PlanCliCommands.cs", "ExecutionCliCommands.cs", "CliApplication.cs" };
+        foreach (var source in Directory.EnumerateFiles(Path.Combine(Root, "src"), "*.cs", SearchOption.AllDirectories))
+        {
+            if (source.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.Ordinal)) continue;
+            if (executionCommandFiles.Contains(Path.GetFileName(source), StringComparer.Ordinal)) continue;
+            Assert.DoesNotContain("plan execute", File.ReadAllText(source), StringComparison.OrdinalIgnoreCase);
+        }
+        Assert.DoesNotContain("plan execute", File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "App.xaml.cs")), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
