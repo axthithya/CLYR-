@@ -84,12 +84,17 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
-    public void PhaseThreeClassifierExistsWithoutCleanupOrMutationServices()
+    public void PhaseFivePlanningExistsWithoutMutationImplementation()
     {
         var names = Directory.EnumerateFiles(Path.Combine(Root, "src"), "*.cs", SearchOption.AllDirectories).Select(Path.GetFileName);
         Assert.Contains(names, name => name is not null && name.Contains("Scanning", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(names, name => name is not null && name.Contains("BuiltInRulePack", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(names, name => name is not null && name.Contains("Cleanup", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(names, name => name is not null && name.Contains("CleanupPlan", StringComparison.OrdinalIgnoreCase));
+        var planning = string.Join(Environment.NewLine, Directory.EnumerateFiles(Path.Combine(Root, "src"), "*.cs",
+            SearchOption.AllDirectories).Where(path => !path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase)).Select(File.ReadAllText));
+        Assert.Contains("ExecutionNotAvailableInPhase5", planning, StringComparison.Ordinal);
+        Assert.DoesNotContain("plan execute", planning, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -99,7 +104,7 @@ public sealed class RepositorySafetyTests
         var navigation = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "MainWindow.xaml"));
         Assert.Contains("ServiceCollection", appSource, StringComparison.Ordinal);
         Assert.Contains("StartupErrorWindow", appSource, StringComparison.Ordinal);
-        foreach (var destination in new[] { "Overview", "Scan", "Results", "History", "Developer Mode", "Privacy", "Licenses", "About" })
+        foreach (var destination in new[] { "Overview", "Scan", "Results", "Review Plan", "History", "Developer Mode", "Privacy", "Licenses", "About" })
             Assert.Contains($"Content=\"{destination}\"", navigation, StringComparison.Ordinal);
         Assert.Contains("IsSettingsVisible=\"True\"", navigation, StringComparison.Ordinal);
         Assert.Contains("ContentControl", navigation, StringComparison.Ordinal);

@@ -215,3 +215,6 @@ Implementation is not eligible for real mutation until tests show that:
 - receipts cover every requested item and distinguish measured, estimated, unknown, skipped, failed, partial, and completed outcomes without sensitive-data leakage;
 - IPC schema property/fuzz tests and wrong-peer integration tests pass on every supported packaging mode;
 - a security review confirms the shipped helper allowlist matches the documented initial Phase 6 scope.
+## Phase 5 status
+
+No endpoint, transport, handshake, helper binary, elevation launch, request, receipt, journal, or IPC parser is implemented. Phase 5 produces only an integrity-checked plan model that a separately approved Phase 6 design would have to revalidate. A digest alone is neither execution authorization nor peer authentication.

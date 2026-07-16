@@ -53,4 +53,9 @@ Selected analysis cards use three independent contrast indicators: subtle accent
 ## Manual review still required for release
 
 Before a public release, test Windows text scaling at 125%, 150%, and 200%; keyboard-only operation; Narrator announcements and reading order; high-contrast themes; light/dark themes; focus visibility; localization expansion; and reduced-motion settings on supported Windows versions. The automated window-size checks do not claim to reproduce operating-system DPI or text scaling.
+## Phase 5 Review Plan accessibility
+
+The Review Plan banner, candidate list, eligible checkboxes, preview, report, and discard controls have stable accessible names. Eligibility, risk, confidence, warnings, digest, expiry, consequences, and rollback are text rather than color-only. The page participates in the shared responsive and scrolling gates.
+
+Actual Windows High Contrast activation, 125%/150% DPI, and Windows text scaling remain uncompleted manual release checks. Automated window resizing and theme-resource inspection are not represented as operating-system scaling evidence.
 

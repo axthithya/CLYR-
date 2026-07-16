@@ -199,3 +199,6 @@ Arbitrary executable plugins, runtime code download, generic scripts, and rule-s
 - No declarative input can introduce a command or override Protected/Prohibited policy.
 - Every external JSON/IPC format is versioned, bounded, classified, and validated.
 - A future helper cannot remain running or accept work outside one confirmed capability-bound batch.
+## Phase 5 cleanup-planning boundary
+
+Phase 5 adds a Core-only candidate factory, immutable plan builder, canonical serializer, integrity validator, bounded process-memory store, privacy-safe report exporter, and an executor whose only production result is ExecutionNotAvailableInPhase5. WinUI and CLI consume these contracts but receive no filesystem-mutation, process-launch, elevation, helper, registry, permission, or Windows-settings adapter. Plans bind source scan/snapshot, drive identity, rule pack, compatibility version, privacy mode, selection, expiry, and observed target metadata; they never grant execution authority.

@@ -4,7 +4,7 @@ public sealed class UiArchitectureTests
 {
     private static readonly string Root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
     private static readonly string Pages = Path.Combine(Root, "src", "Clyr.App", "Pages");
-    private static readonly string[] PageNames = ["Overview", "Scan", "Results", "History", "DeveloperMode", "Privacy", "Licenses", "About", "Settings"];
+    private static readonly string[] PageNames = ["Overview", "Scan", "Results", "ReviewPlan", "History", "DeveloperMode", "Privacy", "Licenses", "About", "Settings"];
 
     [Fact]
     public void EveryDestinationIsARealPageWithItsOwnCodeBehind()
@@ -46,7 +46,7 @@ public sealed class UiArchitectureTests
         Assert.Contains("Deep Analysis mode card", scan, StringComparison.Ordinal);
         Assert.Contains("Start Analysis", scan, StringComparison.Ordinal);
         Assert.Contains("Cancel Analysis", scan, StringComparison.Ordinal);
-        foreach (var name in new[] { "Overview", "Results", "History", "DeveloperMode", "Privacy", "Licenses", "About", "Settings" })
+        foreach (var name in new[] { "Overview", "Results", "ReviewPlan", "History", "DeveloperMode", "Privacy", "Licenses", "About", "Settings" })
         {
             var xaml = Read(Path.Combine(Pages, name + "Page.xaml"));
             Assert.DoesNotContain("Local volume selector", xaml, StringComparison.Ordinal);
@@ -74,7 +74,8 @@ public sealed class UiArchitectureTests
     {
         var models = Read(Path.Combine(Root, "src", "Clyr.App", "ViewModels", "AppSessionViewModel.cs")) + Read(Path.Combine(Root, "src", "Clyr.App", "ViewModels", "HistoryViewModel.cs"));
         foreach (var name in PageNames) Assert.Contains("class " + name + "ViewModel", models, StringComparison.Ordinal);
-        var responsive = Read(Path.Combine(Pages, "OverviewPage.xaml.cs")) + Read(Path.Combine(Pages, "ScanPage.xaml.cs")) + Read(Path.Combine(Pages, "ResultsPage.xaml.cs"));
+        var responsive = Read(Path.Combine(Pages, "OverviewPage.xaml.cs")) + Read(Path.Combine(Pages, "ScanPage.xaml.cs"))
+            + Read(Path.Combine(Pages, "ResultsPage.xaml.cs")) + Read(Path.Combine(Pages, "ReviewPlanPage.xaml.cs"));
         Assert.Contains("LayoutModeChanged", responsive, StringComparison.Ordinal);
         Assert.Contains("Grid.SetRow", responsive, StringComparison.Ordinal);
     }
@@ -130,6 +131,19 @@ public sealed class UiArchitectureTests
         var all = string.Join(Environment.NewLine, Directory.EnumerateFiles(Pages, "*.xaml").Select(Read));
         foreach (var required in new[] { "AutomationProperties.Name=\"Overview page\"", "AutomationProperties.Name=\"Scan page\"", "AutomationProperties.Name=\"Results page\"", "Contributor text alternatives", "AutomationProperties.LiveSetting=\"Polite\"", "Local snapshot history" })
             Assert.Contains(required, all, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReviewPlanSurfaceIsDryRunOnlyAndAccessible()
+    {
+        var page = Read(Path.Combine(Pages, "ReviewPlanPage.xaml"));
+        var code = Read(Path.Combine(Pages, "ReviewPlanPage.xaml.cs"));
+        foreach (var required in new[] { "Dry-run only — no files will be changed.", "Preview plan",
+            "Save dry-run report", "Discard plan", "Protected by CLYR", "Cleanup candidate list",
+            "Dry-run plan preview", "ExecutionNotAvailableInPhase5" })
+            Assert.Contains(required, page + code, StringComparison.Ordinal);
+        foreach (var forbidden in new[] { "Clean now", "Execute", "Apply", "Confirm cleanup" })
+            Assert.DoesNotContain(forbidden, page, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Read(string path) => File.ReadAllText(path);

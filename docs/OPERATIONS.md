@@ -168,3 +168,8 @@ Suggested commit message:
 ```
 
 No fabricated test count, benchmark, screenshot, support version, package behavior, or command result is acceptable.
+## Phase 5 operator verification
+
+Use the repository-pinned .tools/dotnet/dotnet.exe and run scripts/verify-phase5.ps1. The gate includes Phase 0–4.1 regressions, warning-free Release build, the complete test suite, formatting, focused planning/security/CLI/rule/schema/repository tests, dependency vulnerability audit, static credential/machine-path/forbidden-primitive/whitespace checks, and fixture-only ten-page UI verification. Use -SkipGitChecks only for an intentionally uncommitted review tree; it does not skip non-Git checks.
+
+Phase 5 has no cleanup operator procedure, elevation procedure, helper deployment, supported command adapter, or recovery journal because execution does not exist.

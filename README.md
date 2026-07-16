@@ -1,12 +1,16 @@
 # CLYR
 
-> Phase 4.1 adds a polished, distinct-page WinUI experience over the approved Phase 4 read-only analysis and aggregate history. It does not add cleanup, dry-run planning, execution, elevation, or Phase 5 behavior.
+> Phase 5 adds immutable, integrity-checked cleanup planning and privacy-safe dry-run reports. Execution remains unavailable: no files can be deleted, moved, recycled, quarantined, or otherwise changed.
 
 > See what filled your C: drive. Understand it. Clear it safely.
 
 CLYR is a planned native Windows storage diagnostic application for people who can see that a drive is full but cannot safely tell why. It will lead with evidence: what occupies space, how confident the measurement is, which regions were inaccessible, and why a finding needs attention. The reusable C# engine will support a WinUI 3 desktop experience and a command-line interface.
 
-## Project status: Phase 4.1 polished UI/UX awaiting approval
+## Project status: Phase 5 cleanup planning awaiting approval
+
+Eligible built-in findings can produce immutable ten-minute plans bound to their scan or snapshot, drive, rule pack, compatibility version, privacy mode, and explicit selection. Canonical SHA-256 digests detect edits; they are integrity checks, not authorization. Protected findings always win, user-created data remains review-only, and production execution returns ExecutionNotAvailableInPhase5.
+
+### Preserved Phase 4.1 baseline
 
 **The repository contains read-only scanning, detection-only classification, local aggregate history, deterministic comparison, and a redesigned WinUI shell—but no cleanup feature.** Overview, Scan, Results, History, Developer Mode, Privacy, Licenses, About, and Settings are distinct pages. Full scan controls exist only on Scan. A fixture-only UI mode supports safe automation without inspecting a real drive.
 
@@ -34,11 +38,11 @@ No mock screenshot is presented as a working product.
 There is no installer or public package. On Windows 11 x64, use .NET SDK 10.0.301 and the stable Windows App Runtime 2.2 developer prerequisite, then run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-phase41.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-phase5.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-winui.ps1
 ```
 
-The first command runs all Phase 0–4 regressions plus the Phase 4.1 build, 124 tests, formatting, architecture checks, responsive layout structural verification (shared host, scroll contract, breakpoints, gutters, themes, automation IDs, scan isolation, and safety boundaries), and the full UI Automation gate. The second launches a fixture-only unpackaged WinUI build, verifies viewport bounds at five window sizes (1600×900 through 900×600) across all nine pages, and closes without inspecting a real drive.
+The first command runs all Phase 0–4.1 regressions plus Phase 5 build, tests, formatting, planning, digest, protected-path, stale-plan, schema, CLI, repository-safety, and UI gates. The second launches the fixture-only unpackaged WinUI build and verifies all ten pages from 1600×900 through the documented 800×600 minimum without inspecting a real drive.
 
 The Phase 3 CLI keeps explicit read-only drive discovery/scanning and adds offline rule inspection and report explanation:
 
@@ -54,11 +58,17 @@ clyr rules list
 clyr rules verify
 clyr rules describe <rule-id>
 clyr explain <classified-report.json>
+clyr plan candidates --snapshot <id> [--json]
+clyr plan create --snapshot <id> --finding <id> [--finding <id>] [--json]
+clyr plan show <plan-id> [--json]
+clyr plan validate <plan-id> [--json]
+clyr plan export <plan-id> --output <plan.json>
+clyr plan discard <plan-id>
 ```
 
 ## Safety and privacy
 
-- The early product is read-only; no cleanup controls are present.
+- Phase 5 can preview and explicitly export dry-run plans but cannot execute them; no cleanup control exists.
 - The main app remains non-elevated. A future helper, if approved, is short-lived and accepts only typed, allowlisted actions.
 - Protected Windows resources, personal content, virtual disks, credential stores, application databases, cloud placeholders, and unknown content are never cleanup targets merely because they are large.
 - Reparse points are not followed by default.

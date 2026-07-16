@@ -83,6 +83,41 @@ public sealed class PhaseThreeRuleTests
     }
 
     [Fact]
+    public void PhaseFiveActionMetadataIsTypedBuiltInAndReportOnly()
+    {
+        var rule = Assert.Single(Load().Pack!.Rules, item => item.Id == "developer.npm.cache");
+        Assert.NotNull(rule.Action);
+        Assert.Equal("report-only", rule.Action.Type);
+        Assert.StartsWith("known-folder:", rule.Action.AllowedRootIdentity, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InvalidActionDescriptorRejectsEntirePack()
+    {
+        var source = BuiltInDirectory();
+        var temporary = Path.Combine(Path.GetTempPath(), "clyr-action-pack-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temporary);
+        try
+        {
+            var rules = File.ReadAllText(Path.Combine(source, "rules.yaml"))
+                .Replace("type: report-only", "type: script", StringComparison.Ordinal);
+            File.WriteAllText(Path.Combine(temporary, "rules.yaml"), rules);
+            File.Copy(Path.Combine(source, "categories.yaml"), Path.Combine(temporary, "categories.yaml"));
+            var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(rules))).ToLowerInvariant();
+            var manifest = File.ReadAllText(Path.Combine(source, "manifest.yaml"));
+            var oldHash = System.Text.RegularExpressions.Regex.Match(manifest,
+                "(?<=path: rules.yaml\\r?\\n    sha256: )[a-f0-9]{64}").Value;
+            File.WriteAllText(Path.Combine(temporary, "manifest.yaml"),
+                manifest.Replace(oldHash, hash, StringComparison.Ordinal));
+            var result = BuiltInRulePackLoader.Load(temporary);
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Diagnostics, item => item.Code == "rule.action-invalid");
+        }
+        finally { Directory.Delete(temporary, true); }
+    }
+
+    [Fact]
     [Trait("Category", "Performance")]
     public void MillionObservationsUseOneBoundedClassificationSession()
     {

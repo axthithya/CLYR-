@@ -29,7 +29,8 @@ public enum RiskLevel
     Informational,
     Low,
     Medium,
-    High
+    High,
+    Prohibited
 }
 
 public enum FindingConfidence

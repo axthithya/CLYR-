@@ -1,3 +1,3 @@
 # Clyr.App boundary
 
-Planned for Phase 1: packaged WinUI 3 navigation, MVVM view models, accessibility semantics, and isolated demo data. It depends on application interfaces/contracts and must not perform filesystem actions, SQL, rule parsing, generic process execution, or broad elevation. Real-drive scanning is Phase 2; cleanup UI is later and unavailable by default.
+CLYR.App provides distinct responsive pages for scanning, results, aggregate history, and Phase 5 Review Plan. Planning selects nothing by default and can only preview, export, or discard an immutable dry-run; it cannot execute cleanup. The app performs no target-file action, direct SQL, rule parsing, generic process execution, elevation, or helper work.

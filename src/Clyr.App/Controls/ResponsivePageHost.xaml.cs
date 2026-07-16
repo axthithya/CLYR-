@@ -34,6 +34,7 @@ public sealed partial class ResponsivePageHost : UserControl
     {
         var width = Math.Max(0, args.NewSize.Width);
         ViewportSurface.Width = width;
+        ContentContainer.Width = Math.Min(1120, width);
         ContentContainer.Padding = width switch
         {
             < 760 => new Thickness(16, 20, 16, 28),

@@ -109,3 +109,4 @@ The JSON export contract is documented in [`../docs/EXPORT_FORMAT.md`](../docs/E
 ## Security reporting
 
 Do not publish a weaponized rule or a suspected bypass in a normal issue. Follow the private reporting process in the repository’s `SECURITY.md` once present. A malicious fixture committed for regression testing must be minimal, synthetic, inert, and reviewed.
+Phase 5 action metadata is built-in only, integrity-checked, optional, and limited to report-only/review-files plus a trusted root identity. External rules remain detection-only. Executable paths, scripts, shell text, unrestricted arguments, arbitrary roots, and downloads are rejected.

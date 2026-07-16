@@ -178,7 +178,7 @@ foreach ($pattern in $forbiddenPatterns) {
     Test-Condition ($null -eq $matches) "Executable destructive or shell pattern found: $pattern"
 }
 
-if (Get-Command git -ErrorAction SilentlyContinue) {
+if ($env:CLYR_SKIP_GIT_CHECKS -ne '1' -and (Get-Command git -ErrorAction SilentlyContinue)) {
     $previousErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     $diffCheck = & git diff --check 2>&1

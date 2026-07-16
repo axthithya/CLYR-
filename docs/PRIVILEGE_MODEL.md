@@ -147,3 +147,6 @@ Privilege-bearing execution remains disabled until evidence shows that:
 - protected-resource and `Prohibited` decisions remain final even with a valid administrator token;
 - test cleanup uses disposable fixtures/mocks and manual elevation testing uses an isolated environment;
 - protocol and privilege documentation matches the actual manifests, packaging, and code before release.
+## Phase 5 privilege status
+
+The app and CLI remain asInvoker. Planning records metadata only; no built-in Phase 5 action requests elevation and no launch, token, helper, IPC, service, task, permission, ownership, or privileged filesystem implementation exists. ExecutionNotAvailableInPhase5 is the only production executor result.

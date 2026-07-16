@@ -1,0 +1,68 @@
+<Page
+    x:Class="Clyr.App.Pages.ReviewPlanPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Clyr.App.Controls"
+    Background="{ThemeResource AppBackgroundBrush}"
+    AutomationProperties.Name="Review Plan page">
+    <controls:ResponsivePageHost x:Name="PageHost" Title="Review Plan"
+        Subtitle="Choose eligible findings and preview an integrity-checked plan without changing any file."
+        AutomationProperties.Name="Review Plan responsive page host">
+        <controls:ResponsivePageHost.PageContent>
+            <StackPanel Spacing="20">
+                <Border Background="{ThemeResource PrivacyBannerBrush}" BorderBrush="{ThemeResource TrustBadgeBorderBrush}"
+                        BorderThickness="1" CornerRadius="12" Padding="18"
+                        AutomationProperties.Name="Dry-run only safety banner">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Dry-run only — no files will be changed." FontWeight="SemiBold" FontSize="17" TextWrapping="Wrap"/>
+                        <TextBlock Text="Estimated size is based on observed metadata and may not equal space recovered by a future action."
+                                   Style="{StaticResource BodyMutedStyle}"/>
+                    </StackPanel>
+                </Border>
+                <StackPanel x:Name="EmptyPanel" Spacing="16">
+                    <controls:EmptyState Title="No dry-run plan yet"
+                        Message="Select eligible findings from your latest analysis to preview what a future cleanup action would affect."
+                        Glyph="&#xE9D2;"/>
+                    <Button Content="Go to Results" Click="GoToResults" HorizontalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel x:Name="CandidatePanel" Visibility="Collapsed" Spacing="16">
+                    <TextBlock Text="Potential actions" Style="{StaticResource SectionTitleStyle}"/>
+                    <TextBlock Text="Nothing is selected by default. Protected, unsupported, and review-only findings cannot be added."
+                               Style="{StaticResource BodyMutedStyle}"/>
+                    <TextBlock Text="Protected by CLYR. Protected locations cannot be added to a cleanup plan."
+                               Style="{StaticResource BodyMutedStyle}"/>
+                    <StackPanel x:Name="CandidateStack" Spacing="12" AutomationProperties.Name="Cleanup candidate list"/>
+                    <StackPanel x:Name="PreviewActions" Orientation="Horizontal" Spacing="12">
+                        <Button Content="Preview plan" Click="PreviewPlan" Style="{StaticResource PrimaryActionStyle}"
+                                AutomationProperties.Name="Preview dry-run plan"/>
+                        <TextBlock x:Name="SelectionStatus" VerticalAlignment="Center" Style="{StaticResource BodyMutedStyle}"
+                                   AutomationProperties.LiveSetting="Polite"/>
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel x:Name="PlanPanel" Visibility="Collapsed" Spacing="16"
+                            AutomationProperties.Name="Dry-run plan preview">
+                    <TextBlock Text="Plan preview" Style="{StaticResource SectionTitleStyle}"/>
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel Spacing="9">
+                            <TextBlock x:Name="PlanIdentity" Style="{StaticResource CardTitleStyle}"/>
+                            <TextBlock x:Name="PlanDigest" TextWrapping="WrapWholeWords" FontFamily="Consolas"/>
+                            <TextBlock x:Name="PlanTiming" Style="{StaticResource BodyMutedStyle}"/>
+                            <TextBlock x:Name="PlanImpact" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="PlanValidation" TextWrapping="Wrap"/>
+                            <TextBlock Text="Execution availability: ExecutionNotAvailableInPhase5" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                    <StackPanel x:Name="PlanItemStack" Spacing="12" AutomationProperties.Name="Dry-run plan items"/>
+                    <StackPanel x:Name="PlanActions" Orientation="Horizontal" Spacing="12">
+                        <Button Content="Save dry-run report" Click="ExportPlan" Style="{StaticResource PrimaryActionStyle}"/>
+                        <Button Content="Discard plan" Click="DiscardPlan"/>
+                        <Button Content="Done" Click="Done"/>
+                    </StackPanel>
+                    <TextBox x:Name="ExportOutput" Visibility="Collapsed" IsReadOnly="True" AcceptsReturn="True"
+                             TextWrapping="Wrap" MaxHeight="260" AutomationProperties.Name="Privacy-safe dry-run report"/>
+                </StackPanel>
+            </StackPanel>
+        </controls:ResponsivePageHost.PageContent>
+    </controls:ResponsivePageHost>
+</Page>
+

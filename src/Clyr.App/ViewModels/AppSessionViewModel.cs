@@ -14,10 +14,13 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
     private int selectedDriveIndex;
     private ScanProgress? progress;
     private ScanResult? result;
+    private readonly string applicationVersion;
 
-    public AppSessionViewModel(IScanService scanService, IDriveDiscovery drives, RulePackLoadResult rules)
+    public AppSessionViewModel(IScanService scanService, IDriveDiscovery drives, RulePackLoadResult rules,
+        IApplicationVersion applicationVersion)
     {
         this.scanService = scanService;
+        this.applicationVersion = applicationVersion.Value;
         Drives = drives.Discover();
         selectedDriveIndex = Drives.Select((drive, index) => (drive, index)).Where(item => item.drive.IsSupported)
             .OrderByDescending(item => item.drive.IsSystemVolume).Select(item => item.index).DefaultIfEmpty(-1).First();
@@ -34,6 +37,7 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
     public ScanMode SelectedMode { get => selectedMode; set => Set(ref selectedMode, value); }
     public int SelectedDriveIndex { get => selectedDriveIndex; set => Set(ref selectedDriveIndex, value); }
     public DriveSummary? SelectedDrive => selectedDriveIndex >= 0 && selectedDriveIndex < Drives.Count ? Drives[selectedDriveIndex] : null;
+    public string ApplicationVersion => applicationVersion;
 
     public async Task<ScanResult?> StartAsync()
     {
@@ -79,6 +83,42 @@ public sealed class ScanViewModel(AppSessionViewModel session) : PageViewModel(s
 public sealed class ResultsViewModel(AppSessionViewModel session, IScanReportExporter exporter) : PageViewModel(session)
 {
     public string? CreatePrivacySafeReport() => Session.Result is null ? null : exporter.Serialize(Session.Result);
+}
+public sealed class ReviewPlanViewModel(AppSessionViewModel session, ICleanupPlanStore store) : PageViewModel(session)
+{
+    public CleanupPlan? CurrentPlan { get; private set; }
+    public IReadOnlyList<CleanupCandidate> Candidates => Session.Result is null
+        ? [] : CleanupCandidateFactory.FromScan(Session.Result);
+
+    public CleanupPlan Create(IReadOnlyList<string> selectedFindingIds)
+    {
+        var result = Session.Result ?? throw new InvalidOperationException("Run an analysis before previewing a plan.");
+        var pack = result.Classification?.RulePack ?? throw new InvalidOperationException("Verified classification is required.");
+        CurrentPlan = CleanupPlanBuilder.Create(new(result.ScanId, null, result.Root + "|" + result.FileSystem,
+            pack.Id, pack.Version, pack.Digest, Session.ApplicationVersion, "support-safe",
+            DateTimeOffset.UtcNow, Candidates, selectedFindingIds));
+        store.Save(CurrentPlan);
+        return CurrentPlan;
+    }
+
+    public string Export()
+    {
+        var plan = CurrentPlan ?? throw new InvalidOperationException("No dry-run plan is available.");
+        return CleanupPlanReportExporter.Serialize(plan, CurrentValidation(plan));
+    }
+
+    public void Discard()
+    {
+        if (CurrentPlan is not null) store.Discard(CurrentPlan.Id);
+        CurrentPlan = null;
+    }
+
+    private static PlanValidationResult CurrentValidation(CleanupPlan plan) =>
+        CleanupPlanValidator.Validate(plan, new(DateTimeOffset.UtcNow, plan.Binding.SourceScanId,
+            plan.Binding.SourceSnapshotId, plan.Binding.DriveIdentity, plan.Binding.SourceRulePackId,
+            plan.Binding.SourceRulePackVersion, plan.Binding.SourceRulePackDigest,
+            CleanupPlanningConstants.CategoryRegistryVersion, CleanupPlanningConstants.ApplicationCompatibilityVersion,
+            plan.Binding.PrivacyMode, System.Collections.Immutable.ImmutableDictionary<string, CleanupTarget>.Empty));
 }
 public sealed class DeveloperModeViewModel(AppSessionViewModel session) : PageViewModel(session);
 public sealed class PrivacyViewModel(AppSessionViewModel session) : PageViewModel(session);

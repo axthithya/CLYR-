@@ -15,13 +15,15 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<string, Page> pages;
 
     public MainWindow(IScanService scanService, IDriveDiscovery drives, RulePackLoadResult rules,
-        ISnapshotStore history, IScanReportExporter exporter, IApplicationVersion version)
+        ISnapshotStore history, IScanReportExporter exporter, IApplicationVersion version,
+        ICleanupPlanStore cleanupPlans)
     {
         InitializeComponent();
-        session = new(scanService, drives, rules);
+        session = new(scanService, drives, rules, version);
         var overview = new OverviewPage(new(session));
         var scan = new ScanPage(new(session));
         var results = new ResultsPage(new(session, exporter));
+        var reviewPlan = new ReviewPlanPage(new(session, cleanupPlans));
         var historyPage = new HistoryPage(new(session, history));
         var developer = new DeveloperModePage(new(session));
         var privacy = new PrivacyPage(new(session));
@@ -33,6 +35,7 @@ public sealed partial class MainWindow : Window
             ["Overview"] = overview,
             ["Scan"] = scan,
             ["Results"] = results,
+            ["Review Plan"] = reviewPlan,
             ["History"] = historyPage,
             ["Developer Mode"] = developer,
             ["Privacy"] = privacy,
@@ -40,7 +43,7 @@ public sealed partial class MainWindow : Window
             ["About"] = about,
             ["Settings"] = settings
         };
-        foreach (var viewModel in new PageViewModel[] { overview.ViewModel, scan.ViewModel, results.ViewModel,
+        foreach (var viewModel in new PageViewModel[] { overview.ViewModel, scan.ViewModel, results.ViewModel, reviewPlan.ViewModel,
             historyPage.ViewModel, developer.ViewModel, privacy.ViewModel, licenses.ViewModel, about.ViewModel, settings.ViewModel })
             viewModel.NavigationRequested += (_, destination) => Select(destination);
         Navigation.SelectedItem = Navigation.MenuItems[0];
@@ -69,6 +72,7 @@ public sealed partial class MainWindow : Window
             case OverviewPage value: value.ResetScroll(); break;
             case ScanPage value: value.ResetScroll(); break;
             case ResultsPage value: value.ResetScroll(); value.Refresh(); break;
+            case ReviewPlanPage value: value.ResetScroll(); value.Refresh(); break;
             case HistoryPage value: value.ResetScroll(); await value.ActivateAsync(); break;
             case DeveloperModePage value: value.ResetScroll(); break;
             case PrivacyPage value: value.ResetScroll(); break;

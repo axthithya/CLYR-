@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clyr.dev/schemas/cleanup-plan-report-v1.json",
+  "title": "CLYR privacy-safe cleanup-plan dry-run report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "reportType", "applicationVersion", "planId", "digest",
+    "createdAtUtc", "expiresAtUtc", "sourceSnapshotId", "sourceDriveFingerprint",
+    "rulePackVersion", "candidates", "protectedValidation", "staleStatus",
+    "executionAvailability", "privacyMode", "limitations", "rawPathsIncluded",
+    "userNamesIncluded", "fileContentsIncluded"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "reportType": { "const": "clyr-cleanup-plan-dry-run" },
+    "applicationVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "planId": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "createdAtUtc": { "type": "string", "format": "date-time" },
+    "expiresAtUtc": { "type": "string", "format": "date-time" },
+    "sourceSnapshotId": { "type": ["string", "null"], "format": "uuid" },
+    "sourceDriveFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "rulePackVersion": { "type": "string", "minLength": 1 },
+    "candidates": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "findingId", "title", "eligibility", "risk", "confidence", "logicalBytes",
+          "itemCount", "uncertainty", "consequence", "rollbackCapability", "affectedRoot"
+        ],
+        "properties": {
+          "findingId": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "title": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "eligibility": { "const": "DryRunEligible" },
+          "risk": { "enum": ["Informational", "Low", "Medium", "High", "Prohibited"] },
+          "confidence": { "enum": ["Unknown", "Low", "Medium", "High", "Confirmed"] },
+          "logicalBytes": { "type": "integer", "minimum": 0 },
+          "itemCount": { "type": "integer", "minimum": 0 },
+          "uncertainty": { "type": "string", "minLength": 1 },
+          "consequence": { "type": "object" },
+          "rollbackCapability": { "enum": ["None", "RecycleBinPotential", "QuarantinePotential", "ToolManaged", "Manual", "Unknown"] },
+          "affectedRoot": { "type": "string", "pattern": "^(known-folder|source-finding):" }
+        }
+      }
+    },
+    "protectedValidation": { "enum": ["passed", "failed"] },
+    "staleStatus": { "enum": ["Valid", "Stale", "Expired", "Invalid"] },
+    "executionAvailability": { "const": "ExecutionNotAvailableInPhase5" },
+    "privacyMode": { "enum": ["support-safe", "local-detailed"] },
+    "limitations": { "type": "array", "items": { "type": "string" }, "maxItems": 64 },
+    "rawPathsIncluded": { "const": false },
+    "userNamesIncluded": { "const": false },
+    "fileContentsIncluded": { "const": false }
+  }
+}
+

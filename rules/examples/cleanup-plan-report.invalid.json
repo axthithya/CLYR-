@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "reportType": "clyr-cleanup-plan-dry-run",
+  "planId": "not-a-plan-id",
+  "digest": "modified",
+  "executionAvailability": "Available",
+  "rawPathsIncluded": true,
+  "path": "C:/Users/private/secret.txt"
+}
+

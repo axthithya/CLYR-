@@ -4,6 +4,20 @@ All notable project changes are recorded here. The format follows Keep a Changel
 
 ## [Unreleased]
 
+### Added — Phase 5 cleanup planning and dry-run only (2026-07-16)
+
+- Added explicit eligibility, action, risk, consequence, rollback, binding, expiry, target-metadata, diagnostic, dry-run, and immutable cleanup-plan contracts.
+- Added deterministic canonical serialization and SHA-256 integrity digests, stale/expired/source-version validation, component-aware Windows path policy, protected-path override, and target metadata comparison.
+- Added bounded memory-only plan storage, privacy-safe versioned report export/schema/examples, CLI plan commands, and a responsive Review Plan WinUI flow with no preselection.
+- Added a constrained built-in report-only npm-cache descriptor; invalid descriptors reject the built-in pack atomically.
+- Added Phase 5 core/security/rule/schema/CLI/UI/repository tests, verifier, and CI validation.
+
+### Security — Phase 5
+
+- Production execution is deliberately unavailable and returns ExecutionNotAvailableInPhase5; no delete, move, Recycle Bin, quarantine, shell/process, elevation, helper, permission, registry, or Windows-setting implementation exists.
+- Browser profile aggregates remain insufficient evidence because current detection is broader than an exact cache root. Potential logical bytes are never described as guaranteed recovered space.
+- Actual Windows High Contrast activation, 125%/150% DPI, and Windows text scaling remain documented manual release checks and are not represented as completed.
+
 ### Added — Phase 4.1 polished UI/UX (2026-07-13)
 
 - Replaced the shared WinUI content stack with distinct Overview, Scan, Results, History, Developer Mode, Privacy, Licenses, About, and Settings pages backed by page-specific view models.

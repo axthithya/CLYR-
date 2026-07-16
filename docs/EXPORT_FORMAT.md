@@ -137,3 +137,6 @@ Renaming a detailed report to “summary” never changes its classification. On
 The synthetic example must parse as JSON and validate against Draft 2020-12 with UUID/date-time format checking. Future negative fixtures should cover unknown fields, a full-path injection, malformed digest, negative/overflow bytes, false privacy flags, unavailable values paired with non-null bytes, unsupported schema versions, duplicate keys, and inconsistent scan times.
 
 An export implementation is acceptable only when it is deterministic, offline, user-initiated, schema-valid, semantically consistent, privacy-previewed, cancellable before save, and verified to create no network traffic.
+## Phase 5 cleanup-plan dry-run report
+
+rules/schemas/cleanup-plan-report.schema.json defines the support-safe report. It contains schema/application/plan IDs, digest, creation/expiry, source snapshot, privacy-safe drive fingerprint, rule-pack version, candidates, eligibility/risk/confidence, logical bytes/item count/uncertainty, consequences, rollback, protected validation, stale status, execution availability, privacy mode, and limitations. Raw paths, user names, and file contents are explicitly absent. Valid and hostile fixtures live under rules/examples.

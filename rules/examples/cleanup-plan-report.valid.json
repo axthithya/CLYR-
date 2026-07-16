@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "reportType": "clyr-cleanup-plan-dry-run",
+  "applicationVersion": "0.5.0-phase5",
+  "planId": "11111111-1111-1111-1111-111111111111",
+  "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "createdAtUtc": "2026-07-16T00:00:00Z",
+  "expiresAtUtc": "2026-07-16T00:10:00Z",
+  "sourceSnapshotId": "22222222-2222-2222-2222-222222222222",
+  "sourceDriveFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "rulePackVersion": "1.1.0",
+  "candidates": [
+    {
+      "findingId": "npm-cache",
+      "title": "npm cache",
+      "eligibility": "DryRunEligible",
+      "risk": "Medium",
+      "confidence": "High",
+      "logicalBytes": 1024,
+      "itemCount": 3,
+      "uncertainty": "Observed logical metadata only.",
+      "consequence": {
+        "whyItExists": "npm retains downloaded packages.",
+        "possibleOutcome": "Packages may need downloading again."
+      },
+      "rollbackCapability": "None",
+      "affectedRoot": "known-folder:local-app-data/npm-cache"
+    }
+  ],
+  "protectedValidation": "passed",
+  "staleStatus": "Valid",
+  "executionAvailability": "ExecutionNotAvailableInPhase5",
+  "privacyMode": "support-safe",
+  "limitations": ["Potential logical bytes affected are not guaranteed recovered space."],
+  "rawPathsIncluded": false,
+  "userNamesIncluded": false,
+  "fileContentsIncluded": false
+}
+

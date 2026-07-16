@@ -22,14 +22,18 @@ try {
     Invoke-Gate 'Phase 4.1 safety and UI architecture tests' @('test', 'tests/Clyr.Safety.Tests/Clyr.Safety.Tests.csproj', '--configuration', 'Release', '--no-build', '-m:1')
     Invoke-Gate 'Phase 4.1 formatting check' @('format', 'Clyr.sln', '--verify-no-changes', '--no-restore')
 
-    $pages = @('Overview', 'Scan', 'Results', 'History', 'DeveloperMode', 'Privacy', 'Licenses', 'About', 'Settings')
+    $pages = @('Overview', 'Scan', 'Results', 'ReviewPlan', 'History', 'DeveloperMode', 'Privacy', 'Licenses', 'About', 'Settings')
+    $hostXaml = Get-Content -Raw -LiteralPath .\src\Clyr.App\Controls\ResponsivePageHost.xaml
+    foreach ($required in @('VerticalScrollBarVisibility="Auto"', 'VerticalScrollMode="Auto"', 'HorizontalScrollBarVisibility="Disabled"', 'HorizontalScrollMode="Disabled"', 'MaxWidth="1120"')) {
+        if (-not $hostXaml.Contains($required)) { throw "ResponsivePageHost is missing layout contract: $required" }
+    }
     foreach ($page in $pages) {
         $xaml = Join-Path $root "src\Clyr.App\Pages\$($page)Page.xaml"
         if (-not (Test-Path -LiteralPath $xaml -PathType Leaf)) { throw "Missing distinct page: $xaml" }
         $content = Get-Content -Raw -LiteralPath $xaml
-        foreach ($required in @('VerticalScrollBarVisibility="Auto"', 'VerticalScrollMode="Auto"', 'HorizontalScrollBarVisibility="Disabled"')) {
-            if (-not $content.Contains($required)) { throw "$($page)Page is missing scrolling contract: $required" }
-        }
+        if (-not $content.Contains('<controls:ResponsivePageHost')) { throw "$($page)Page does not use ResponsivePageHost." }
+        if ($content.Contains('<ScrollViewer')) { throw "$($page)Page defines an independent ScrollViewer." }
+        if ($content.Contains('MaxWidth=')) { throw "$($page)Page defines an independent maximum content width." }
     }
 
     [string[]]$scanControls = @(rg -l 'Start Analysis|Cancel Analysis' src/Clyr.App/Pages --glob '*.xaml')
@@ -48,6 +52,6 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Phase 4.1 UI Automation failed.' }
     }
 
-    Write-Host 'Phase 4.1 verification PASSED. Polished read-only UI only; no cleanup, planning, elevation, filesystem mutation, Phase 5 behavior, or Git mutation.' -ForegroundColor Green
+    Write-Host 'Phase 4.1 regression verification PASSED. The committed responsive architecture remains intact; no mutation, elevation, helper, or Git mutation.' -ForegroundColor Green
 }
 finally { Pop-Location }

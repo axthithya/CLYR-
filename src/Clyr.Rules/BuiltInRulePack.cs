@@ -97,6 +97,11 @@ public sealed class BuiltInRulePackLoader
                 results.Add(new("rule.semantic-invalid", "A rule failed bounded semantic validation."));
             if (rule.Protected && !string.Equals(rule.Status, nameof(FindingStatus.Protected), StringComparison.OrdinalIgnoreCase))
                 results.Add(new("rule.protection-invalid", "A protected rule must retain Protected status."));
+            if (rule.Action is not null && (rule.Action.SchemaVersion != 1
+                || rule.Action.Type is not ("report-only" or "review-files")
+                || !rule.Action.AllowedRootIdentity.StartsWith("known-folder:", StringComparison.Ordinal)
+                || rule.Protected || !string.Equals(rule.Status, nameof(FindingStatus.Informational), StringComparison.OrdinalIgnoreCase)))
+                results.Add(new("rule.action-invalid", "An optional Phase 5 action descriptor is invalid and the pack was rejected atomically."));
         }
         return results;
     }
@@ -130,7 +135,7 @@ public sealed class BuiltInRulePack(RulePackSummary summary, IReadOnlyList<Compi
 public sealed record CompiledRule(string Id, string Version, string Title, StorageCategory Category,
     IReadOnlyList<string> Tags, FindingConfidence Confidence, FindingStatus Status, int Priority,
     bool Protected, string MatchKind, string MatchValue, string Why, string Meaning,
-    string SampleMatch, string SampleNonMatch)
+    string SampleMatch, string SampleNonMatch, CompiledActionDescriptor? Action)
 {
     public bool IsMatch(string path)
     {
@@ -148,8 +153,11 @@ public sealed record CompiledRule(string Id, string Version, string Title, Stora
         Enum.Parse<StorageCategory>(rule.Category, true), rule.Tags, Enum.Parse<FindingConfidence>(rule.Confidence, true),
         Enum.Parse<FindingStatus>(rule.Status, true), rule.Priority, rule.Protected,
         rule.Match.Kind, rule.Match.Value.ToLowerInvariant(), rule.Why, rule.Meaning,
-        rule.SampleMatch, rule.SampleNonMatch);
+        rule.SampleMatch, rule.SampleNonMatch, rule.Action is null ? null
+            : new(rule.Action.SchemaVersion, rule.Action.Type, rule.Action.AllowedRootIdentity));
 }
+
+public sealed record CompiledActionDescriptor(int SchemaVersion, string Type, string AllowedRootIdentity);
 
 internal sealed class RuleSession : IClassificationSession
 {
@@ -280,5 +288,12 @@ public sealed class RuleDocument
     public string Meaning { get; set; } = string.Empty;
     public string SampleMatch { get; set; } = string.Empty;
     public string SampleNonMatch { get; set; } = string.Empty;
+    public RuleActionDocument? Action { get; set; }
 }
 public sealed class RuleMatch { public string Kind { get; set; } = string.Empty; public string Value { get; set; } = string.Empty; }
+public sealed class RuleActionDocument
+{
+    public int SchemaVersion { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public string AllowedRootIdentity { get; set; } = string.Empty;
+}

@@ -157,3 +157,6 @@ These questions do not block Phase 1’s migration skeleton, but each must be re
 ## Phase 4 aggregate snapshot
 
 The immutable StorageSnapshot, SnapshotDrive, SnapshotCategory, SnapshotFinding, SnapshotSummary, and SnapshotComparison contracts are normative. SQLite schema version 2 normalizes snapshot, category, finding, warning, and settings rows. ScanId is unique for idempotency; foreign keys cascade aggregate child deletion. Only Complete, Partial, and Cancelled records are displayable. No scanned-file rows or raw child paths exist. See docs/PHASE4_HISTORY.md and ADR-0010.
+## Phase 5 immutable plan model
+
+CleanupPlan is immutable and contains schema/ID/version, PlanBinding, PlanExpiry, sorted CleanupPlanItem values, EstimatedImpact, risk, confidence, warnings, ExecutionNotAvailableInPhase5, and a canonical SHA-256 digest. ActionDefinition, CleanupTarget, CleanupConsequence, PlanDiagnostic, ProtectedPathViolation, PlanValidationResult, and DryRunResult are closed typed contracts. Plans are bounded process-memory records; changing selection creates a new ID and digest.

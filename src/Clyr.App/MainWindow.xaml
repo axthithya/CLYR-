@@ -12,6 +12,7 @@
                 <NavigationViewItem Content="Overview" Tag="Overview" ToolTipService.ToolTip="Overview"><NavigationViewItem.Icon><SymbolIcon Symbol="Home"/></NavigationViewItem.Icon></NavigationViewItem>
                 <NavigationViewItem Content="Scan" Tag="Scan" ToolTipService.ToolTip="Analyze a drive"><NavigationViewItem.Icon><SymbolIcon Symbol="Find"/></NavigationViewItem.Icon></NavigationViewItem>
                 <NavigationViewItem Content="Results" Tag="Results" ToolTipService.ToolTip="Latest results"><NavigationViewItem.Icon><SymbolIcon Symbol="AllApps"/></NavigationViewItem.Icon></NavigationViewItem>
+                <NavigationViewItem Content="Review Plan" Tag="Review Plan" ToolTipService.ToolTip="Preview potential actions"><NavigationViewItem.Icon><SymbolIcon Symbol="View"/></NavigationViewItem.Icon></NavigationViewItem>
                 <NavigationViewItem Content="History" Tag="History" ToolTipService.ToolTip="Local history"><NavigationViewItem.Icon><SymbolIcon Symbol="Clock"/></NavigationViewItem.Icon></NavigationViewItem>
                 <NavigationViewItem Content="Developer Mode" Tag="Developer Mode" ToolTipService.ToolTip="Developer Mode preview"><NavigationViewItem.Icon><FontIcon Glyph="&#xE943;"/></NavigationViewItem.Icon></NavigationViewItem>
                 <NavigationViewItem Content="Privacy" Tag="Privacy" ToolTipService.ToolTip="Privacy"><NavigationViewItem.Icon><SymbolIcon Symbol="Permissions"/></NavigationViewItem.Icon></NavigationViewItem>

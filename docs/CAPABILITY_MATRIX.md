@@ -31,7 +31,7 @@ Every row below remains unavailable until its phase gate. Protected/Prohibited a
 
 | Capability / phase | Windows/filesystem | Package identity | Admin | Dependency | Offline | Safe fallback | Planned tests | Status |
 |---|---|---|---|---|---|---|---|---|
-| Immutable cleanup plan / 5 | Proven target capability | App/CLI contract version | No | Core policy, stable observation evidence | Full | Reject stale/overlap/ambiguous/protected; no execution | Property/malicious/fake-fixture | Planned |
+| Immutable cleanup plan / 5 | Built-in report-only eligible metadata | App/CLI contract version | No | Core policy, stable observation evidence | Full | Reject stale/duplicate/ambiguous/protected; execution unavailable | Property/malicious/schema/CLI/UI fixtures | Implemented preview; not execution |
 | Selected Recycle Bin action / 6 | Approved local volume/item type | Approved topology | Usually no | Windows Recycle Bin adapter | Full | Action unavailable; never permanent-delete fallback | Disposable user-owned fixture, identity/race/rollback semantics | Planned later |
 | Product-owned quarantine / 6 | Capacity/filesystem checked | Product-owned location | No for user data | Journal, copy/move, verification | Full | Keep source; retain quarantine; no silent expiry deletion | Capacity, cross-volume, crash, conflict, restore | Planned later |
 | Elevated allowlisted action / 6 | Proven Windows/target capability | Signed same-product helper/client | Selective | UAC, authenticated typed IPC, Windows identity | Full | Denial/rejection; read-only product continues | Wrong peer/session, replay, expiry, fuzz, TOCTOU, lifecycle | Planned later |

@@ -10,11 +10,17 @@ namespace Clyr.Cli;
 public sealed partial class CliApplication
 {
     private ISnapshotStore? snapshotStore;
+    private ICleanupPlanStore? cleanupPlanStore;
 
     public CliApplication(IEnvironmentInfo environment, IDemoDataService demo, RuleValidator rules,
         IPrivacyRedactor redactor, string version, IDriveDiscovery driveDiscovery, IScanService scanner,
-        IScanReportExporter exporter, RulePackLoadResult? rulePack, ISnapshotStore snapshotStore)
-        : this(environment, demo, rules, redactor, version, driveDiscovery, scanner, exporter, rulePack) => this.snapshotStore = snapshotStore;
+        IScanReportExporter exporter, RulePackLoadResult? rulePack, ISnapshotStore snapshotStore,
+        ICleanupPlanStore? cleanupPlanStore = null)
+        : this(environment, demo, rules, redactor, version, driveDiscovery, scanner, exporter, rulePack)
+    {
+        this.snapshotStore = snapshotStore;
+        this.cleanupPlanStore = cleanupPlanStore;
+    }
 
     private int Snapshots(IReadOnlyList<string> args, TextWriter output, TextWriter error)
     {

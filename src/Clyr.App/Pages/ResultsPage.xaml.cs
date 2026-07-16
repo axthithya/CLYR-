@@ -14,6 +14,7 @@ public sealed partial class ResultsPage : Page
     private void RunQuick(object sender, RoutedEventArgs args) { ViewModel.Session.SelectedMode = ScanMode.Quick; ViewModel.Navigate("Scan"); }
     private void RunDeep(object sender, RoutedEventArgs args) { ViewModel.Session.SelectedMode = ScanMode.Deep; ViewModel.Navigate("Scan"); }
     private void RunAgain(object sender, RoutedEventArgs args) => ViewModel.Navigate("Scan");
+    private void ReviewActions(object sender, RoutedEventArgs args) => ViewModel.Navigate("Review Plan");
     private void Reflow(Controls.ResponsivePageWidth mode)
     {
         var narrow = mode == Controls.ResponsivePageWidth.Narrow;

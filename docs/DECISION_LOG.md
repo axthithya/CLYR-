@@ -50,3 +50,11 @@ Anyone may propose a decision change. Changes affecting protected resources, pri
 - Keep at least two snapshots per drive; default retention is 20.
 - Use deterministic full-scan comparison. USN remains unsupported until reset, wrap, privilege, and rename semantics are evidenced.
 - Significant means 250 MiB absolute, or both 50 MiB and 10 percent relative. Insights describe observations, never causes.
+## Phase 5 decisions — 2026-07-16
+
+- D-025 Accepted: use immutable records/arrays, fixed-order canonical UTF-8 JSON, and SHA-256 for integrity detection; the digest is not a signature.
+- D-026 Accepted: retain at most 16 plans in process memory; explicit privacy-safe report export is the only plan persistence boundary.
+- D-027 Accepted: production execution returns ExecutionNotAvailableInPhase5 and contains no mutation or process primitive.
+- D-028 Accepted: protected policy always overrides eligibility; broad browser-profile aggregates remain InsufficientEvidence.
+- D-029 Accepted: selection, expiry, binding, digest, target metadata, protected-path, or path-policy changes invalidate rather than mutate a plan.
+- D-030 Accepted: actual Windows High Contrast, 125%/150% DPI, and text scaling remain manual release checks.

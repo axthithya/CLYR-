@@ -151,3 +151,6 @@ The selected analysis mode card uses three independent visual indicators to ensu
 3. **Check-mark indicator** (`SelectionMark`): a visible checkmark icon confirming the selection.
 
 These are defined per-theme (Default, Light, HighContrast) in `App.xaml` and verified structurally by the responsive layout verifier.
+## Phase 5 Review Plan experience
+
+Results links to Review Plan. The tenth page uses the same ResponsivePageHost, design tokens, PageHeader, scrolling, and navigation architecture as the committed Phase 4.1 pages. It selects nothing by default, disables protected/manual/unsupported/insufficient choices, explains every reason, and keeps the dry-run banner visible. Preview shows plan ID, digest, creation/expiry, potential logical bytes, unavailable physical bytes, risk, confidence, validation, consequences, rollback, and ExecutionNotAvailableInPhase5. Final controls are Save dry-run report, Discard plan, and Done; execution controls do not exist.

@@ -86,3 +86,6 @@ Disposition: **Safe candidate**, **Review required**, **Move candidate**, **Prot
 ## Acceptance criteria
 
 The documentation is internally consistent; every unsupported or future capability is labeled; schemas encode the safety boundary; protected resources always win; diagrams and state models agree; no implementation or destructive behavior exists; and Phase 1 can scaffold the solution without revisiting product direction.
+## Phase 5 implemented scope
+
+Users may review eligibility, select nothing-by-default candidates, preview an immutable integrity-checked dry-run, inspect risk/confidence/consequences/rollback/expiry, export a privacy-safe report, or discard the in-memory plan. They cannot execute, apply, clean, delete, recycle, quarantine, elevate, or invoke an external tool.

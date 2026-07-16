@@ -42,7 +42,7 @@ public partial class App : Application
             ? configuredDemoDataOnly
             : false;
         var applicationConfiguration = new ApplicationConfiguration(
-            configurationRoot["Application:Phase"] ?? "Phase 4",
+            configurationRoot["Application:Phase"] ?? "Phase 5",
             demoDataOnly);
 
         var services = new ServiceCollection();
@@ -68,7 +68,9 @@ public partial class App : Application
             services.AddSingleton<IDriveIdentityProvider, HmacDriveIdentityProvider>();
             services.AddSingleton<IFileSystemEnumerator, WindowsFileSystemEnumerator>();
         }
-        services.AddSingleton<IApplicationVersion>(_ => new ApplicationVersion("0.4.1-preview"));
+        services.AddSingleton<IApplicationVersion>(_ => new ApplicationVersion("0.5.0-phase5"));
+        services.AddSingleton<ICleanupPlanStore, InMemoryCleanupPlanStore>();
+        services.AddSingleton<ICleanupExecutor, PhaseFiveDisabledCleanupExecutor>();
         services.AddSingleton(_ => BuiltInRulePackLoader.Load(Path.Combine(AppContext.BaseDirectory, "rules", "builtin")));
         if (!uiFixture) services.AddSingleton<IScanService>(provider =>
         {

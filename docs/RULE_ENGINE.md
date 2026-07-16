@@ -123,3 +123,6 @@ Detailed local export is a separate, explicitly warned privacy mode. A report-on
 - Hash the packaged built-in manifest and detect any changed file.
 
 These checks are planned gates; Phase 0 validates the static schemas and examples only.
+## Phase 5 optional action descriptors
+
+Built-in detection remains valid when action metadata is absent. An optional descriptor is accepted only with schema version 1, type report-only or review-files, a trusted known-folder root identity, and an informational non-protected built-in rule protected by manifest integrity. Invalid descriptors reject the pack atomically. External rules remain inactive; scripts, executable paths, shell text, raw argument arrays, arbitrary roots, and remote downloads remain prohibited.

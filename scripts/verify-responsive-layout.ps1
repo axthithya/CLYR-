@@ -10,8 +10,8 @@ $controls = Join-Path $root 'src\Clyr.App\Controls'
 
 Write-Host '==> Responsive layout structural verification'
 
-# 1. All nine pages must use ResponsivePageHost
-$requiredPages = @('Overview','Scan','Results','History','DeveloperMode','Privacy','Licenses','About','Settings')
+# 1. All ten pages must use ResponsivePageHost
+$requiredPages = @('Overview','Scan','Results','ReviewPlan','History','DeveloperMode','Privacy','Licenses','About','Settings')
 foreach ($page in $requiredPages) {
     $file = Join-Path $pages "$($page)Page.xaml"
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing page: $file" }
@@ -19,7 +19,7 @@ foreach ($page in $requiredPages) {
     if (-not $content.Contains('ResponsivePageHost')) { throw "$($page)Page does not use ResponsivePageHost." }
     if (-not $content.Contains('AutomationProperties.Name')) { throw "$($page)Page has no automation names." }
 }
-Write-Host '  All 9 pages use ResponsivePageHost.'
+Write-Host '  All 10 pages use ResponsivePageHost.'
 
 # 2. ResponsivePageHost has consistent scroll contract
 $hostXaml = Get-Content -Raw -LiteralPath (Join-Path $controls 'ResponsivePageHost.xaml')
@@ -51,7 +51,7 @@ foreach ($page in $requiredPages) {
 Write-Host '  No unsafe fixed widths or translations in page XAML.'
 
 # 6. Key reflow methods exist in page code-behind
-$reflowPages = @('Overview','Scan','Results','History','DeveloperMode','Privacy','About','Settings')
+$reflowPages = @('Overview','Scan','Results','ReviewPlan','History','DeveloperMode','Privacy','About','Settings')
 foreach ($page in $reflowPages) {
     $cs = Get-Content -Raw -LiteralPath (Join-Path $pages "$($page)Page.xaml.cs")
     if (-not $cs.Contains('LayoutModeChanged')) { throw "$($page)Page does not subscribe to LayoutModeChanged." }
@@ -61,7 +61,7 @@ Write-Host '  Responsive reflow handlers verified on all applicable pages.'
 # 7. Scan controls are isolated to ScanPage
 $scanXaml = Get-Content -Raw -LiteralPath (Join-Path $pages 'ScanPage.xaml')
 if (-not $scanXaml.Contains('Start Analysis')) { throw 'ScanPage is missing Start Analysis.' }
-foreach ($page in @('Overview','Results','History','DeveloperMode','Privacy','Licenses','About','Settings')) {
+foreach ($page in @('Overview','Results','ReviewPlan','History','DeveloperMode','Privacy','Licenses','About','Settings')) {
     $content = Get-Content -Raw -LiteralPath (Join-Path $pages "$($page)Page.xaml")
     if ($content.Contains('Start Analysis') -or $content.Contains('Cancel Analysis')) {
         throw "$($page)Page incorrectly contains scan controls."

@@ -177,3 +177,6 @@ CLI JSON must carry the detailed state and version; callers must not infer “no
 - External-tool fixtures cover unsupported identity/version, injection text, timeout, output flood, localized/unparseable output, and child-process behavior.
 - Privacy tests inject usernames, project names, control characters, full paths, account IDs, access tokens, and hostile tool output through every error surface.
 - CLI exit codes and JSON states agree, and documentation never claims these contracts are implemented before their delivery phase.
+## Phase 5 planning failures
+
+Planning distinguishes invalid selection, missing evidence, protected policy, unsupported source, integrity mismatch, stale binding, expired plan, changed target metadata, unsafe path, report-schema failure, and unavailable execution. Validation is fail-closed and returns typed diagnostics; it never repairs a plan, executes a fallback command, or mutates a target.

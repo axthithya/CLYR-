@@ -150,3 +150,6 @@ Before Phase 6 can expose any real mutation, all applicable checks must pass:
 - independent review that documentation, protocol schemas, tests, and shipped capability allowlists agree.
 
 Any failed identity, protected-path, plan-integrity, journal-durability, or injection gate keeps execution disabled. Remaining accepted risks must have an owner and acceptance rationale in `RISK_REGISTER.md`.
+## Phase 5 threat treatment
+
+Implemented controls reject traversal, sibling-prefix confusion, UNC/device namespaces, alternate streams, environment escapes, ambiguous aliases, reparses, protected components, duplicate selections, oversized plans, negative/overflowing accounting, stale source bindings, expired plans, changed target metadata, digest edits, incompatible rule packs, and unsafe reports. SHA-256 detects edits but does not authenticate a signer. Residual execution TOCTOU remains intentionally unresolved and blocks Phase 6.

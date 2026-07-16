@@ -106,3 +106,6 @@ Phase 1 tests demo/view-model transitions without drives. Later suites cover can
 Navigation is presentation state only and never starts, cancels, persists, deletes, or compares data by itself. One shared analysis session supplies Overview, Scan, and Results; dedicated History and Settings view models own aggregate-history commands and preferences. A page activation may refresh its view from those services, while navigating away preserves the active scan and its cancellation boundary. Returning to a page resets that page’s scroll position intentionally.
 
 The safe UI fixture follows the same view-model transitions with fake drive, scan, and snapshot services. It can demonstrate Idle → Scanning → Cancelling/Cancelled and Idle → Scanning → Completed without filesystem enumeration.
+## Phase 5 planning states
+
+Results transitions to ReviewPlanEmpty or CandidateSelection. CandidateSelection toggles DryRunEligible findings only. Preview creates a new immutable PlanPreview; changed selection requires a new plan ID and digest. PlanPreview may prepare a privacy-safe report, discard the process-local record, return to Results, or become Expired, Stale, or Invalid after validation. There is no execution transition.

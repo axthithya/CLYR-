@@ -201,3 +201,6 @@ This model is satisfied only when tests and reviews demonstrate that:
 - execution is journaled before mutation and produces a privacy-safe receipt with verified outcomes;
 - all automated execution tests use disposable fixtures or mocks, never a developer's real cleanup targets;
 - implementation status is never inferred from this design document: cleanup remains planned until its phase gates pass.
+## Phase 5 enforced safety boundary
+
+Phase 5 planning is implemented, but execution is not. Protected policy overrides eligibility; user-created and broad browser-profile aggregates cannot become dry-run items. Canonical digest/binding/expiry/path checks fail closed, plans are memory-only, and the production executor can only return ExecutionNotAvailableInPhase5. No target-file mutation, Recycle Bin, quarantine, process, elevation, registry, permission, Windows-setting, or helper capability exists.

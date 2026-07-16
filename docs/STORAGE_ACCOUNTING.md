@@ -150,3 +150,4 @@ Allocated, exclusive allocated, ADS, sparse/compression physical effect, and sta
 - Future execution receipts comparing expected allocation with observed free-space delta under concurrent-change fakes.
 
 Acceptance requires zero protected-path violations and no UI/CLI/export label that turns an estimate, review candidate, logical placeholder size, or movable byte into guaranteed reclaimable space.
+Phase 5 plans carry observed logical bytes and item counts from source metadata. Estimated physical bytes remain unavailable unless safely evidenced. Dry-run output names hard-link, allocation, compression, cloud, inaccessible, changing, locked, filesystem-metadata, and cache-recreation limitations. No Phase 5 value is called reclaimable or recovered.

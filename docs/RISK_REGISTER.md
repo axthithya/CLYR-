@@ -118,3 +118,13 @@ The baseline register passed the cross-document terminology and ownership review
 | "Clear History" is mistaken for disk cleanup | Exact aggregate-history wording and confirmation; no cleanup controls or file mutation adapters; automation name `Clear History` explicitly scoped | Users may still skim; content review remains ongoing |
 | Missing automation IDs prevent assistive technology access | All critical elements have `AutomationProperties.Name`; static test `AllPagesHavePageRootAutomationNames` enforces coverage | New elements must be added to automation ID inventory |
 | Theme resources incomplete for a mode | All 11 brushes verified in Default, Light, and HighContrast theme dictionaries by structural verifier | Manual visual review of contrast ratios remains a release gate |
+## Phase 5 planning risks
+
+| Risk | Control | Residual |
+|---|---|---|
+| Candidate scope exceeds exact evidence | Protected override; broad browser aggregates are InsufficientEvidence; reviewed built-ins only | Exact known-folder detection remains future work |
+| Plan is edited, stale, expired, or rebound | Canonical digest; ten-minute expiry; scan/snapshot/drive/rule/app/privacy/selection bindings | Digest is not signer authentication |
+| Path confusion crosses an approved root | Component containment; reject traversal, UNC/device, ADS, environment escape, trailing dot/space, 8.3 ambiguity, and reparses | Live final-handle checks remain a Phase 6 gate |
+| Logical bytes imply guaranteed recovery | Potential/observed wording, null physical bytes, explicit limitations | Users may still infer a guarantee |
+| Future vocabulary implies availability | ExecutionNotAvailableInPhase5; no execution control or command | Phase 6 requires separate approval |
+| Report leaks local identity | Support-safe schema with no raw paths, usernames, or content | Aggregate sizes reveal coarse local state |

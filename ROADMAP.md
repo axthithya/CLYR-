@@ -67,9 +67,9 @@ Exit: the presentation layer is distinct, navigable, scrollable, accessible by a
 
 ## Phase 5 — Cleanup planning and dry-run only
 
-- [ ] Implement strongly typed actions, immutable digest-bound plans, ten-minute expiry, rule/version/identity binding, and overlap rejection.
-- [ ] Revalidate protected roots and exact targets; show bytes, evidence, consequences, risk, elevation, and rollback.
-- [ ] Add fake execution interfaces and malicious-plan/property tests against fixtures only.
+- [x] Implement strongly typed actions, immutable digest-bound plans, ten-minute expiry, rule/version/identity binding, bounded selections, and duplicate rejection.
+- [x] Revalidate protected roots and target metadata; show potential logical bytes, uncertainty, consequences, risk, elevation, rollback, staleness, and unavailable execution.
+- [x] Add a deliberately disabled production executor plus malicious-plan, path, digest, schema, CLI, safety, and fixture-only UI tests.
 
 Exit: plan changes or staleness require re-plan/re-confirm; no arbitrary command/path; no real mutation.
 
@@ -110,6 +110,6 @@ Exit: all beta gates pass with no silent telemetry and no persistent helper; art
 
 Exit: community data cannot execute code; failures are safe and reversible; v1 quality/support criteria pass.
 
-## Exact next phase
+## Current approval gate
 
-Phase 4 is complete and approved. Phase 4.1 is implemented in the current working tree and stopped at its approval gate. The next numbered phase remains **Phase 5 — Cleanup planning and dry-run only**, and it must not begin without explicit approval.
+Phase 4.1 is complete and approved. Phase 5 is implemented in the current working tree and stopped at its approval gate. The exact next phase is **Phase 6 — Low-risk execution and elevated helper**, and it must not begin without explicit approval.

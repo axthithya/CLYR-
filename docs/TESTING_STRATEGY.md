@@ -119,3 +119,6 @@ Never copy a real scan, user path, registry/database, dump, log, cloud item, pro
 ## Phase 4 gates
 
 Gates cover migration/idempotency, transactional normalized round-trip, lifecycle eligibility, retention floor, settings, deletion isolation, key stability, compatibility and drift, new/removed groups, overflow saturation, significance boundaries, deterministic CLI JSON, confirmations, corruption translation, and all earlier regressions. Tests use fakes and temporary databases; verification starts no real drive scan.
+## Phase 5 verification matrix
+
+Core tests cover eligibility precedence, immutable ordering, digest recomputation/mutation, selection bounds, overflow, expiry, stale drive/rule/category/app/privacy bindings, target metadata, dry-run uncertainty, memory retention, and disabled execution. Security theories cover traversal, sibling prefixes, UNC/device paths, alternate streams, reparses, protected paths, 8.3 ambiguity, and environment escapes. Rule/schema, CLI, repository-safety, and fixture-only UI tests cover plan commands, absent mutation commands, no preselection, preview/export/discard, and ten-page responsive bounds.
