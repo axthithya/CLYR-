@@ -1,7 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
 using Clyr.App.Pages;
 using Clyr.App.ViewModels;
+using Clyr.Contracts;
 using Clyr.Core;
+using Clyr.Core.Execution;
+using Clyr.Persistence;
 using Clyr.Rules;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -16,14 +19,16 @@ public sealed partial class MainWindow : Window
 
     public MainWindow(IScanService scanService, IDriveDiscovery drives, RulePackLoadResult rules,
         ISnapshotStore history, IScanReportExporter exporter, IApplicationVersion version,
-        ICleanupPlanStore cleanupPlans)
+        ICleanupPlanStore cleanupPlans, IExecutionTokenService executionTokens, IExecutionReceiptStore? executionReceipts,
+        IClock clock, ExecutionSessionContext executionSession, ExecutionFixtureRoot fixtureRoot)
     {
         InitializeComponent();
         session = new(scanService, drives, rules, version);
         var overview = new OverviewPage(new(session));
         var scan = new ScanPage(new(session));
         var results = new ResultsPage(new(session, exporter));
-        var reviewPlan = new ReviewPlanPage(new(session, cleanupPlans));
+        var reviewPlan = new ReviewPlanPage(new(session, cleanupPlans, executionTokens, executionReceipts, clock,
+            executionSession.Value, fixtureRoot.Path));
         var historyPage = new HistoryPage(new(session, history));
         var developer = new DeveloperModePage(new(session));
         var privacy = new PrivacyPage(new(session));

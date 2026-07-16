@@ -4,6 +4,40 @@ All notable project changes are recorded here. The format follows Keep a Changel
 
 ## [Unreleased]
 
+### Added — Phase 6 execution engine, elevated helper, IPC, receipts, CLI, WinUI (2026-07-17)
+
+- Added a non-elevated execution engine (`NonElevatedCleanupExecutor`, `ExecutionTargetProcessor`) for one
+  narrowly allowlisted, Low-risk built-in action (`builtin.clyr-owned-temp-artifacts`), with a one-time,
+  session/user/drive/plan-digest-bound token, per-target TOCTOU revalidation immediately before deletion, an
+  exact bounded manifest, cooperative cancellation, and immutable privacy-safe execution receipts.
+- Added a separate one-shot elevated helper (`Clyr.ElevatedHelper`, own `requireAdministrator` manifest) with
+  independent request revalidation, a typed/bounded/versioned named-pipe IPC protocol
+  (`Clyr.Contracts.ExecutionIpc`, `Clyr.Core.Execution.ElevatedHelperIpc`), and a tightly controlled UAC
+  launcher (`ElevatedHelperLauncher`) — the only `Process.Start` in production source. No enabled action
+  currently requires elevation.
+- Added SQLite execution-receipt persistence (schema v3, `SqliteExecutionReceiptStore`) with immutable
+  terminal-state rows, bounded retention, and a crash-reconciliation primitive
+  (`ReconcileInterruptedAsync`).
+- Added CLI `plan execute <plan-id> --confirm-digest <prefix>` and
+  `execution status|receipt|list|export|discard-receipt`; extended `plan candidates`/`plan create` to include
+  the live-scanned built-in candidate.
+- Added a WinUI Review Plan execution flow: no default selection, a gated final-confirmation dialog, live
+  progress/counters/cancellation, all terminal states (Completed/PartiallyCompleted/Cancelled/Failed/
+  Interrupted/Unknown outcome), and receipt history with view/export/delete.
+- Added ADR-0012 (execution authority/TOCTOU), ADR-0013 (typed IPC), ADR-0014 (receipts/accounting), and an
+  implementation-note update to ADR-0002; added `scripts/verify-phase6.ps1` and
+  `scripts/run-phase6-uac-smoke.ps1` (with a dedicated `tools/Phase6UacSmoke` harness kept outside the shipped
+  solution).
+- Added 197 passing tests across the solution (up from 163 at Phase 5 exit) covering the engine, helper/IPC
+  (including a real named-pipe round trip), receipt persistence, CLI execution, and updated UI/repository
+  safety architecture checks.
+
+### Known gap — Phase 6 (2026-07-17)
+
+- The required real fixture-only UAC smoke test has not been run: it needs a person at an interactive desktop
+  to approve an actual Windows UAC prompt, which was not available in the environment this work was done in.
+  Phase 6 implementation is ready for final approval, but Phase 6 remains incomplete until that test passes.
+
 ### Added — Phase 5 cleanup planning and dry-run only (2026-07-16)
 
 - Added explicit eligibility, action, risk, consequence, rollback, binding, expiry, target-metadata, diagnostic, dry-run, and immutable cleanup-plan contracts.

@@ -3,6 +3,33 @@ using Clyr.Core;
 
 namespace Clyr.App;
 
+/// <summary>
+/// Optional override of the Phase 6 built-in action's trusted root. Real launches carry a null Path (the
+/// executor resolves the real %LocalAppData%\Clyr\Temp folder); CLYR_UI_FIXTURE=1 launches carry a private
+/// temporary directory seeded with synthetic stale files so UI Automation can exercise execution deterministically
+/// without ever touching a real user path.
+/// </summary>
+/// <summary>DI-friendly reference-type wrapper: <see cref="ExecutionSessionId"/> is a value type and cannot be registered directly.</summary>
+public sealed record ExecutionSessionContext(ExecutionSessionId Value);
+
+public sealed record ExecutionFixtureRoot(string? Path)
+{
+    public static ExecutionFixtureRoot CreateSeeded()
+    {
+        var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "clyr-ui-fixture-execution-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(path);
+        var old = DateTime.UtcNow.AddDays(-30);
+        for (var index = 1; index <= 4; index++)
+        {
+            var file = System.IO.Path.Combine(path, "fixture-scratch-" + index + ".tmp");
+            File.WriteAllText(file, "synthetic fixture scratch data");
+            File.SetLastWriteTimeUtc(file, old);
+            File.SetCreationTimeUtc(file, old);
+        }
+        return new(path);
+    }
+}
+
 internal sealed class UiFixtureDriveDiscovery : IDriveDiscovery
 {
     public IReadOnlyList<DriveSummary> Discover() => [new("C:\\", "Fixture system drive", "NTFS", DriveKind.Fixed, true, true, true, "Ready for private analysis.", 512L * 1024 * 1024 * 1024, 320L * 1024 * 1024 * 1024, 192L * 1024 * 1024 * 1024)];

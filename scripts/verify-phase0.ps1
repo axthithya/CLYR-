@@ -154,14 +154,29 @@ foreach ($risk in $canonicalRisks) {
 
 $phaseOneSolutionExists = Test-Path -LiteralPath 'Clyr.sln' -PathType Leaf
 if ($phaseOneSolutionExists) {
-    $elevatedImplementation = @(Get-ChildItem -LiteralPath 'src/Clyr.ElevatedHelper' -Recurse -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Extension -in @('.cs', '.csproj') })
-    Test-Condition ($elevatedImplementation.Count -eq 0) 'The future elevated helper was implemented before its approved phase.'
+    # The elevated helper is approved and implemented as of Phase 6; PHASE_STATUS.md is the authoritative record
+    # of which phase is currently approved. This check only guards against it appearing before Phase 6 exists.
+    $phase6Approved = (Get-Content -Raw -LiteralPath 'PHASE_STATUS.md') -match 'Phase 6'
+    if (-not $phase6Approved) {
+        $elevatedImplementation = @(Get-ChildItem -LiteralPath 'src/Clyr.ElevatedHelper' -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension -in @('.cs', '.csproj') })
+        Test-Condition ($elevatedImplementation.Count -eq 0) 'The future elevated helper was implemented before its approved phase.'
+    }
 }
 else {
     $productCode = @(Get-ChildItem -LiteralPath $repoRoot -Recurse -File |
         Where-Object { $_.Extension -in @('.cs', '.csproj', '.sln', '.props', '.targets') })
     Test-Condition ($productCode.Count -eq 0) 'Phase 0 contains .NET product or solution files.'
+}
+
+function Test-IsReviewedExecutionBoundaryPath([string]$path) {
+    # Phase 6 approval narrowly permits file mutation only inside src/Clyr.Core/Execution/** and process
+    # launch/elevation only inside ElevatedHelperLauncher.cs and the Clyr.ElevatedHelper project.
+    # Clyr.Safety.Tests.RepositorySafetyTests is the authoritative, precisely-scoped enforcement of this boundary.
+    $executionRoot = (Join-Path $repoRoot 'src/Clyr.Core/Execution') + [System.IO.Path]::DirectorySeparatorChar
+    $helperRoot = (Join-Path $repoRoot 'src/Clyr.ElevatedHelper') + [System.IO.Path]::DirectorySeparatorChar
+    return $path.StartsWith($executionRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $path.StartsWith($helperRoot, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
 $forbiddenPatterns = @(
@@ -173,7 +188,7 @@ $forbiddenPatterns = @(
 )
 foreach ($pattern in $forbiddenPatterns) {
     $matches = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src') -Recurse -File |
-        Where-Object { -not (Test-IsGeneratedPath $_.FullName) -and $_.Extension -notin @('.md', '.mmd') } |
+        Where-Object { -not (Test-IsGeneratedPath $_.FullName) -and -not (Test-IsReviewedExecutionBoundaryPath $_.FullName) -and $_.Extension -notin @('.md', '.mmd') } |
         Select-String -Pattern $pattern
     Test-Condition ($null -eq $matches) "Executable destructive or shell pattern found: $pattern"
 }

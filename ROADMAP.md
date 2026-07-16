@@ -75,11 +75,13 @@ Exit: plan changes or staleness require re-plan/re-confirm; no arbitrary command
 
 ## Phase 6 — Low-risk execution and elevated helper
 
-- [ ] Implement only approved Recycle Bin operations, app-owned test/quarantine data, and exact allowlisted tool commands.
-- [ ] Journal before mutation; revalidate identity immediately; verify copy/action/free-space; create immutable receipts.
-- [ ] Add short-lived authenticated typed helper, denial/timeout/output limits, replay/TOCTOU/path-swap/fuzz tests, and crash recovery.
+- [x] Implement one narrowly allowlisted built-in action (CLYR-owned stale temporary artifacts), a one-time token, per-target TOCTOU revalidation immediately before mutation, an exact bounded manifest, and immutable execution receipts.
+- [x] Add a short-lived, one-shot, typed/bounded/versioned-IPC elevated helper (`Clyr.ElevatedHelper`) with independent request revalidation, plus the tightly controlled UAC launcher that is the only `Process.Start` in production source; no enabled action requires it yet.
+- [x] Add CLI (`plan execute`, `execution status|receipt|list|export|discard-receipt`) and a WinUI Review Plan execution flow (no default selection, gated confirmation, live progress/cancellation, all terminal states, receipt history/view/export/delete).
+- [ ] Run the real fixture-only UAC smoke test (`scripts/run-phase6-uac-smoke.ps1`) with a person at an interactive desktop approving the prompt.
+- [ ] Persist a "started" receipt row before deletion begins, for true crash-mid-run recovery (the reconciliation mechanism exists and is tested in isolation, but nothing writes the placeholder row yet).
 
-Exit: no arbitrary commands, protected violations remain zero, partial outcomes and actual recovery are accurate, all actions opt-in.
+Exit: no arbitrary commands, protected violations remain zero, partial outcomes and actual recovery are accurate, all actions opt-in — met except the UAC smoke test, which has not been run.
 
 ## Phase 7 — Developer Mode
 
@@ -112,4 +114,4 @@ Exit: community data cannot execute code; failures are safe and reversible; v1 q
 
 ## Current approval gate
 
-Phase 4.1 is complete and approved. Phase 5 is implemented in the current working tree and stopped at its approval gate. The exact next phase is **Phase 6 — Low-risk execution and elevated helper**, and it must not begin without explicit approval.
+Phase 4.1 and Phase 5 are implemented in the current working tree. Phase 6 (execution engine, elevated helper, IPC, receipts, CLI, WinUI) is implemented and stopped at its approval gate pending the real fixture-only UAC smoke test. The exact next phase is **Phase 7 — Developer Mode**, and it must not begin without explicit approval and a passing Phase 6 UAC smoke test.

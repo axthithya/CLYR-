@@ -58,3 +58,11 @@ Anyone may propose a decision change. Changes affecting protected resources, pri
 - D-028 Accepted: protected policy always overrides eligibility; broad browser-profile aggregates remain InsufficientEvidence.
 - D-029 Accepted: selection, expiry, binding, digest, target metadata, protected-path, or path-policy changes invalidate rather than mutate a plan.
 - D-030 Accepted: actual Windows High Contrast, 125%/150% DPI, and text scaling remain manual release checks.
+
+## Phase 6 decisions — 2026-07-17
+
+- D-031 Accepted: exactly one built-in action (`builtin.clyr-owned-temp-artifacts`) may execute; execution authority lives only in a one-time, in-memory, session/user/drive/plan-digest-bound token that cannot survive a process restart (ADR-0012).
+- D-032 Accepted: both the non-elevated executor and the elevated helper independently re-probe every target live on disk immediately before deletion, sharing `ExecutionTargetProcessor` but never sharing trust (ADR-0012).
+- D-033 Accepted: helper IPC uses only closed, non-polymorphic sealed records over a bounded, versioned, length-prefixed named-pipe frame — no command, script, or path field exists in the wire format (ADR-0013).
+- D-034 Accepted: an execution receipt in a terminal state can never be overwritten; an abandoned in-flight row can only ever become `Interrupted`, never guessed as `Completed` (ADR-0014).
+- D-035 Accepted: Phase 6 is not approved until the real fixture-only UAC smoke test passes on an interactive desktop session; it has not yet been run.

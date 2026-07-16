@@ -9,7 +9,7 @@
 | 4 — Snapshots/growth | **Complete and approved** | `main`; Phase 4 baseline preserved | 114/114 passed at Phase 4 exit | Versioned aggregate SQLite history, HMAC drive identity, retention/deletion, deterministic comparisons, CLI/WinUI, schemas/ADR | Logical estimates; USN deliberately unsupported; cloned volume identity remains documented | Preserved |
 | 4.1 — Polished UI/UX | **Complete and approved** | main; commit e6014ab | 124/124 passed at Phase 4.1 exit | Shared responsive host, distinct pages/view models, Light/Dark/High Contrast resources, fixture-only automation, accessibility guidance | Actual OS DPI/text scaling and Windows High Contrast remain manual release checks | Preserved |
 | 5 — Dry-run planning | **Implemented and verified — awaiting approval** | Current working tree over e6014ab; no Git mutations by instruction | 163/163 passed; complete Phase 0–5 verifier passed | Eligibility/action model, immutable digest-bound plans, stale/protected validation, CLI, Review Plan UI, schema/export, disabled executor | Exact browser cache roots need narrower future evidence; actual High Contrast/DPI/text scaling remain manual | Stop; await approval |
-| 6 — Low-risk execution | **Engine, helper, IPC, persistence, CLI implemented — not complete, not approved** | Current working tree over pushed a04a41a; no Git mutation | 195/195 passed; no Phase 0–5 verifier or UAC smoke test run | Non-elevated execution engine, one-shot elevated helper with independent revalidation, typed bounded named-pipe IPC, tightly controlled UAC launcher, SQLite execution-receipt persistence, and CLI `plan execute`/`execution *` for one enabled built-in action (`builtin.clyr-owned-temp-artifacts`) | Real fixture-only UAC smoke test not performed (no interactive session available); WinUI execution surface and full doc/ADR sweep not implemented; see docs/PHASE6_EXECUTION.md | Follow-up turn continues Phase 6 |
+| 6 — Low-risk execution | **Engine, helper, IPC, persistence, CLI, WinUI implemented — not complete, not approved** | Current working tree over pushed 326abac; no Git mutation | 197/197 passed; Phase 0–3 verifiers passed live; Phase 4+ verifier chain blocked by a pre-existing missing-`rg` environment gap (not a Phase 6 regression); UAC smoke test built but not run | Non-elevated execution engine, one-shot elevated helper with independent revalidation, typed bounded named-pipe IPC, tightly controlled UAC launcher, SQLite execution-receipt persistence, CLI `plan execute`/`execution *`, and a full WinUI Review Plan execution flow (no default selection, gated confirmation, live progress/cancellation, all terminal states, receipt history/view/export/delete) for one enabled built-in action (`builtin.clyr-owned-temp-artifacts`) | Real fixture-only UAC smoke test not run (needs a person at an interactive desktop); no durable "started" receipt row for true crash recovery; broader IPC fuzz/downgrade/forged-response tests absent; see docs/PHASE6_EXECUTION.md | Await approval; run the UAC smoke test with a real user present |
 | 7 — Developer Mode | Planned | — | Not run | First-party tool adapters | No implementation | After Phase 6 approval |
 | 8 — Move workflows | Planned | — | Not run | Supported migrations | No implementation | After Phase 7 approval |
 | 9 — Public beta | Planned | — | Not run | Hardening/signing/MSIX/SBOM | No release identity/artifacts | After Phase 8 approval |
@@ -34,34 +34,46 @@ Phase 0–4.1 history remains preserved. Phase 5 is implemented and fully verifi
 
 ## Phase 6 working-tree evidence (in progress, not approved)
 
-- Working tree: Phase 6 execution engine, helper, IPC, receipt persistence, and CLI over pushed commit a04a41a
-  (which contains the prior core-engine slice); no Git mutation performed this pass.
-- Scope this pass: separate one-shot elevated helper (`Clyr.ElevatedHelper`, `requireAdministrator` manifest,
-  independent request revalidation), typed bounded named-pipe IPC (`Clyr.Contracts.ExecutionIpc`,
-  `Clyr.Core.Execution.ElevatedHelperIpc`/`HelperIpcSerializer`), a tightly controlled UAC launcher
-  (`ElevatedHelperLauncher`, the only `Process.Start` in production source), SQLite execution-receipt
-  persistence (schema v3, `SqliteExecutionReceiptStore`, immutable terminal rows, `ReconcileInterruptedAsync`),
-  and CLI commands `plan execute`/`execution status|receipt|list|export|discard-receipt`. See
-  docs/PHASE6_EXECUTION.md for full detail and honest gaps.
-- Not implemented: WinUI execution surface; a "started" receipt placeholder for true crash-mid-run recovery;
-  the full documentation/ADR sweep (only PHASE6_EXECUTION.md and this file were updated); broader IPC fuzzing
-  (downgrade, forged response, wrong-client) beyond what is tested.
-- Build: `dotnet build Clyr.sln --configuration Release` — 0 warnings, 0 errors, including the new
-  `Clyr.ElevatedHelper` project.
-- Tests: 195/195 passed (Cli 35, Contracts 3, Core 91, Integration 1, Persistence 15, Rules 24, Safety 21,
-  Windows 5). New this pass: 10 Core helper/IPC tests (including a real named-pipe round trip and a real
-  connection timeout), 5 Persistence receipt-store tests, 3 Cli execution tests (including a real file
-  deletion through the full `plan create`/`plan execute` path against a synthetic fixture under CLYR's own
-  trusted root). All prior Phase 5 and prior-Phase-6-slice tests still pass unchanged in behavior.
-- Format: `dotnet format Clyr.sln --verify-no-changes` passed. `git diff --check` passed. Dependency
-  vulnerability audit (`dotnet list package --vulnerable --include-transitive`) reported no vulnerable
-  packages across all 16 projects including the new helper.
-- No Phase 0–5 verifier script, WinUI Automation, or responsive check has been run for Phase 6 (no WinUI
-  surface exists yet to check).
-- **The real fixture-only UAC smoke test has not been performed** — this environment has no interactive
-  Windows session to approve a UAC elevation prompt. The helper, IPC, and launcher are built and tested up to
-  that point (a real named-pipe round trip, a real deletion via the non-elevated path) but the helper has never
-  actually been launched through real UAC.
-- Per the Phase 6 specification's own fallback: **Phase 6 is not complete** because the required fixture-only
-  UAC smoke test has not been performed, and the WinUI execution flow and full documentation sweep remain
-  unimplemented.
+- Working tree: Phase 6 execution engine, helper, IPC, receipt persistence, CLI, WinUI execution flow, and
+  verification scripts over pushed commit 326abac (which contains the prior two Phase 6 slices); no Git
+  mutation performed this pass.
+- Scope this pass: WinUI Review Plan execution panel (`ReviewPlanPage`/`ReviewPlanViewModel`) with no default
+  selection, a gated `ContentDialog` confirmation, live progress via a new `IProgress<ExecutionItemResult>`
+  parameter on `NonElevatedCleanupExecutor.Execute`, cancellation, all terminal states, and receipt
+  history/view/export/delete; four new ADRs (0012 execution authority/TOCTOU, 0013 typed IPC, 0014 receipts,
+  plus an implementation-note update to ADR-0002); `scripts/verify-phase6.ps1`; `scripts/run-phase6-uac-smoke.ps1`
+  plus its dedicated `tools/Phase6UacSmoke` harness (kept outside `Clyr.sln` and outside `src/`); extended
+  `scripts/verify-winui.ps1` execution-flow steps; updated `Clyr.Safety.Tests.UiArchitectureTests` for the new
+  legitimate execution vocabulary; corrected the Phase 0/4/4.1/5 verifier scripts' repo-wide forbidden-pattern
+  scans, which had gone stale the moment Phase 6 legitimately introduced `File.Delete`/`Process.Start`/`runas`
+  inside the one reviewed boundary — each now excludes exactly `src/Clyr.Core/Execution/**` and
+  `src/Clyr.ElevatedHelper/**`, mirroring `RepositorySafetyTests`, the authoritative check.
+- Not implemented: a durable "started" receipt row for true crash-mid-run recovery; broader IPC
+  downgrade/forged-response/wrong-client fuzz tests.
+- Build: `dotnet build Clyr.sln --configuration Release` — 0 warnings, 0 errors (17 projects including
+  `Clyr.ElevatedHelper`; `tools/Phase6UacSmoke` builds separately and is intentionally outside the solution).
+- Tests: 197/197 passed (Cli 35, Contracts 3, Core 91, Integration 1, Persistence 15, Rules 24, Safety 23,
+  Windows 5). Safety gained 2 tests this pass (confirmation-gating and Developer-Mode-has-no-controls); all
+  other Phase 6 test counts are unchanged from the prior slice and still pass unchanged in behavior.
+- Format: `dotnet format Clyr.sln --verify-no-changes` passed. `git diff --check` passed (one benign LF→CRLF
+  line-ending advisory, not an error). Dependency vulnerability audit
+  (`dotnet package list --project Clyr.sln --vulnerable --include-transitive`) reported no vulnerable packages
+  across all 16 solution projects.
+- Verifier chain: `scripts/verify-phase6.ps1 -SkipUiAutomation` was actually run. Phase 0, 1, 2, and 3 verifiers
+  passed live (after a minimal, precisely-scoped correction to Phase 0's stale "elevated helper implemented
+  before its approved phase" check and its repo-wide destructive-pattern scan — both now recognize the Phase 6
+  approval and exclude exactly the reviewed boundary). The chain then hit `rg` (ripgrep) not being present as a
+  native Windows executable in this session — confirmed via `git log` to be a pre-existing gap in the Phase 4
+  verifier script (present since the original Phase 4 commit, unrelated to Phase 6). The equivalent scans were
+  re-verified manually with ripgrep through this session's Bash tool and all passed; Phase 6's own build, test,
+  format, scoped safety scans, and vulnerability audit all ran directly and passed.
+- WinUI Automation: `scripts/verify-winui.ps1` was extended with the full execution-flow walkthrough (no
+  default selection, gated confirmation, cancel-attempted and completed fixture runs, receipt history/view,
+  forbidden-control absence, Phase 7/8-control absence) and syntax-checked with the PowerShell parser, but was
+  **not executed against a rendered window** in this environment.
+- **The real fixture-only UAC smoke test has not been run.** `scripts/run-phase6-uac-smoke.ps1` and its harness
+  (`tools/Phase6UacSmoke`) build cleanly; running the harness triggers a real Windows UAC consent prompt that
+  only a person at an interactive desktop can approve, which was intentionally not triggered unattended in this
+  session.
+- Per the task's own fallback: **Phase 6 implementation is ready for final approval, but Phase 6 remains
+  incomplete until the fixture-only UAC smoke test passes.**

@@ -1,8 +1,22 @@
 # ADR 0002: Separate Short-Lived Elevated Helper
 
-- **Status:** Accepted for planned Phase 6; no helper is implemented in Phase 0
-- **Date:** 2026-07-10
+- **Status:** Implemented in Phase 6 (`src/Clyr.ElevatedHelper`); not yet approval-complete — the real
+  fixture-only UAC smoke test (`scripts/run-phase6-uac-smoke.ps1`) has not been run. See
+  `docs/PHASE6_EXECUTION.md` for current implementation detail and ADR-0012/0013/0014 for the execution
+  authority, IPC, and receipt decisions made alongside this one.
+- **Date:** 2026-07-10 (accepted); implementation note added 2026-07-17
 - **Decision owners:** Security architecture and Windows platform
+
+## Implementation note (2026-07-17)
+
+The helper exists as a separate `net10.0-windows10.0.26100.0` executable referencing only `Clyr.Contracts` and
+`Clyr.Core`, with its own `requireAdministrator` manifest; `Clyr.App`'s manifest remains `asInvoker`. It accepts
+exactly one bootstrap argument (a regex-validated pipe name), processes exactly one request via
+`ElevatedHelperRequestHandler.Handle` (independent re-validation against the closed built-in allowlist and a
+live filesystem probe — see ADR-0012), and exits. No currently enabled built-in action requires elevation, so
+`ElevatedHelperLauncher` (the one reviewed `Process.Start` call in production source) is implemented and
+IPC-tested but not exercised by the shipped single action. Everything below this note describes the original
+design intent, which the implementation follows.
 
 ## Context
 

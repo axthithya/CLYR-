@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Clyr.Contracts;
 using Clyr.Core;
+using Clyr.Core.Execution;
+using Clyr.Persistence;
 using Clyr.Rules;
 
 namespace Clyr.App.ViewModels;
@@ -84,20 +86,54 @@ public sealed class ResultsViewModel(AppSessionViewModel session, IScanReportExp
 {
     public string? CreatePrivacySafeReport() => Session.Result is null ? null : exporter.Serialize(Session.Result);
 }
-public sealed class ReviewPlanViewModel(AppSessionViewModel session, ICleanupPlanStore store) : PageViewModel(session)
+public sealed class ReviewPlanViewModel : PageViewModel
 {
+    private static readonly System.Text.Json.JsonSerializerOptions ReceiptExportJson = new() { WriteIndented = true };
+    private readonly ICleanupPlanStore store;
+    private readonly IExecutionTokenService tokenService;
+    private readonly IExecutionReceiptStore? receiptStore;
+    private readonly IClock clock;
+    private readonly ExecutionSessionId sessionId;
+    private readonly string? trustedRootOverride;
+    private readonly HashSet<string> attemptedPlanIds = new(StringComparer.Ordinal);
+
+    public ReviewPlanViewModel(AppSessionViewModel session, ICleanupPlanStore store, IExecutionTokenService tokenService,
+        IExecutionReceiptStore? receiptStore, IClock clock, ExecutionSessionId sessionId, string? trustedRootOverride = null)
+        : base(session)
+    {
+        this.store = store;
+        this.tokenService = tokenService;
+        this.receiptStore = receiptStore;
+        this.clock = clock;
+        this.sessionId = sessionId;
+        this.trustedRootOverride = trustedRootOverride;
+    }
+
     public CleanupPlan? CurrentPlan { get; private set; }
-    public IReadOnlyList<CleanupCandidate> Candidates => Session.Result is null
-        ? [] : CleanupCandidateFactory.FromScan(Session.Result);
+    public ExecutionOutcome? LastOutcome { get; private set; }
+
+    public IReadOnlyList<CleanupCandidate> Candidates
+    {
+        get
+        {
+            var candidates = Session.Result is null ? new List<CleanupCandidate>() : CleanupCandidateFactory.FromScan(Session.Result).ToList();
+            var builtIn = ClyrOwnedTempArtifactScanner.Scan(clock, trustedRootOverride);
+            if (builtIn is not null) candidates.Add(builtIn);
+            return candidates;
+        }
+    }
 
     public CleanupPlan Create(IReadOnlyList<string> selectedFindingIds)
     {
-        var result = Session.Result ?? throw new InvalidOperationException("Run an analysis before previewing a plan.");
-        var pack = result.Classification?.RulePack ?? throw new InvalidOperationException("Verified classification is required.");
-        CurrentPlan = CleanupPlanBuilder.Create(new(result.ScanId, null, result.Root + "|" + result.FileSystem,
-            pack.Id, pack.Version, pack.Digest, Session.ApplicationVersion, "support-safe",
-            DateTimeOffset.UtcNow, Candidates, selectedFindingIds));
+        var result = Session.Result;
+        var scanId = result?.ScanId ?? Guid.NewGuid();
+        var driveIdentity = result is null ? "fixture-drive" : result.Root + "|" + result.FileSystem;
+        var pack = result?.Classification?.RulePack;
+        CurrentPlan = CleanupPlanBuilder.Create(new(scanId, null, driveIdentity,
+            pack?.Id ?? "clyr.builtin", pack?.Version ?? "1.0.0", pack?.Digest ?? "builtin-1", Session.ApplicationVersion,
+            "support-safe", DateTimeOffset.UtcNow, Candidates, selectedFindingIds));
         store.Save(CurrentPlan);
+        LastOutcome = null;
         return CurrentPlan;
     }
 
@@ -111,7 +147,40 @@ public sealed class ReviewPlanViewModel(AppSessionViewModel session, ICleanupPla
     {
         if (CurrentPlan is not null) store.Discard(CurrentPlan.Id);
         CurrentPlan = null;
+        LastOutcome = null;
     }
+
+    /// <summary>Items in the current plan that independently pass Phase 6 execution eligibility. None are selected by default.</summary>
+    public IReadOnlyList<CleanupPlanItem> ExecutableItems() =>
+        CurrentPlan is null ? [] : [.. CurrentPlan.Items.Where(item => ExecutionEligibilityValidator.ValidateItemForExecution(item).IsSuccess)];
+
+    public ExecutionOutcome Execute(IReadOnlyList<string> selectedItemIds, IProgress<ExecutionItemResult>? progress, CancellationToken cancellationToken)
+    {
+        var plan = CurrentPlan ?? throw new InvalidOperationException("No dry-run plan is available.");
+        if (!attemptedPlanIds.Add(plan.Id.ToString()))
+            throw new InvalidOperationException("This plan has already been used for an execution attempt.");
+        var userSid = OperatingSystem.IsWindows() ? WindowsUserIdentity.CurrentSid() : "unavailable";
+        var actionIds = plan.Items.Where(item => selectedItemIds.Contains(item.ItemId, StringComparer.Ordinal))
+            .Select(item => item.Action.SourceRuleId).Distinct(StringComparer.Ordinal).ToArray();
+        var token = tokenService.Issue(plan, sessionId, userSid, actionIds, clock.UtcNow);
+        var executor = new NonElevatedCleanupExecutor(tokenService, clock);
+        var outcome = executor.Execute(plan, selectedItemIds, token, sessionId, userSid, Session.ApplicationVersion,
+            trustedRootOverride, cancellationToken, progress);
+        receiptStore?.SaveAsync(outcome.Receipt, cancellationToken).GetAwaiter().GetResult();
+        LastOutcome = outcome;
+        return outcome;
+    }
+
+    public IReadOnlyList<ExecutionReceiptSummary> ReceiptHistory() =>
+        receiptStore is null ? [] : receiptStore.ListAsync().GetAwaiter().GetResult();
+
+    public string? ExportReceipt(ExecutionId id)
+    {
+        var receipt = receiptStore?.GetAsync(id).GetAwaiter().GetResult();
+        return receipt is null ? null : System.Text.Json.JsonSerializer.Serialize(receipt, ReceiptExportJson);
+    }
+
+    public bool DiscardReceipt(ExecutionId id) => receiptStore?.DiscardAsync(id).GetAwaiter().GetResult() ?? false;
 
     private static PlanValidationResult CurrentValidation(CleanupPlan plan) =>
         CleanupPlanValidator.Validate(plan, new(DateTimeOffset.UtcNow, plan.Binding.SourceScanId,

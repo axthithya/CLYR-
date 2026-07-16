@@ -1,7 +1,10 @@
 # CLYR Safety Model
 
-Status: Phase 0 design baseline; no cleanup or elevation capability is implemented.
-Applies to: the future CLYR desktop app, CLI, core engine, rule packs, adapters, and elevated helper.
+Status: Phase 0 design baseline. As of Phase 6, one narrowly allowlisted, low-risk, non-elevated cleanup
+capability is implemented exactly as this baseline requires: exact target, consequence, risk, and explicit
+confirmation before any mutation. See `docs/PHASE6_EXECUTION.md` and ADR-0012 for what is now real; every other
+finding remains dry-run/report-only.
+Applies to: the CLYR desktop app, CLI, core engine, rule packs, adapters, and elevated helper.
 
 ## Safety objective
 

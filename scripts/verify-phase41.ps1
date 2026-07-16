@@ -44,7 +44,10 @@ try {
     & powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-responsive-layout.ps1
     if ($LASTEXITCODE -ne 0) { throw 'Responsive layout structural verification failed.' }
 
-    $forbidden = rg -n 'DeleteFile|MoveFile|Process\.Start|runas|FileMode\.Open.*FileAccess\.Write' src --glob '*.cs'
+    # Phase 6 (approved after Phase 4.1) narrowly permits process launch/elevation inside ElevatedHelperLauncher.cs
+    # and the Clyr.ElevatedHelper project only; Clyr.Safety.Tests.RepositorySafetyTests enforces this precisely.
+    $forbidden = rg -n 'DeleteFile|MoveFile|Process\.Start|runas|FileMode\.Open.*FileAccess\.Write' src --glob '*.cs' `
+        --glob '!src/Clyr.Core/Execution/**' --glob '!src/Clyr.ElevatedHelper/**'
     if ($LASTEXITCODE -eq 0) { throw "A forbidden mutation/elevation primitive was found:`n$forbidden" }
 
     if (-not $SkipUiAutomation) {

@@ -61,6 +61,56 @@
                     <TextBox x:Name="ExportOutput" Visibility="Collapsed" IsReadOnly="True" AcceptsReturn="True"
                              TextWrapping="Wrap" MaxHeight="260" AutomationProperties.Name="Privacy-safe dry-run report"/>
                 </StackPanel>
+                <StackPanel x:Name="ExecutionPanel" Visibility="Collapsed" Spacing="16"
+                            AutomationProperties.Name="Phase 6 execution panel">
+                    <TextBlock Text="Execute eligible items" Style="{StaticResource SectionTitleStyle}"/>
+                    <TextBlock Text="Nothing is selected by default. Some actions cannot be undone, and actual drive free-space change may differ from the estimate."
+                               Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
+                    <StackPanel x:Name="ExecutableItemStack" Spacing="12" AutomationProperties.Name="Executable item list"/>
+                    <StackPanel x:Name="ExecuteActions" Orientation="Horizontal" Spacing="12">
+                        <Button x:Name="RunCleanupButton" Content="Run selected cleanup" Click="RequestExecute"
+                                IsEnabled="False" Style="{StaticResource PrimaryActionStyle}"
+                                AutomationProperties.Name="Run selected cleanup"/>
+                        <TextBlock x:Name="ExecutionSelectionStatus" VerticalAlignment="Center"
+                                   Style="{StaticResource BodyMutedStyle}" AutomationProperties.LiveSetting="Polite"/>
+                    </StackPanel>
+                    <StackPanel x:Name="ExecutionProgressPanel" Visibility="Collapsed" Spacing="9"
+                                AutomationProperties.Name="Execution progress">
+                        <TextBlock x:Name="ExecutionStateText" Style="{StaticResource CardTitleStyle}"
+                                   AutomationProperties.LiveSetting="Assertive"/>
+                        <TextBlock x:Name="ExecutionCounters" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="ExecutionCurrentItem" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
+                        <Button x:Name="CancelExecutionButton" Content="Cancel" Click="CancelExecution"
+                                AutomationProperties.Name="Cancel execution"/>
+                    </StackPanel>
+                    <Border x:Name="ExecutionResultPanel" Visibility="Collapsed" Style="{StaticResource CardStyle}"
+                            AutomationProperties.Name="Execution result">
+                        <StackPanel Spacing="9">
+                            <TextBlock x:Name="ExecutionResultState" Style="{StaticResource CardTitleStyle}"
+                                       AutomationProperties.LiveSetting="Assertive"/>
+                            <TextBlock x:Name="ExecutionResultCounts" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="ExecutionResultBytes" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="ExecutionResultWarnings" TextWrapping="Wrap"/>
+                            <StackPanel x:Name="ExecutionResultActions" Orientation="Horizontal" Spacing="12">
+                                <Button Content="View details" Click="ViewReceiptDetails"
+                                        AutomationProperties.Name="View execution receipt details"/>
+                                <Button Content="Export receipt" Click="ExportCurrentReceipt"
+                                        AutomationProperties.Name="Export execution receipt"/>
+                                <Button Content="Run a new analysis" Click="RunNewAnalysis"
+                                        AutomationProperties.Name="Run a new analysis"/>
+                                <Button Content="Done" Click="Done" AutomationProperties.Name="Execution done"/>
+                            </StackPanel>
+                            <TextBox x:Name="ExecutionReceiptOutput" Visibility="Collapsed" IsReadOnly="True" AcceptsReturn="True"
+                                     TextWrapping="Wrap" MaxHeight="260" AutomationProperties.Name="Execution receipt details"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                <StackPanel x:Name="ReceiptHistoryPanel" Visibility="Collapsed" Spacing="12"
+                            AutomationProperties.Name="Execution receipt history">
+                    <TextBlock Text="Execution receipt history" Style="{StaticResource SectionTitleStyle}"/>
+                    <TextBlock Text="Only CLYR's own local execution receipts are listed here." Style="{StaticResource BodyMutedStyle}"/>
+                    <StackPanel x:Name="ReceiptHistoryStack" Spacing="9" AutomationProperties.Name="Execution receipt list"/>
+                </StackPanel>
             </StackPanel>
         </controls:ResponsivePageHost.PageContent>
     </controls:ResponsivePageHost>

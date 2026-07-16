@@ -1,12 +1,12 @@
 # CLYR
 
-> Phase 5 adds immutable, integrity-checked cleanup planning and privacy-safe dry-run reports. Execution remains unavailable: no files can be deleted, moved, recycled, quarantined, or otherwise changed.
+> Phase 6 adds one narrowly allowlisted, low-risk, non-elevated cleanup action (CLYR's own stale temporary artifacts) end to end — engine, elevated-helper architecture, typed IPC, receipts, CLI, and WinUI — plus the full immutable dry-run planning from Phase 5 for everything else. Phase 6 is implementation-complete but not approved: the required real fixture-only UAC smoke test has not been run. See docs/PHASE6_EXECUTION.md.
 
 > See what filled your C: drive. Understand it. Clear it safely.
 
 CLYR is a planned native Windows storage diagnostic application for people who can see that a drive is full but cannot safely tell why. It will lead with evidence: what occupies space, how confident the measurement is, which regions were inaccessible, and why a finding needs attention. The reusable C# engine will support a WinUI 3 desktop experience and a command-line interface.
 
-## Project status: Phase 5 cleanup planning awaiting approval
+## Project status: Phase 6 execution implemented, awaiting UAC smoke test and approval
 
 Eligible built-in findings can produce immutable ten-minute plans bound to their scan or snapshot, drive, rule pack, compatibility version, privacy mode, and explicit selection. Canonical SHA-256 digests detect edits; they are integrity checks, not authorization. Protected findings always win, user-created data remains review-only, and production execution returns ExecutionNotAvailableInPhase5.
 
@@ -64,12 +64,14 @@ clyr plan show <plan-id> [--json]
 clyr plan validate <plan-id> [--json]
 clyr plan export <plan-id> --output <plan.json>
 clyr plan discard <plan-id>
+clyr plan execute <plan-id> --confirm-digest <prefix> [--json]
+clyr execution status|receipt|list|export --output <path>|discard-receipt <execution-id>
 ```
 
 ## Safety and privacy
 
-- Phase 5 can preview and explicitly export dry-run plans but cannot execute them; no cleanup control exists.
-- The main app remains non-elevated. A future helper, if approved, is short-lived and accepts only typed, allowlisted actions.
+- CLYR can execute exactly one narrowly allowlisted, low-risk action — removing its own stale temporary artifacts under `%LocalAppData%\Clyr\Temp` — with an exact bounded manifest, a one-time token, and independent per-target revalidation immediately before deletion. Nothing else can be executed; every other finding remains dry-run/report-only, exactly as in Phase 5.
+- The main app remains non-elevated (`asInvoker`). A separate, one-shot elevated helper (`Clyr.ElevatedHelper`) exists for any future action that needs elevation, but the one enabled action today does not use it.
 - Protected Windows resources, personal content, virtual disks, credential stores, application databases, cloud placeholders, and unknown content are never cleanup targets merely because they are large.
 - Reparse points are not followed by default.
 - Core decisions work offline; there is no telemetry or cloud upload by default.

@@ -53,9 +53,16 @@ try {
         if (-not (($contracts + $core).Contains($required))) { throw "Phase 5 contract is missing: $required" }
     }
 
-    $forbiddenSource = rg -n 'File\.Delete|File\.Move|Directory\.Delete|RecycleOption|Process\.Start|System\.Diagnostics\.Process|runas|powershell\.exe|cmd\.exe|ShellExecute|SHFileOperation' src --glob '*.cs'
+    # Phase 6 (approved after Phase 5) narrowly permits deletion inside src/Clyr.Core/Execution/** and process
+    # launch/elevation only inside ElevatedHelperLauncher.cs and the Clyr.ElevatedHelper project; both exceptions
+    # are enforced precisely by Clyr.Safety.Tests.RepositorySafetyTests, which is the authoritative check. This
+    # scan is excluded from those two locations so it continues to guard everything else in the repository.
+    $forbiddenSource = rg -n 'File\.Delete|File\.Move|Directory\.Delete|RecycleOption|Process\.Start|System\.Diagnostics\.Process|runas|powershell\.exe|cmd\.exe|ShellExecute|SHFileOperation' src --glob '*.cs' `
+        --glob '!src/Clyr.Core/Execution/**' --glob '!src/Clyr.ElevatedHelper/**'
     if ($LASTEXITCODE -eq 0) { throw ('A forbidden cleanup/process/elevation primitive was found: ' + ($forbiddenSource -join '; ')) }
-    $forbiddenCli = rg -n 'plan execute|plan apply|clyr clean|clyr prune' src/Clyr.Cli --glob '*.cs'
+    # 'plan execute' is a legitimate Phase 6 CLI command narrowly implemented in these three reviewed files.
+    $forbiddenCli = rg -n 'plan execute|plan apply|clyr clean|clyr prune' src/Clyr.Cli --glob '*.cs' `
+        --glob '!**/PlanCliCommands.cs' --glob '!**/ExecutionCliCommands.cs' --glob '!**/CliApplication.cs'
     if ($LASTEXITCODE -eq 0) { throw ('A forbidden cleanup CLI command was found: ' + ($forbiddenCli -join '; ')) }
     $secrets = rg -n '(AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{30,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----)' src tests scripts docs .github rules --glob '!**/bin/**' --glob '!**/obj/**'
     if ($LASTEXITCODE -eq 0) { throw ('A credential-like value was found: ' + ($secrets -join '; ')) }

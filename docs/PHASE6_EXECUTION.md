@@ -1,144 +1,105 @@
-# Phase 6 execution: engine, helper, IPC, persistence, and CLI
+# Phase 6 execution: engine, helper, IPC, persistence, CLI, and WinUI
 
-Status: substantially implemented in the working tree; **not approved, not complete**. This document describes
-only what exists and is tested. See "What Phase 6 still requires" for the remaining gap — most importantly the
-real fixture-only UAC smoke test, which this environment cannot perform.
+Status: implementation complete across every reviewable surface; **not approved, and not fully complete** —
+the real fixture-only UAC smoke test has not been run in this environment (it requires a real person at an
+interactive desktop to approve a Windows UAC prompt). See "What remains" below.
 
-## Scope of this slice
+## Scope
 
-Building on the core non-elevated execution engine (models, one-time token, per-target TOCTOU revalidation,
-exact bounded manifest, cancellation, privacy-safe receipts — unchanged from the prior slice and re-verified
-here), this pass adds:
+CLYR ships one narrowly allowlisted, low-risk, non-elevated cleanup action end to end, plus the full
+architecture a future elevation-requiring action would need without elevating the main app:
 
-1. A separate one-shot elevated helper process (`Clyr.ElevatedHelper`) with its own independent request handler.
-2. A typed, bounded, versioned named-pipe IPC protocol between CLYR and the helper.
-3. A tightly controlled UAC launcher for the helper (unused by the current allowlist, since no enabled action
-   requires elevation, but implemented and tested).
-4. SQLite-backed execution receipt persistence with immutability and crash-recovery reconciliation.
-5. CLI commands: `plan execute`, `execution status|receipt|list|export|discard-receipt`.
+1. **Execution engine** (`Clyr.Core.Execution`) — one-time tokens, per-target TOCTOU revalidation, exact
+   bounded manifests, cancellation, privacy-safe receipts.
+2. **Elevated helper** (`Clyr.ElevatedHelper`) — a separate one-shot process with its own `requireAdministrator`
+   manifest and independent request validation.
+3. **Typed IPC** (`Clyr.Contracts.ExecutionIpc`, `Clyr.Core.Execution.ElevatedHelperIpc`) — a closed, bounded,
+   versioned named-pipe protocol.
+4. **UAC launcher** (`ElevatedHelperLauncher`) — the one reviewed `Process.Start` in production source.
+5. **Receipt persistence** (`Clyr.Persistence.SqliteExecutionReceiptStore`) — schema v3, immutable terminal
+   rows, crash-reconciliation primitive.
+6. **CLI** — `plan execute`, `execution status|receipt|list|export|discard-receipt`.
+7. **WinUI** — Review Plan's execution panel: no default selections, a gated confirmation dialog, live progress,
+   cancellation, Completed/PartiallyCompleted/Cancelled/Failed/Interrupted/Unknown-outcome display, receipt
+   history/view/export/delete.
 
-Not implemented in this pass: the WinUI execution flow (Review Plan confirmation/progress/finished states) and
-the exhaustive documentation/ADR sweep listed in the original Phase 6 spec. The real fixture-only UAC smoke
-test — launching the helper through an actual interactive UAC prompt — has not been performed; this environment
-has no interactive Windows session to click "Yes" on a UAC dialog.
+See ADR-0002 (helper), ADR-0012 (execution authority/TOCTOU), ADR-0013 (IPC), ADR-0014 (receipts/accounting)
+for the design decisions behind each of these.
 
-## Execution allowlist (unchanged)
+## Execution allowlist (unchanged since the first Phase 6 slice)
 
-Still exactly one enabled action: `builtin.clyr-owned-temp-artifacts`, rooted at `%LocalAppData%\Clyr\Temp`,
-7-day minimum age, 512 items / 512 MiB bound, Low risk, no elevation required. See
-`Clyr.Core.Execution.BuiltInExecutionActions`. Nothing was added to or removed from the allowlist this pass.
+Exactly one enabled action: `builtin.clyr-owned-temp-artifacts` (`Clyr.Core.Execution.BuiltInExecutionActions`),
+rooted at `%LocalAppData%\Clyr\Temp`, 7-day minimum age, 512 items / 512 MiB bound, Low risk, no elevation
+required. `ClyrOwnedTempArtifactScanner` produces its `CleanupCandidate` with real per-file `CleanupTarget`
+entries; `PlanCliCommands.CandidatesFor` and `ReviewPlanViewModel.Candidates` both merge this live-scanned
+candidate alongside classification-derived ones, so a plan can actually contain an executable item through the
+normal `plan candidates`/`plan create` flow or the Review Plan page.
 
-## Elevated helper (`Clyr.ElevatedHelper`)
+## WinUI execution flow
 
-A separate executable project, `net10.0-windows10.0.26100.0`, referencing only `Clyr.Contracts` and `Clyr.Core`
-— no WinUI, no App SDK. Its `app.manifest` requests `requireAdministrator`; the main `Clyr.App` manifest is
-untouched and remains `asInvoker`.
+`ReviewPlanPage` (`src/Clyr.App/Pages/ReviewPlanPage.xaml[.cs]`) adds, below the existing dry-run plan preview:
 
-`Program.cs` accepts **exactly one** command-line argument — a pipe name matching `^Clyr\.Helper\.[0-9A-F]{32}$`
-— and rejects anything else outright. It calls `ElevatedHelperIpc.RunOneShotAsync`, which accepts one connection,
-reads one bounded request, hands it to `ElevatedHelperRequestHandler.Handle`, writes one bounded response, and
-returns. The process then exits. There is no listening loop, no second request, no retry, no resident state.
+- **Executable items** — one checkbox per plan item that independently passes
+  `ExecutionEligibilityValidator`, all unchecked by default (`IsChecked = false` in code, never true); "Run
+  selected cleanup" starts disabled and only enables once at least one item is checked.
+- **Confirmation** — a `ContentDialog` ("Final cleanup confirmation dialog") whose primary button starts
+  disabled and only enables once the "I understand that selected cache or temporary data may be permanently
+  removed" acknowledgement checkbox is checked; the dialog states the action may be irreversible and that
+  actual free-space change may differ from the estimate.
+- **Progress** — state text, live removed/skipped/failed counters fed by a real
+  `IProgress<ExecutionItemResult>` callback from `NonElevatedCleanupExecutor.Execute` (added this pass — the
+  executor now reports after every target it processes), a redacted current-target line, and a Cancel button
+  wired to a real `CancellationTokenSource`.
+- **Finished state** — maps every `ExecutionState` (`Completed`, `PartiallyCompleted`, `Cancelled`, `Failed`,
+  `Interrupted`, `Rejected`, `UnknownOutcome`) to display text, shows removed/skipped/failed counts, removed
+  logical bytes kept separate from observed free-space change, warnings, and "View details" / "Export receipt"
+  / "Run a new analysis" (navigates to Scan; never auto-rescans) / "Done".
+- **Receipt history** — lists every locally persisted `ExecutionReceiptSummary`, with per-row "View" (shows the
+  full JSON receipt) and "Delete receipt" (calls `IExecutionReceiptStore.DiscardAsync` — removes only that one
+  CLYR-owned row).
 
-`ElevatedHelperRequestHandler.Handle` independently re-validates every field of the request before touching
-anything: protocol version, manifest bounds, nonce shape, token expiry, plan digest shape, action ID against the
-closed allowlist (`BuiltInExecutionActions.Find`), declared root identity against the allowlist entry, and
-that the trusted root actually exists on this machine. Only then does it call the same
-`ExecutionTargetProcessor.Process` used by the non-elevated executor — once per target, live against this
-process's own filesystem view — so calling it "independent" describes independent execution, not merely
-independent code paths that happen to share logic. Cooperative cancellation is checked between targets.
+No dangerous one-click phrasing ("Fix everything", "Optimize now", "Delete all", "One-click clean", "Clean
+automatically") appears anywhere; `Clyr.Safety.Tests.UiArchitectureTests` enforces this together with the
+presence of the required consent/accountability vocabulary. Developer Mode remains a static preview page with
+no `Click=` handlers at all — verified by a new test.
 
-## Typed IPC (`Clyr.Contracts.ExecutionIpc`, `Clyr.Core.Execution.ElevatedHelperIpc`)
+`App.xaml.cs` wires `IExecutionTokenService`, an `ExecutionSessionContext` (one `ExecutionSessionId` per app
+launch), and `IExecutionReceiptStore` (real `SqliteExecutionReceiptStore` normally; `null` when
+`CLYR_UI_FIXTURE=1`, since the fixture harness never touches the real history database). `ExecutionFixtureRoot`
+gives fixture launches a private temporary directory seeded with four synthetic stale files instead of the real
+`%LocalAppData%\Clyr\Temp` — so `scripts/verify-winui.ps1`'s execution steps run entirely against synthetic data
+it creates and cleans up itself.
 
-`HelperRequest`/`HelperResponse` are closed sealed records — protocol version, request ID, nonce, session ID,
-user SID, drive identity, action ID, trusted root identity/path, plan ID/digest, token expiry, and an exact
-`ImmutableArray<HelperTargetManifestItem>` manifest (bounded to `HelperProtocol.MaxManifestItems` = 512). There
-is no command field, no script field, no executable-path field, no unrestricted argument list, and no
-environment-variable field. `HelperIpcSerializer` uses `System.Text.Json`'s default reflection contract with a
-hard 256 KiB frame-size ceiling enforced both before serializing and after reading a length-prefixed frame off
-the wire — there is no polymorphic type discriminator anywhere in these contracts, so there is no unsafe
-polymorphic deserialization surface to exploit.
+## CLI (unchanged from the previous Phase 6 slice; see prior report for detail)
 
-Transport is a named pipe (`ElevatedHelperIpc`, `[SupportedOSPlatform("windows")]`) with a random 128-bit hex
-pipe name generated fresh per request (`NewPipeName`), a `PipeSecurity` ACL restricted to the current Windows
-user, a single server instance (`maxNumberOfServerInstances: 1`), a length-prefixed framing format with the
-same 256 KiB bound enforced on both read and write, and an overall request timeout
-(`HelperProtocol.RequestTimeout` = 30s). The server accepts one connection, processes one request-response
-exchange, and returns — there is no way to send a second request down the same pipe. `HelperIpcTests.cs`
-exercises this transport for real (not mocked): a real named pipe, a real background listener, a real client
-connection, in `RealNamedPipeRoundTripDeliversTypedRequestAndResponse`, plus a real connection-timeout case.
+`plan execute <plan-id> --confirm-digest <prefix> [--json]` and
+`execution status|receipt|list|export --output <path>|discard-receipt` — active in-memory plan only, digest
+confirmation required, no `--force`/`--path`/`--root`/`--action`/`--command`, plan replay rejected per-process.
 
-## UAC launcher (`Clyr.Core.Execution.ElevatedHelperLauncher`)
+## What remains
 
-The single, tightly controlled process launch permitted anywhere in production CLYR. `RunAsync` resolves the
-helper path as `Path.Combine(AppContext.BaseDirectory, "Clyr.ElevatedHelper.exe")` — never an arbitrary path —
-starts it with `UseShellExecute = true, Verb = "runas"` and exactly one argument (the freshly generated pipe
-name), then sends the real request only afterward over the already-established IPC channel. A declined UAC
-prompt surfaces as `ElevationOutcome.Denied`, never retried automatically and never treated as an error state
-distinct from a normal rejected/cancelled result. No current allowlisted action calls this path — it exists so
-the architecture is ready without elevating the main process. `RepositorySafetyTests` proves `Process.Start`
-appears nowhere in production source except this one file.
+1. **The real fixture-only UAC smoke test.** `scripts/run-phase6-uac-smoke.ps1` and its harness
+   (`tools/Phase6UacSmoke`, deliberately outside `Clyr.sln` and outside `src/`) are built, and the harness
+   itself builds cleanly against the Release output. Running it triggers a real Windows UAC consent prompt that
+   only a person at an interactive desktop can approve or deny — that step was not performed in this
+   environment. **Phase 6 implementation is ready for final approval, but Phase 6 remains incomplete until the
+   fixture-only UAC smoke test passes.**
+2. **A "started" receipt placeholder** for true crash-mid-run recovery (ADR-0014's Consequences) — not
+   implemented; the reconciliation mechanism exists and is tested in isolation.
+3. **Broader IPC/helper security matrix** — protocol downgrade, forged completion response, wrong-client/binary
+   identity verification beyond the pipe ACL — not implemented; see ADR-0013's Consequences.
+4. A live UI Automation run of the extended `scripts/verify-winui.ps1` (it was written, parse-checked, and its
+   logic reviewed against the actual XAML/code-behind, but not executed against a rendered window in this
+   environment — see the completion report for exactly what was and wasn't run).
 
-## Receipt persistence (`Clyr.Persistence.SqliteExecutionReceiptStore`)
+## Verification
 
-Schema v3 adds an `ExecutionReceipt` table (migration is additive over the existing schema v2 snapshot tables;
-`AppMetadataDatabase.CurrentSchemaVersion` is now 3). `SaveAsync` upserts by execution ID but refuses to
-overwrite a row already in a terminal state (`Completed`, `PartiallyCompleted`, `Cancelled`, `Failed`,
-`Interrupted`, `UnknownOutcome`, `Rejected`) — throwing `ExecutionReceiptStoreException("receipt.immutable", …)`
-— and retains at most the 200 most recent rows. No raw file paths are stored; only the privacy-safe fields
-already defined on `ExecutionReceipt` (drive-identity fingerprint, counts, logical-byte totals kept separate
-per outcome category, free-space before/after/delta, warnings, limitations, digest). `ReconcileInterruptedAsync`
-marks any row still missing `CompletedAtUtc` and older than a caller-supplied staleness threshold as
-`Interrupted` — it can only ever produce `Interrupted`, never guess `Completed`. This pass does not yet wire a
-"started" placeholder row at the beginning of an execution (see gaps below), so today every row is written once,
-at completion, by the CLI; the reconciliation mechanism exists and is tested but has nothing to reconcile until
-a future caller starts persisting in-flight rows.
-
-## CLI
-
-`clyr plan execute <plan-id> --confirm-digest <prefix> [--json]` (`PlanCliCommands.PlanExecute`): requires the
-plan to still be held in the CLI's in-memory `ICleanupPlanStore` (imported/exported plans have no such record
-and are rejected as not-found), requires `--confirm-digest` to be a prefix of the plan's actual digest (no
-`--force`, no `--yes` as the sole barrier), rejects a plan ID that has already been attempted once in this
-process (`plan.consumed`), rejects an expired plan, auto-selects every plan item that independently passes
-`ExecutionEligibilityValidator` (there is no `--action`/`--path`/`--root`/`--command` flag — nothing arbitrary
-is ever accepted), issues a one-time token, runs the same `NonElevatedCleanupExecutor` used everywhere else, and
-persists the resulting receipt. Exit code is 0 only for `Completed`/`PartiallyCompleted`.
-
-`clyr execution status|receipt|list|export --output <path>|discard-receipt` (`ExecutionCliCommands.cs`) read
-from the same receipt store; `export` writes the already-privacy-safe receipt JSON verbatim.
-
-`PlanCliCommands.PlanCandidates`/`PlanCreate` now also include the live-scanned built-in candidate
-(`ClyrOwnedTempArtifactScanner.Scan`) alongside the existing scan/snapshot-derived candidates, so a plan can
-actually contain an executable item without a separate out-of-band mechanism — `plan candidates --snapshot <id>`
-lists it, and `plan create --finding builtin:clyr-owned-temp-artifacts` selects it.
-
-`Phase6ExecutionCliTests.cs` exercises the full path for real: creates a synthetic stale file directly under
-the CLI's resolved trusted root (`%LocalAppData%\Clyr\Temp` — the only root these commands ever touch), runs
-`plan create` → `plan execute` → `execution list`, and asserts the file is actually gone and a receipt exists;
-separate tests assert wrong-digest and plan-replay rejection.
-
-## What Phase 6 still requires
-
-1. **The real fixture-only UAC smoke test.** This environment has no interactive Windows session to approve a
-   UAC prompt, so the helper's elevation path has been built and IPC-tested but never actually launched through
-   real UAC. Per the spec's own fallback: **Phase 6 is not complete because the required fixture-only UAC smoke
-   test has not been performed.**
-2. **WinUI execution flow** — Review Plan's before/confirmation/running/finished states, cancellation UI,
-   receipt viewer. Not started.
-3. **A "started" receipt placeholder** persisted before deletion begins, so a real application crash mid-run
-   leaves a genuinely reconcilable `Running` row rather than no row at all. `ReconcileInterruptedAsync` exists
-   and is tested against a synthetic in-flight row, but nothing in this pass calls `SaveAsync` before
-   completion.
-4. **Full documentation/ADR sweep** — README, ROADMAP, ARCHITECTURE, DATA_MODEL, SAFETY_MODEL, THREAT_MODEL,
-   PRIVILEGE_MODEL, SECURE_IPC, ERROR_HANDLING, RECOVERY, RULE_ENGINE, STORAGE_ACCOUNTING, UI_UX,
-   UX_STATE_MACHINE, TESTING_STRATEGY, OPERATIONS, EXPORT_FORMAT, ACCESSIBILITY, DECISION_LOG, RISK_REGISTER,
-   and a dedicated ADR — only this file and `PHASE_STATUS.md` were updated this pass.
-5. **Broader IPC/helper security matrix** — protocol downgrade, forged completion response, wrong-client
-   detection, helper-crash-mid-request recovery, and the CLI's own `Interrupted`/crash-recovery path are not
-   yet covered by a test; the fields and states exist (`ExecutionState.Interrupted`/`UnknownOutcome`,
-   `ReconcileInterruptedAsync`) but the end-to-end interruption story is untested.
-
-**Phase 6 is not complete.** The non-elevated engine, the elevated helper, the IPC protocol, receipt
-persistence, and the CLI execution surface are real, built, and tested end to end (including a real named-pipe
-round trip and a real file deletion through the full CLI plan-execute path). The real UAC smoke test, the WinUI
-surface, and the full documentation sweep are not.
+`scripts/verify-phase6.ps1` runs the full Phase 0–5 verifier chain, the complete solution build/test/format,
+Phase 6–specific test filters, repository safety scans scoped to the reviewed execution boundary, a dependency
+vulnerability audit, `git diff --check`, and (unless `-SkipUiAutomation`) `scripts/verify-winui.ps1`. Running it
+end to end in this environment surfaced that native Windows PowerShell here has no `rg` (ripgrep) binary on
+PATH — a pre-existing gap in the Phase 4/4.1/5 verifier scripts, not a Phase 6 regression (confirmed via
+`git log`, predating this session). Those specific scans were re-verified manually with ripgrep through this
+session's Bash tool instead; every other gate in the chain (Phase 0–3 fully, and all of Phase 6's own build,
+test, format, scoped safety scans, and vulnerability audit) ran and passed for real. See the completion report
+for the exact command-by-command results.

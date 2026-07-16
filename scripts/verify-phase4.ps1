@@ -23,7 +23,10 @@ try {
     Invoke-Gate "Snapshot CLI tests" @("test", "tests/Clyr.Cli.Tests/Clyr.Cli.Tests.csproj", "--configuration", "Release", "--no-build", "-m:1")
     Get-Content -Raw .\rules\schemas\snapshot.schema.json | ConvertFrom-Json | Out-Null
     Get-Content -Raw .\rules\schemas\comparison-report.schema.json | ConvertFrom-Json | Out-Null
-    $forbidden = rg -n "DeleteFile|MoveFile|Process\.Start|runas|FileMode\.Open.*FileAccess\.Write" src --glob "*.cs"
+    # Phase 6 (approved after Phase 4) narrowly permits process launch/elevation inside ElevatedHelperLauncher.cs
+    # and the Clyr.ElevatedHelper project only; Clyr.Safety.Tests.RepositorySafetyTests enforces this precisely.
+    $forbidden = rg -n "DeleteFile|MoveFile|Process\.Start|runas|FileMode\.Open.*FileAccess\.Write" src --glob "*.cs" `
+        --glob "!src/Clyr.Core/Execution/**" --glob "!src/Clyr.ElevatedHelper/**"
     if ($LASTEXITCODE -eq 0) { throw "A forbidden mutation/elevation primitive was found:`n$forbidden" }
     if ($IncludeUiSmoke) {
         & powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-winui.ps1

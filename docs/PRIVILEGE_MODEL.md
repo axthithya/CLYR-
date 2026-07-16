@@ -1,11 +1,15 @@
 # CLYR Privilege Model
 
-Status: Phase 0 architecture decision. No elevated helper or cleanup executor is implemented.
-Related decisions: `adr/0002-separate-elevated-helper.md`, `SECURE_IPC.md`, and `diagrams/privilege-boundary.mmd`.
+Status: Phase 0 architecture decision. As of Phase 6, `Clyr.ElevatedHelper` is implemented exactly as this
+decision describes, though the one enabled built-in action does not require elevation, so the helper is
+IPC-tested but not exercised in production yet; the real UAC smoke test has not been run. See
+`docs/PHASE6_EXECUTION.md` and ADR-0002's implementation note.
+Related decisions: `adr/0002-separate-elevated-helper.md`, `adr/0012-execution-authority-and-toctou.md`,
+`adr/0013-typed-bounded-ipc.md`, `SECURE_IPC.md`, and `diagrams/privilege-boundary.mmd`.
 
 ## Decision
 
-The CLYR app and CLI run at the invoking user's standard integrity level with an `asInvoker` execution manifest. They do not request administrator rights at startup. A separately built helper may be introduced in Phase 6 for an explicitly approved capability that genuinely requires elevation. The helper is launched through Windows UAC only after dry run and CLYR confirmation, handles one bounded batch, returns a receipt, and exits.
+The CLYR app and CLI run at the invoking user's standard integrity level with an `asInvoker` execution manifest. They do not request administrator rights at startup. A separately built helper, `Clyr.ElevatedHelper`, exists for a capability that genuinely requires elevation. The helper is launched through Windows UAC only after dry run and CLYR confirmation, handles one bounded batch, returns a receipt, and exits.
 
 There is no CLYR Windows service, scheduled task, startup entry, persistent broker, generic privileged file API, or always-listening endpoint.
 

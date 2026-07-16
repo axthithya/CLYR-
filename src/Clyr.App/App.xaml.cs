@@ -1,4 +1,6 @@
+using Clyr.Contracts;
 using Clyr.Core;
+using Clyr.Core.Execution;
 using Clyr.Persistence;
 using Clyr.Rules;
 using Clyr.Windows;
@@ -71,6 +73,12 @@ public partial class App : Application
         services.AddSingleton<IApplicationVersion>(_ => new ApplicationVersion("0.5.0-phase5"));
         services.AddSingleton<ICleanupPlanStore, InMemoryCleanupPlanStore>();
         services.AddSingleton<ICleanupExecutor, PhaseFiveDisabledCleanupExecutor>();
+        services.AddSingleton<IExecutionTokenService, ExecutionTokenService>();
+        services.AddSingleton(_ => new ExecutionSessionContext(new ExecutionSessionId(Guid.NewGuid())));
+        services.AddSingleton(uiFixture ? ExecutionFixtureRoot.CreateSeeded() : new ExecutionFixtureRoot(null));
+        services.AddSingleton<IExecutionReceiptStore>(_ => uiFixture
+            ? null!
+            : new SqliteExecutionReceiptStore(Path.Combine(dataDirectory, "history.db")));
         services.AddSingleton(_ => BuiltInRulePackLoader.Load(Path.Combine(AppContext.BaseDirectory, "rules", "builtin")));
         if (!uiFixture) services.AddSingleton<IScanService>(provider =>
         {

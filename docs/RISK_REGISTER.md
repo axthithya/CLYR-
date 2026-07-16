@@ -126,5 +126,15 @@ The baseline register passed the cross-document terminology and ownership review
 | Plan is edited, stale, expired, or rebound | Canonical digest; ten-minute expiry; scan/snapshot/drive/rule/app/privacy/selection bindings | Digest is not signer authentication |
 | Path confusion crosses an approved root | Component containment; reject traversal, UNC/device, ADS, environment escape, trailing dot/space, 8.3 ambiguity, and reparses | Live final-handle checks remain a Phase 6 gate |
 | Logical bytes imply guaranteed recovery | Potential/observed wording, null physical bytes, explicit limitations | Users may still infer a guarantee |
-| Future vocabulary implies availability | ExecutionNotAvailableInPhase5; no execution control or command | Phase 6 requires separate approval |
+| Future vocabulary implies availability | ExecutionNotAvailableInPhase5; no execution control or command | Superseded for one allowlisted action — see Phase 6 risks below |
 | Report leaks local identity | Support-safe schema with no raw paths, usernames, or content | Aggregate sizes reveal coarse local state |
+
+## Phase 6 execution risks
+
+| Risk | Control | Residual |
+|---|---|---|
+| A token or plan is replayed to execute twice | One-time in-memory token consumed atomically before any target is touched; independent plan-digest recomputation; per-process attempted-plan tracking | Nothing persists across a process restart, by design — no cross-session replay surface exists to residualize |
+| A file changes between planning and deletion | `ExecutionTargetProcessor` re-probes identity, age, reparse, and cloud-placeholder state live, immediately before `File.Delete`; any mismatch is `SkippedChanged`, never forced | None known for the one enabled action; broader actions will need their own evidence |
+| Helper IPC is used to redirect execution | Closed, non-polymorphic sealed-record contracts with no command/script/path field; bounded frame size; current-user-only pipe ACL; helper independently re-validates against the closed allowlist | No binary/signature identity check beyond the pipe ACL yet; downgrade/forged-response fuzzing not yet implemented |
+| A crash mid-execution is silently reported as success | `ExecutionState.Interrupted`/`UnknownOutcome`; `ReconcileInterruptedAsync` marks abandoned rows as `Interrupted`, never `Completed` | No "started" placeholder row is persisted before deletion begins yet, so a real crash today leaves no row rather than a reconcilable one |
+| UAC elevation path is unverified in practice | `Clyr.ElevatedHelper` and its IPC are built and unit/integration tested (including a real named-pipe round trip) | The real fixture-only UAC smoke test has not been run; Phase 6 is not approved until it passes |

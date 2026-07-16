@@ -15,7 +15,7 @@ public sealed class NonElevatedCleanupExecutor(IExecutionTokenService tokenServi
 {
     public ExecutionOutcome Execute(CleanupPlan plan, IReadOnlyList<string> selectedItemIds, ExecutionToken token,
         ExecutionSessionId sessionId, string windowsUserSid, string applicationVersion,
-        string? trustedRootOverride, CancellationToken cancellationToken)
+        string? trustedRootOverride, CancellationToken cancellationToken, IProgress<ExecutionItemResult>? progress = null)
     {
         var startedAtUtc = clock.UtcNow;
         var executionId = new ExecutionId(Guid.NewGuid());
@@ -50,8 +50,12 @@ public sealed class NonElevatedCleanupExecutor(IExecutionTokenService tokenServi
             if (!eligible.IsSuccess)
             {
                 foreach (var target in item.Targets)
-                    results.Add(new(item.ItemId, target.TargetId, ExecutionItemOutcome.SkippedProtected,
-                        eligible.Error!.Code, eligible.Error.Message, null));
+                {
+                    var skipped = new ExecutionItemResult(item.ItemId, target.TargetId, ExecutionItemOutcome.SkippedProtected,
+                        eligible.Error!.Code, eligible.Error.Message, null);
+                    results.Add(skipped);
+                    progress?.Report(skipped);
+                }
                 continue;
             }
             var capability = eligible.Value!;
@@ -59,7 +63,9 @@ public sealed class NonElevatedCleanupExecutor(IExecutionTokenService tokenServi
             foreach (var target in item.Targets)
             {
                 if (cancellationToken.IsCancellationRequested) { cancelled = true; break; }
-                results.Add(ExecuteTarget(item.ItemId, target, capability, trustedRoot));
+                var result = ExecuteTarget(item.ItemId, target, capability, trustedRoot);
+                results.Add(result);
+                progress?.Report(result);
             }
             if (cancelled) break;
         }

@@ -1,6 +1,11 @@
 # CLYR Threat Model
 
-Status: Phase 0 design baseline. Controls described here are requirements for later phases, not claims about implemented code.
+Status: Phase 0 design baseline. As of Phase 6, the authorization and integrity controls for one narrowly
+allowlisted action are implemented and tested (one-time session/user/drive/digest-bound tokens, per-target
+TOCTOU revalidation, typed bounded IPC with no polymorphic deserialization surface) — see
+`docs/PHASE6_EXECUTION.md` and ADR-0012/0013. The real fixture-only UAC smoke test proving the helper's
+elevation path end to end has not yet been run. Controls for anything beyond this one action remain
+requirements for later phases, not claims about implemented code.
 Method: STRIDE, supplemented by accidental-misuse and supply-chain analysis.
 
 ## Security objectives

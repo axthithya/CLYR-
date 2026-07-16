@@ -138,12 +138,56 @@ public sealed class UiArchitectureTests
     {
         var page = Read(Path.Combine(Pages, "ReviewPlanPage.xaml"));
         var code = Read(Path.Combine(Pages, "ReviewPlanPage.xaml.cs"));
+        var combined = page + code;
         foreach (var required in new[] { "Dry-run only — no files will be changed.", "Preview plan",
             "Save dry-run report", "Discard plan", "Protected by CLYR", "Cleanup candidate list",
             "Dry-run plan preview", "ExecutionNotAvailableInPhase5" })
-            Assert.Contains(required, page + code, StringComparison.Ordinal);
-        foreach (var forbidden in new[] { "Clean now", "Execute", "Apply", "Confirm cleanup" })
+            Assert.Contains(required, combined, StringComparison.Ordinal);
+
+        // Dangerous one-click phrasing must never appear, on this page or anywhere else in the app.
+        foreach (var forbidden in new[] { "Clean now", "Fix everything", "Optimize now", "Delete all", "One-click clean", "Clean automatically" })
             Assert.DoesNotContain(forbidden, page, StringComparison.OrdinalIgnoreCase);
+
+        // Phase 6 execution controls are legitimate here — verify the required consent/accountability surface exists.
+        foreach (var required in new[]
+        {
+            "IsChecked = false", // nothing selected by default
+            "Run selected cleanup", "Nothing is selected by default",
+            "I understand that selected cache or temporary data may be permanently removed",
+            "Some actions cannot be undone", "Cancel execution", "Execution result", "Execution progress",
+            "Execution receipt history", "View execution receipt details", "Export execution receipt",
+            "Delete execution receipt"
+        })
+            Assert.Contains(required, combined, StringComparison.Ordinal);
+
+        // No arbitrary path/root controls, and no Phase 7 (Developer Mode tool execution) or Phase 8 (move-to-drive) controls.
+        foreach (var forbidden in new[]
+        {
+            "--path", "--root", "TextBox.*Path", "Enter a path", "Enter a folder", "Move to drive",
+            "Select destination drive", "Run tool", "Developer Mode tool"
+        })
+            Assert.DoesNotContain(forbidden, combined, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ReviewPlanConfirmationRequiresExplicitAcknowledgementBeforeItCanProceed()
+    {
+        var code = Read(Path.Combine(Pages, "ReviewPlanPage.xaml.cs"));
+        Assert.Contains("IsPrimaryButtonEnabled = false", code, StringComparison.Ordinal);
+        Assert.Contains("dialog.IsPrimaryButtonEnabled = true", code, StringComparison.Ordinal);
+        Assert.Contains("acknowledgement.Checked", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DeveloperModePageHasNoToolExecutionOrRunControls()
+    {
+        var page = Read(Path.Combine(Pages, "DeveloperModePage.xaml"));
+        var code = Read(Path.Combine(Pages, "DeveloperModePage.xaml.cs"));
+        // Tool names ("Docker", "WSL", ...) may appear as informational preview labels; no Click handler or
+        // runnable-action verb may appear anywhere on this page — it remains preview-only until a future phase.
+        Assert.DoesNotContain("Click=", page, StringComparison.Ordinal);
+        foreach (var forbidden in new[] { "Run tool", "Execute tool", "Install", "Uninstall", "Clean now", "Start cleanup" })
+            Assert.DoesNotContain(forbidden, page + code, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Read(string path) => File.ReadAllText(path);

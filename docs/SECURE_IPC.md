@@ -1,6 +1,10 @@
 # CLYR Secure IPC Protocol
 
-Status: Phase 0 protocol proposal for a future Phase 6 elevated helper. No endpoint or helper is implemented.
+Status: Phase 0 protocol proposal. As of Phase 6, the endpoint and helper are implemented
+(`Clyr.Contracts.ExecutionIpc`, `Clyr.Core.Execution.ElevatedHelperIpc`/`HelperIpcSerializer`,
+`Clyr.ElevatedHelper`) — see `docs/PHASE6_EXECUTION.md` and ADR-0013 for what matches this proposal and what
+remains open (binary identity verification beyond the pipe ACL, downgrade/forged-response fuzz tests, the real
+UAC smoke test).
 Security boundary: standard-user CLYR process to short-lived high-integrity `Clyr.ElevatedHelper`.
 
 ## Goals and non-goals
