@@ -471,6 +471,33 @@ public sealed class RepositorySafetyTests
             Assert.DoesNotContain(token, program, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ElevatedScannerLaunchPlanContainsNoProcessLaunchOrMutationVocabulary()
+    {
+        // Phase 7.2.6F1 prepares launch data only — no process is ever started here, and no filesystem mutation
+        // capability exists. Reading basic executable metadata (existence, directory-ness, reparse-point
+        // status) for validation is the only I/O this file performs.
+        var forbidden = new[]
+        {
+            "Process.Start", "ProcessStartInfo", "System.Diagnostics.Process", "runas", "UseShellExecute",
+            "Verb =", "Verb=", "powershell.exe", "cmd.exe", "cmd /c",
+            "File.Delete", "File.Move", "File.WriteAllText", "File.WriteAllBytes", "File.AppendAllText",
+            "File.Create(", "File.OpenWrite", "File.Replace", "File.SetAttributes",
+            "Directory.Delete", "Directory.Move", "Directory.CreateDirectory",
+            "FileSecurity", "DirectorySecurity", "SetAccessControl", "FileSystemAclExtensions",
+            "TakeOwnership", "Ownership.Set",
+            "System.Net.Sockets", "TcpClient", "TcpListener", "UdpClient", "HttpClient", "WebRequest",
+            "Clyr.ElevatedHelper", "ElevatedHelperLauncher", "ElevatedHelperRequestHandler",
+            "NonElevatedCleanupExecutor", "CleanupPlanBuilder", "ExecutionTokenService", "CleanupCandidateFactory",
+            "BuiltInExecutionActions", "MoveKnownFolder", "MoveToAnotherDrive",
+            "NamedPipeServerStream", "NamedPipeClientStream",
+        };
+        var file = Path.Combine(Root, "src", "Clyr.Core", "ElevatedScannerLaunchPlan.cs");
+        Assert.True(File.Exists(file), $"Expected file not found: {file}");
+        var text = File.ReadAllText(file);
+        foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+    }
+
     private static XDocument Project(string name) => XDocument.Load(Path.Combine(Root, "src", name, name + ".csproj"));
     private static IEnumerable<string> RepositoryFiles(string pattern) => Directory.EnumerateFiles(Root, pattern, SearchOption.AllDirectories)
         .Where(path => !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
