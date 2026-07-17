@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
 using System.Runtime.Versioning;
+using System.Text;
+using System.Text.Json.Nodes;
 using Clyr.Contracts;
 using Clyr.Core;
 
@@ -101,6 +103,55 @@ public sealed class ElevatedScanIpcSerializerTests
     }
 
     [Fact]
+    public void UnknownTopLevelRequestPropertyIsRejected()
+    {
+        var bytes = MutateRequestJson(json => json["unexpectedField"] = JsonValue.Create("surprise"));
+        Assert.Throws<ElevatedScanIpcFrameException>(() => ElevatedScanIpcSerializer.DeserializeRequest(bytes));
+    }
+
+    [Fact]
+    public void UnknownNestedRootPropertyIsRejected()
+    {
+        var bytes = MutateRequestJson(json => json["permissionLimitedRoots"]!.AsArray()[0]!.AsObject()["unexpectedField"] = JsonValue.Create("surprise"));
+        Assert.Throws<ElevatedScanIpcFrameException>(() => ElevatedScanIpcSerializer.DeserializeRequest(bytes));
+    }
+
+    [Fact]
+    public void UnknownResponsePropertyIsRejected()
+    {
+        var bytes = MutateResponseJson(json => json["unexpectedField"] = JsonValue.Create("surprise"));
+        Assert.Throws<ElevatedScanIpcFrameException>(() => ElevatedScanIpcSerializer.DeserializeResponse(bytes));
+    }
+
+    [Fact]
+    public void IntegerOperationEnumValueIsRejected()
+    {
+        var bytes = MutateRequestJson(json => json["operation"] = JsonValue.Create(0));
+        Assert.Throws<ElevatedScanIpcFrameException>(() => ElevatedScanIpcSerializer.DeserializeRequest(bytes));
+    }
+
+    [Fact]
+    public void UnknownOperationNameIsRejected()
+    {
+        var bytes = MutateRequestJson(json => json["operation"] = JsonValue.Create("NotARealOperation"));
+        Assert.Throws<ElevatedScanIpcFrameException>(() => ElevatedScanIpcSerializer.DeserializeRequest(bytes));
+    }
+
+    [Fact]
+    public void IntegerResponseOutcomeEnumValueIsRejected()
+    {
+        var bytes = MutateResponseJson(json => json["outcome"] = JsonValue.Create(0));
+        Assert.Throws<ElevatedScanIpcFrameException>(() => ElevatedScanIpcSerializer.DeserializeResponse(bytes));
+    }
+
+    [Fact]
+    public void UnknownResponseOutcomeNameIsRejected()
+    {
+        var bytes = MutateResponseJson(json => json["outcome"] = JsonValue.Create("NotARealOutcome"));
+        Assert.Throws<ElevatedScanIpcFrameException>(() => ElevatedScanIpcSerializer.DeserializeResponse(bytes));
+    }
+
+    [Fact]
     [SupportedOSPlatform("windows")]
     public async Task TruncatedLengthPrefixThrowsRatherThanHanging()
     {
@@ -136,4 +187,14 @@ public sealed class ElevatedScanIpcSerializerTests
     private static ElevatedScanRetryResponse ValidResponse() =>
         new(ElevatedScanRetryProtocol.Version, new string('a', ElevatedScanRetryProtocol.MinNonceLength), ElevatedScanRetryOutcome.Completed,
             Now, Now.AddSeconds(2), 1, 1, 0, 10, 2, 1000, 800, 800, 0, 0, 0, ["diagnostic-1"]);
+
+    private static byte[] MutateRequestJson(Action<JsonObject> mutate) => MutateJson(ElevatedScanIpcSerializer.SerializeRequest(ValidRequest()), mutate);
+    private static byte[] MutateResponseJson(Action<JsonObject> mutate) => MutateJson(ElevatedScanIpcSerializer.SerializeResponse(ValidResponse()), mutate);
+
+    private static byte[] MutateJson(byte[] validBytes, Action<JsonObject> mutate)
+    {
+        var node = JsonNode.Parse(validBytes)!.AsObject();
+        mutate(node);
+        return Encoding.UTF8.GetBytes(node.ToJsonString());
+    }
 }

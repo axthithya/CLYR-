@@ -54,13 +54,19 @@ public static class ElevatedScanPipeName
 }
 
 /// <summary>
-/// Strict, bounded JSON framing for the elevated scan retry IPC protocol. Every type serialized here is a sealed
-/// record with concrete properties (see <see cref="ElevatedScanRetryRequest"/>/<see cref="ElevatedScanRetryResponse"/>);
-/// System.Text.Json's default reflection contract has no polymorphic <c>$type</c> discriminator support unless
-/// explicitly opted into, and this code never does. Unknown JSON properties are rejected outright
-/// (<see cref="JsonUnmappedMemberHandling.Disallow"/>) and every enum value is checked against
-/// <see cref="Enum.IsDefined{TEnum}(TEnum)"/> after parsing, since System.Text.Json's default numeric enum
-/// converter accepts any integer without validating membership.
+/// Strict, bounded, closed-contract JSON framing for the elevated scan retry IPC protocol. Every type serialized
+/// here is a sealed record with concrete properties (see <see cref="ElevatedScanRetryRequest"/>/
+/// <see cref="ElevatedScanRetryResponse"/>); System.Text.Json's default reflection contract has no polymorphic
+/// <c>$type</c> discriminator support unless explicitly opted into, and this code never does. Closure is enforced
+/// on every axis System.Text.Json supports: unknown JSON properties — top-level or nested — are rejected
+/// (<see cref="JsonUnmappedMemberHandling.Disallow"/>); duplicate property names are rejected rather than the
+/// last one silently winning (<see cref="JsonSerializerOptions.AllowDuplicateProperties"/> = <see langword="false"/>);
+/// and every enum is transmitted as a closed set of named strings via <see cref="JsonStringEnumConverter"/> with
+/// <c>allowIntegerValues: false</c>, so neither a raw integer nor an unrecognized name is ever accepted. Every
+/// failure of any of these checks surfaces as a <see cref="JsonException"/>, which <see cref="Parse{T}"/> turns
+/// into the same typed <see cref="ElevatedScanIpcFrameException"/> used for every other malformed-frame case —
+/// the <see cref="Enum.IsDefined{TEnum}(TEnum)"/> checks below are deliberate defense-in-depth, not the primary
+/// enforcement mechanism.
 /// </summary>
 public static class ElevatedScanIpcSerializer
 {
@@ -71,7 +77,9 @@ public static class ElevatedScanIpcSerializer
         AllowTrailingCommas = false,
         ReadCommentHandling = JsonCommentHandling.Disallow,
         NumberHandling = JsonNumberHandling.Strict,
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        AllowDuplicateProperties = false,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false) }
     };
 
     public static byte[] SerializeRequest(ElevatedScanRetryRequest request) =>
@@ -190,10 +198,15 @@ public static class ElevatedScanIpcTransport
             response = Rejected(ElevatedScanRetryProtocol.Version, string.Empty, ElevatedScanRetryOutcome.ProtocolRejected, startedAtUtc, clock.UtcNow, exception.Code);
         }
 
+        // No WaitForPipeDrain here: it is synchronous, has no timeout or cancellation parameter, and blocks
+        // until a connected peer has read every byte — a peer that simply never reads (by accident or by
+        // design) would keep this one-shot server alive forever. The bounded, cancellable WriteFrameAsync
+        // above (write + FlushAsync, both under timeouts.ResponseWrite) is the only completion guarantee this
+        // method makes; once the OS has buffered the response, the server disposes the pipe and exits
+        // regardless of whether the peer ever reads it.
         var responseBytes = ElevatedScanIpcSerializer.SerializeResponse(response);
         await WithTimeout(timeouts.ResponseWrite,
             ct => WriteFrameAsync(server, responseBytes, ElevatedScanRetryProtocol.MaxResponseFrameBytes, ct), cancellationToken).ConfigureAwait(false);
-        server.WaitForPipeDrain();
     }
 
     /// <summary>

@@ -25,6 +25,37 @@ public sealed class ElevatedScanIpcTransportTests
         new(TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
 
     [Fact]
+    public async Task ServerExitsPromptlyWhenThePeerNeverReadsTheResponse()
+    {
+        // Regression test for the removed, unbounded WaitForPipeDrain() call: previously a peer that connected,
+        // sent a request, and then simply never read the response could keep this one-shot server alive with no
+        // timeout at all. The server must now complete (write + dispose) on its own, well within a couple of
+        // seconds, regardless of whether anyone ever reads what it wrote.
+        var pipeName = ElevatedScanPipeName.New();
+        var serverTask = ElevatedScanIpcTransport.RunOneShotAsync(pipeName, FastServerTimeouts, new FixedClock(Now),
+            (received, _) => Task.FromResult(CompletedResponse(received)), CancellationToken.None);
+
+        using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        await client.ConnectAsync(CancellationToken.None);
+        var requestBytes = ElevatedScanIpcSerializer.SerializeRequest(ValidRequest());
+        await ElevatedScanIpcTransport.WriteFrameAsync(client, requestBytes, ElevatedScanRetryProtocol.MaxRequestFrameBytes, CancellationToken.None);
+        // Deliberately never read the response.
+
+        var completed = await Task.WhenAny(serverTask, Task.Delay(TimeSpan.FromSeconds(2)));
+        Assert.Same(serverTask, completed);
+        await serverTask; // rethrow if it actually failed, rather than just having finished
+    }
+
+    [Fact]
+    public void NoUnboundedWaitForPipeDrainCallRemains()
+    {
+        var source = File.ReadAllText(Path.Combine(RepositoryRoot(), "src", "Clyr.Core", "ElevatedScanIpc.cs"));
+        // Checks for the call syntax specifically (not just the bare word), since the surrounding code
+        // deliberately documents, in prose, why WaitForPipeDrain is not called here.
+        Assert.DoesNotContain(".WaitForPipeDrain(", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task OneRequestProducesOneResponse()
     {
         // Also proves the current-user PipeSecurity descriptor does not block the same user from connecting.
@@ -183,6 +214,8 @@ public sealed class ElevatedScanIpcTransportTests
     private static ElevatedScanRetryResponse CompletedResponse(ElevatedScanRetryRequest request) =>
         new(request.ProtocolVersion, request.Nonce, ElevatedScanRetryOutcome.Completed, Now, Now.AddSeconds(1),
             request.PermissionLimitedRoots.Length, request.PermissionLimitedRoots.Length, 0, 10, 2, 1000, 800, 800, 0, 0, 0, []);
+
+    private static string RepositoryRoot() => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
 
     private sealed class FixedClock(DateTimeOffset now) : IClock
     {
