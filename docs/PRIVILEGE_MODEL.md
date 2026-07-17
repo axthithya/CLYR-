@@ -6,6 +6,9 @@ IPC-tested but not exercised in production yet; the real UAC smoke test has not 
 `docs/PHASE6_EXECUTION.md` and ADR-0002's implementation note.
 Related decisions: `adr/0002-separate-elevated-helper.md`, `adr/0012-execution-authority-and-toctou.md`,
 `adr/0013-typed-bounded-ipc.md`, `SECURE_IPC.md`, and `diagrams/privilege-boundary.mmd`.
+Phase 7's Developer Mode introduces no new elevation surface: its one narrow process probe
+(`DeveloperToolProbeRunner`) runs unelevated, `asInvoker`, in the main app process — it never calls into
+`Clyr.ElevatedHelper`. See `adr/0016-trusted-executable-discovery-and-narrow-probe.md`.
 
 ## Decision
 

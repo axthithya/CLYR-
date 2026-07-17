@@ -1,5 +1,6 @@
 using Clyr.Contracts;
 using Clyr.Core;
+using Clyr.Core.DeveloperMode;
 using Clyr.Core.Execution;
 using Clyr.Persistence;
 using Clyr.Rules;
@@ -90,6 +91,8 @@ public partial class App : Application
                 provider.GetRequiredService<ISnapshotStore>());
         });
         services.AddSingleton<IScanReportExporter, ScanReportExporter>();
+        services.AddSingleton<TrustedExecutableLocator>();
+        services.AddSingleton<DeveloperToolProbeRunner>();
         services.AddSingleton<MainWindow>();
         return services.BuildServiceProvider();
     }

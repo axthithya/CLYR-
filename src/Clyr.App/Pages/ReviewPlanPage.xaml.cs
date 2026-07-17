@@ -30,6 +30,7 @@ public sealed partial class ReviewPlanPage : Page
 
     public void Refresh()
     {
+        ViewModel.AdoptPending();
         var candidates = ViewModel.Candidates;
         EmptyPanel.Visibility = candidates.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         CandidatePanel.Visibility = candidates.Count == 0 ? Visibility.Collapsed : Visibility.Visible;

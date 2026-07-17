@@ -5,7 +5,10 @@ allowlisted action are implemented and tested (one-time session/user/drive/diges
 TOCTOU revalidation, typed bounded IPC with no polymorphic deserialization surface) — see
 `docs/PHASE6_EXECUTION.md` and ADR-0012/0013. The real fixture-only UAC smoke test proving the helper's
 elevation path end to end has not yet been run. Controls for anything beyond this one action remain
-requirements for later phases, not claims about implemented code.
+requirements for later phases, not claims about implemented code. As of Phase 7, one additional narrow
+process-launch surface exists (`DeveloperToolProbeRunner`: trusted-discovery-only, closed argument list,
+timeout- and output-bounded, `docker --version`/`wsl --status` only, never a mutating subcommand) — see
+`docs/PHASE7_DEVELOPER_MODE.md` and ADR-0016.
 Method: STRIDE, supplemented by accidental-misuse and supply-chain analysis.
 
 ## Security objectives

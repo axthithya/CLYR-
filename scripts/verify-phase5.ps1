@@ -56,11 +56,14 @@ try {
     }
 
     # Phase 6 (approved after Phase 5) narrowly permits deletion inside src/Clyr.Core/Execution/** and process
-    # launch/elevation only inside ElevatedHelperLauncher.cs and the Clyr.ElevatedHelper project; both exceptions
-    # are enforced precisely by Clyr.Safety.Tests.RepositorySafetyTests, which is the authoritative check. This
-    # scan is excluded from those two locations so it continues to guard everything else in the repository.
+    # launch/elevation only inside ElevatedHelperLauncher.cs and the Clyr.ElevatedHelper project; Phase 7
+    # additionally permits one narrow read-only process-launch call site (docker --version / wsl --status only)
+    # inside DeveloperToolProbeRunner.cs, whose own XML doc comments legitimately mention UseShellExecute/Process
+    # by name. All three exceptions are enforced precisely by Clyr.Safety.Tests.RepositorySafetyTests, which is
+    # the authoritative check. This scan is excluded from those locations so it continues to guard everything
+    # else in the repository.
     $forbiddenSourceResult = Find-RepositoryPattern -Pattern 'File\.Delete|File\.Move|Directory\.Delete|RecycleOption|Process\.Start|System\.Diagnostics\.Process|runas|powershell\.exe|cmd\.exe|ShellExecute|SHFileOperation' `
-        -Paths @('src') -Include '*.cs' -ExcludeDirs @('src/Clyr.Core/Execution', 'src/Clyr.ElevatedHelper')
+        -Paths @('src') -Include '*.cs' -ExcludeDirs @('src/Clyr.Core/Execution', 'src/Clyr.ElevatedHelper', 'src/Clyr.Core/DeveloperMode/DeveloperToolProbeRunner.cs', 'src/Clyr.Core/DeveloperMode/IDeveloperToolProbeRunner.cs')
     if ($forbiddenSourceResult.Found) { throw ('A forbidden cleanup/process/elevation primitive was found: ' + ($forbiddenSourceResult.Matches -join '; ')) }
     # 'plan execute' is a legitimate Phase 6 CLI command narrowly implemented in these three reviewed files.
     $forbiddenCliResult = Find-RepositoryPattern -Pattern 'plan execute|plan apply|clyr clean|clyr prune' -Paths @('src/Clyr.Cli') -Include '*.cs' `

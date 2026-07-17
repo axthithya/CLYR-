@@ -34,6 +34,7 @@ public sealed partial class CliApplication
         if (command == "snapshots") return Snapshots(arguments, output, error);
         if (command == "plan") return Plans(arguments, output, error);
         if (command == "execution") return Execution(arguments, output, error);
+        if (command == "developer") return Developer(arguments, output, error);
         error.WriteLine("Unknown command. Run clyr --help.");
         return 2;
     }
@@ -41,7 +42,7 @@ public sealed partial class CliApplication
     private static int Help(TextWriter output)
     {
         output.WriteLine("CLYR - trustworthy Windows storage understanding");
-        output.WriteLine("Commands: --help, --version, doctor, demo, drives [--json], scan <root> [--quick|--deep] [--top N] [--json] [--output <file>], rules list|verify|describe <id>|validate <path>, explain <report.json>, snapshots list|show|compare|delete|clear|settings, plan candidates|create|show|validate|export|discard|execute, execution status|receipt|list|export|discard-receipt");
+        output.WriteLine("Commands: --help, --version, doctor, demo, drives [--json], scan <root> [--quick|--deep] [--top N] [--json] [--output <file>], rules list|verify|describe <id>|validate <path>, explain <report.json>, snapshots list|show|compare|delete|clear|settings, plan candidates|create|show|validate|export|discard|execute, execution status|receipt|list|export|discard-receipt, developer tools|scan|show|findings|plan|capabilities|doctor");
         return 0;
     }
 
@@ -53,7 +54,7 @@ public sealed partial class CliApplication
         output.WriteLine("Status: read-only scanning and classification available; " + packStatus +
             "; guarded low-risk execution is enabled only for approved CLYR-owned temporary artifacts.");
         output.WriteLine("Cleanup requires a validated active-session plan; arbitrary paths and general cleanup are unavailable.");
-        output.WriteLine("Developer Mode is not implemented yet.");
+        output.WriteLine("Developer Mode reports storage for a narrow set of tools; no developer-tool action is currently enabled for execution.");
         output.WriteLine("No drives have been scanned by this command.");
         return 0;
     }

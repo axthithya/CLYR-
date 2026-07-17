@@ -171,12 +171,16 @@ else {
 
 function Test-IsReviewedExecutionBoundaryPath([string]$path) {
     # Phase 6 approval narrowly permits file mutation only inside src/Clyr.Core/Execution/** and process
-    # launch/elevation only inside ElevatedHelperLauncher.cs and the Clyr.ElevatedHelper project.
+    # launch/elevation only inside ElevatedHelperLauncher.cs and the Clyr.ElevatedHelper project. Phase 7
+    # additionally permits a single narrow read-only process-launch call site (docker --version / wsl --status
+    # only, never a mutating command) inside DeveloperToolProbeRunner.cs.
     # Clyr.Safety.Tests.RepositorySafetyTests is the authoritative, precisely-scoped enforcement of this boundary.
     $executionRoot = (Join-Path $repoRoot 'src/Clyr.Core/Execution') + [System.IO.Path]::DirectorySeparatorChar
     $helperRoot = (Join-Path $repoRoot 'src/Clyr.ElevatedHelper') + [System.IO.Path]::DirectorySeparatorChar
+    $developerProbeFile = Join-Path $repoRoot 'src/Clyr.Core/DeveloperMode/DeveloperToolProbeRunner.cs'
     return $path.StartsWith($executionRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
-        $path.StartsWith($helperRoot, [System.StringComparison]::OrdinalIgnoreCase)
+        $path.StartsWith($helperRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $path.Equals($developerProbeFile, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
 $forbiddenPatterns = @(

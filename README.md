@@ -2,11 +2,13 @@
 
 > Phase 6 adds one narrowly allowlisted, low-risk, non-elevated cleanup action (CLYR's own stale temporary artifacts) end to end — engine, elevated-helper architecture, typed IPC, receipts, CLI, and WinUI — plus the full immutable dry-run planning from Phase 5 for everything else. Phase 6 is implementation-complete but not approved: the required real fixture-only UAC smoke test has not been run. See docs/PHASE6_EXECUTION.md.
 
+> Phase 7 adds read-only Developer Mode detection for 14 developer tool families (Docker, WSL, Node/npm, pnpm, Yarn, .NET/NuGet, Gradle, Maven, Python/pip, Rust/Cargo, Flutter/Dart, Android SDK, Playwright, generic build output) — a closed tool taxonomy over existing findings, trusted name-only executable discovery, a narrow read-only Docker/WSL status probe, CLI, and a WinUI dashboard. No developer-tool action is enabled for execution; eligible findings route through the existing Phase 5 plan pipeline. See docs/PHASE7_DEVELOPER_MODE.md.
+
 > See what filled your C: drive. Understand it. Clear it safely.
 
 CLYR is a planned native Windows storage diagnostic application for people who can see that a drive is full but cannot safely tell why. It will lead with evidence: what occupies space, how confident the measurement is, which regions were inaccessible, and why a finding needs attention. The reusable C# engine will support a WinUI 3 desktop experience and a command-line interface.
 
-## Project status: Phase 6 execution implemented, awaiting UAC smoke test and approval
+## Project status: Phase 7 Developer Mode implemented and verified, awaiting approval (Phase 6 UAC smoke test still pending)
 
 Eligible built-in findings can produce immutable ten-minute plans bound to their scan or snapshot, drive, rule pack, compatibility version, privacy mode, and explicit selection. Canonical SHA-256 digests detect edits; they are integrity checks, not authorization. Protected findings always win, user-created data remains review-only, and production execution returns ExecutionNotAvailableInPhase5.
 

@@ -4,6 +4,43 @@ All notable project changes are recorded here. The format follows Keep a Changel
 
 ## [Unreleased]
 
+### Added — Phase 7 Developer Mode: read-only tool detection (2026-07-17)
+
+- Added a closed, compiled taxonomy (`DeveloperToolTaxonomy`) mapping every developer-related built-in rule to
+  one of 14 tool families (Docker, WSL, Node/npm, pnpm, Yarn, .NET/NuGet, Gradle, Maven, Python/pip, Rust/Cargo,
+  Flutter/Dart, Android SDK, Playwright, generic build output), and a `DeveloperToolReportBuilder` that groups
+  existing `CleanupCandidateFactory` output by tool without any new eligibility logic (ADR-0015).
+- Added trusted, name-only executable discovery (`TrustedExecutableLocator`: PATH plus a depth-bounded known-
+  folder search, `.exe` only, reject reparse points) and a narrow, closed-argument, timeout- and output-bounded
+  read-only probe (`DeveloperToolProbeRunner`: `docker --version` / `wsl --status` only) for the two tools where
+  classification alone is insufficient (ADR-0016).
+- Added `DeveloperToolRegistry`, the closed list of all 14 tools and the status-derivation orchestrator that
+  never reports `NotInstalled` for a tool this phase cannot actually probe (ADR-0017).
+- Added 5 new report-only built-in rules (`developer.yarn.cache`, `developer.pip.cache`,
+  `developer.cargo.registry`, `developer.flutter.pubcache`, `developer.buildoutput.generic`; manifest bumped to
+  `1.2.0`).
+- Added CLI `developer tools|scan|show|findings|plan|capabilities|doctor` — deliberately no `developer run`,
+  `--command`, `--exe`, `--args`, `--path`, or prune/clean-all subcommand.
+- Replaced the Developer Mode static preview page with a real WinUI dashboard: a snapshot picker, a "Detect
+  developer tools" action, per-tool cards, a tool-detail panel, and a "Review in plan" action (only for findings
+  already `DryRunEligible`) that routes through the existing Phase 5 `CleanupPlanBuilder`/Review Plan pipeline.
+- Added ADR-0015, ADR-0016, ADR-0017; added `scripts/verify-phase7.ps1`; extended `scripts/verify-winui.ps1` and
+  `scripts/verify-phase0.ps1`'s repository-wide `Process.Start` scan for the one new, narrowly reviewed probe
+  call site.
+- Verified against a real local machine: actual Docker Desktop 29.1.2 and actual WSL were both correctly
+  detected through the trusted-discovery-plus-probe path.
+
+### Known gap — Phase 7 (2026-07-17)
+
+- Visual Studio and VS Code are not covered by a dedicated tool family; their build output is only visible
+  through the generic `developer.buildoutput.generic` rule.
+- Docker/WSL storage numbers still come from classification (rule-based folder scanning), not from parsing
+  tool-reported accounting (`docker system df`/`wsl -l -v`) — judged too fragile to build and verify reliably
+  this phase. Only installed/running status comes from the real probe.
+- Per-tool version-range binding and locale-independent probe output parsing are not implemented; the version
+  extracted from probe output is best-effort and may show as unknown on some locales/versions (observed with
+  this session's local WSL install).
+
 ### Added — Phase 6 execution engine, elevated helper, IPC, receipts, CLI, WinUI (2026-07-17)
 
 - Added a non-elevated execution engine (`NonElevatedCleanupExecutor`, `ExecutionTargetProcessor`) for one

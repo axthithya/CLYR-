@@ -3,6 +3,7 @@ using Clyr.App.Pages;
 using Clyr.App.ViewModels;
 using Clyr.Contracts;
 using Clyr.Core;
+using Clyr.Core.DeveloperMode;
 using Clyr.Core.Execution;
 using Clyr.Persistence;
 using Clyr.Rules;
@@ -20,7 +21,8 @@ public sealed partial class MainWindow : Window
     public MainWindow(IScanService scanService, IDriveDiscovery drives, RulePackLoadResult rules,
         ISnapshotStore history, IScanReportExporter exporter, IApplicationVersion version,
         ICleanupPlanStore cleanupPlans, IExecutionTokenService executionTokens, IExecutionReceiptStore? executionReceipts,
-        IClock clock, ExecutionSessionContext executionSession, ExecutionFixtureRoot fixtureRoot)
+        IClock clock, ExecutionSessionContext executionSession, ExecutionFixtureRoot fixtureRoot,
+        TrustedExecutableLocator developerLocator, DeveloperToolProbeRunner developerProbeRunner)
     {
         InitializeComponent();
         session = new(scanService, drives, rules, version);
@@ -30,7 +32,7 @@ public sealed partial class MainWindow : Window
         var reviewPlan = new ReviewPlanPage(new(session, cleanupPlans, executionTokens, executionReceipts, clock,
             executionSession.Value, fixtureRoot.Path));
         var historyPage = new HistoryPage(new(session, history));
-        var developer = new DeveloperModePage(new(session));
+        var developer = new DeveloperModePage(new(session, history, cleanupPlans, developerLocator, developerProbeRunner));
         var privacy = new PrivacyPage(new(session));
         var licenses = new LicensesPage(new(session));
         var about = new AboutPage(new(session, version, rules));
@@ -79,7 +81,7 @@ public sealed partial class MainWindow : Window
             case ResultsPage value: value.ResetScroll(); value.Refresh(); break;
             case ReviewPlanPage value: value.ResetScroll(); value.Refresh(); break;
             case HistoryPage value: value.ResetScroll(); await value.ActivateAsync(); break;
-            case DeveloperModePage value: value.ResetScroll(); break;
+            case DeveloperModePage value: value.ResetScroll(); await value.ActivateAsync(); break;
             case PrivacyPage value: value.ResetScroll(); break;
             case LicensesPage value: value.ResetScroll(); break;
             case AboutPage value: value.ResetScroll(); break;

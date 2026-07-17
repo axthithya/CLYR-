@@ -54,7 +54,7 @@ public sealed class RepositorySafetyTests
     {
         var cliApplication = File.ReadAllText(Path.Combine(Root, "src", "Clyr.Cli", "CliApplication.cs"));
         Assert.Contains("guarded low-risk execution is enabled only for approved CLYR-owned temporary artifacts", cliApplication, StringComparison.Ordinal);
-        Assert.Contains("Developer Mode is not implemented yet", cliApplication, StringComparison.Ordinal);
+        Assert.Contains("no developer-tool action is currently enabled for execution", cliApplication, StringComparison.OrdinalIgnoreCase);
         foreach (var overclaim in new[] { "read-only scanner available", "general cleanup available", "general cleanup support", "cleanup any file", "tool adapter", "npm install", "docker run" })
             Assert.DoesNotContain(overclaim, cliApplication, StringComparison.OrdinalIgnoreCase);
     }
@@ -112,6 +112,9 @@ public sealed class RepositorySafetyTests
         var processLaunchBoundaryOnly = new[] { "Process.Start", "System.Diagnostics.Process", "ProcessStartInfo" };
         var executionBoundary = Path.Combine(Root, "src", "Clyr.Core", "Execution") + Path.DirectorySeparatorChar;
         var launcherFile = Path.Combine(executionBoundary, "ElevatedHelperLauncher.cs");
+        // Phase 7 adds exactly one more reviewed process-launch surface: the narrow, non-elevated, read-only
+        // developer-tool status probe. It never mutates anything and never accepts a caller-supplied command.
+        var developerProbeFile = Path.Combine(Root, "src", "Clyr.Core", "DeveloperMode", "DeveloperToolProbeRunner.cs");
         // requireAdministrator may exist only in the elevated helper's own application manifest, scanned separately below.
         var helperManifestGuard = Path.Combine(Root, "src", "Clyr.ElevatedHelper", "app.manifest");
         Assert.Contains("requireAdministrator", File.ReadAllText(helperManifestGuard), StringComparison.Ordinal);
@@ -124,7 +127,8 @@ public sealed class RepositorySafetyTests
             Assert.DoesNotContain("requireAdministrator", text, StringComparison.Ordinal);
             if (!source.StartsWith(executionBoundary, StringComparison.OrdinalIgnoreCase))
                 foreach (var token in mutationBoundaryOnly) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
-            if (!string.Equals(source, launcherFile, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(source, launcherFile, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(source, developerProbeFile, StringComparison.OrdinalIgnoreCase))
                 foreach (var token in processLaunchBoundaryOnly) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
         }
     }
@@ -139,6 +143,28 @@ public sealed class RepositorySafetyTests
         };
         var executionBoundary = Path.Combine(Root, "src", "Clyr.Core", "Execution");
         foreach (var source in Directory.EnumerateFiles(executionBoundary, "*.cs", SearchOption.AllDirectories))
+        {
+            var text = File.ReadAllText(source);
+            foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public void DeveloperModeBoundaryNeverMutatesToolsAndOnlyEverAsksForStatus()
+    {
+        // The Docker/WSL executable names and their read-only --version/--status flags are legitimate and
+        // expected here; what must never appear is any mutating subcommand, install/update/uninstall action,
+        // shell invocation, or generic script runner.
+        var forbidden = new[]
+        {
+            "system prune", "volume rm", "volume prune", "container rm", "image rm", "builder prune",
+            "docker rmi", "docker kill", "docker stop", "--unregister", "--terminate", "--shutdown",
+            "compact", ".wslconfig", "npm install", "npm uninstall", "npm update", "pip install", "pip uninstall",
+            "cargo install", "gradle clean", "mvn clean", "powershell.exe", "cmd.exe", "cmd /c",
+            "Process.Start(\"", "Process.Start('"
+        };
+        var developerModeBoundary = Path.Combine(Root, "src", "Clyr.Core", "DeveloperMode");
+        foreach (var source in Directory.EnumerateFiles(developerModeBoundary, "*.cs", SearchOption.AllDirectories))
         {
             var text = File.ReadAllText(source);
             foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.OrdinalIgnoreCase);

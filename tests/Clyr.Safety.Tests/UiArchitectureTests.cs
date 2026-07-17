@@ -183,12 +183,26 @@ public sealed class UiArchitectureTests
     {
         var page = Read(Path.Combine(Pages, "DeveloperModePage.xaml"));
         var code = Read(Path.Combine(Pages, "DeveloperModePage.xaml.cs"));
-        // Tool names ("Docker", "WSL", ...) may appear as informational preview labels; no Click handler or
-        // runnable-action verb may appear anywhere on this page — it remains preview-only until a future phase.
-        Assert.DoesNotContain("Click=", page, StringComparison.Ordinal);
-        foreach (var forbidden in new[] { "Run tool", "Execute tool", "Install", "Uninstall", "Clean now", "Start cleanup" })
-            Assert.DoesNotContain(forbidden, page + code, StringComparison.OrdinalIgnoreCase);
+        var combined = page + code;
+
+        // Phase 7 adds read-only tool detection (a snapshot picker, a Detect button, and a details/plan-review
+        // button) — those Click handlers are legitimate. Only the specific allowlisted handlers may exist in the
+        // XAML; nothing that runs, installs, updates, or force-cleans a developer tool is ever wired up.
+        foreach (var name in ExtractClickHandlerNames(page))
+            Assert.Contains(name, AllowedDeveloperModeClickHandlers, StringComparer.Ordinal);
+
+        foreach (var forbidden in new[]
+        {
+            "Run tool", "Execute tool", "Install now", "Uninstall tool", "Clean now", "Start cleanup", "Prune",
+            "Clean all", "Optimize automatically", "Delete unused projects", "--command", "--exe", "--args", "ShellExecute = true"
+        })
+            Assert.DoesNotContain(forbidden, combined, StringComparison.OrdinalIgnoreCase);
     }
+
+    private static readonly string[] AllowedDeveloperModeClickHandlers = ["DetectClick", "CloseDetails"];
+
+    private static IEnumerable<string> ExtractClickHandlerNames(string xaml) =>
+        System.Text.RegularExpressions.Regex.Matches(xaml, "Click=\"([^\"]+)\"").Select(match => match.Groups[1].Value);
 
     private static string Read(string path) => File.ReadAllText(path);
 }

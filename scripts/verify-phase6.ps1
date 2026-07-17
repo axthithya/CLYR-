@@ -53,7 +53,8 @@ try {
     Assert-NotFound 'A file mutation primitive was found outside the reviewed execution boundary' `
         (Find-RepositoryPattern -Pattern 'File\.Delete|File\.Move|Directory\.Delete' -Paths @('src') -Include '*.cs' -ExcludeDirs @('src/Clyr.Core/Execution'))
     Assert-NotFound 'A process-launch primitive was found outside the reviewed launcher' `
-        (Find-RepositoryPattern -Pattern 'Process\.Start|ProcessStartInfo|System\.Diagnostics\.Process' -Paths @('src') -Include '*.cs' -ExcludeDirs @('src/Clyr.Core/Execution/ElevatedHelperLauncher.cs'))
+        (Find-RepositoryPattern -Pattern 'Process\.Start|ProcessStartInfo|System\.Diagnostics\.Process' -Paths @('src') -Include '*.cs' `
+            -ExcludeDirs @('src/Clyr.Core/Execution/ElevatedHelperLauncher.cs', 'src/Clyr.Core/DeveloperMode/DeveloperToolProbeRunner.cs'))
     Assert-NotFound 'A forbidden command primitive was found' `
         (Find-RepositoryPattern -Pattern 'RecycleOption|powershell\.exe|cmd\.exe|SHFileOperation' -Paths @('src') -Include '*.cs')
     # Package-manager/container/OS-admin command text must never appear inside the reviewed execution boundary

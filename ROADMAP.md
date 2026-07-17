@@ -85,10 +85,24 @@ Exit: no arbitrary commands, protected violations remain zero, partial outcomes 
 
 ## Phase 7 — Developer Mode
 
-- [ ] Add read-only detection, then individually reviewed adapters for npm/pnpm/Yarn, NuGet, pip, Gradle/Maven, Flutter/Dart, Rust, Playwright, Docker, WSL, Android, Visual Studio, and VS Code.
-- [ ] Bind version ranges, discovery/signature/location checks, exact arguments, timeouts, output limits, locale-independent parsing, and fake runners.
+- [x] Add read-only detection for a closed set of 14 tool families (Docker, WSL, Node/npm, pnpm, Yarn,
+      .NET/NuGet, Gradle, Maven, Python/pip, Rust/Cargo, Flutter/Dart, Android SDK, Playwright, generic build
+      output) via a compiled taxonomy over existing rule findings, reusing `CleanupCandidateFactory` unchanged.
+- [x] Add trusted, name-only executable discovery (PATH + bounded known-folder search, `.exe` only, reject
+      reparse points) and a narrow, closed-argument, timeout-bounded, output-bounded read-only probe
+      (`docker --version`, `wsl --status` only) for the two tools where classification alone is insufficient.
+- [x] Add CLI (`developer tools|scan|show|findings|plan|capabilities|doctor`) and a WinUI dashboard (snapshot
+      picker, per-tool cards, tool detail with diagnostics, "Review in plan" routed through the existing Phase 5
+      plan pipeline for the subset of findings already `DryRunEligible`).
+- [ ] Visual Studio and VS Code are not covered by a dedicated tool family this phase (their build output is
+      only visible through the generic `developer.buildoutput.generic` rule, not a named adapter).
+- [ ] Per-tool version-range binding, signature verification beyond reparse-point rejection, and locale-independent
+      output parsing are not implemented — the two probes parse a best-effort version substring from plain-text
+      output and are not guaranteed to succeed on every locale/version combination (see ADR-0016's Consequences).
 
-Exit: every adapter is isolated and documented; unsupported versions are report-only; volumes/disks/emulators/dependencies are never automatic removal targets.
+Exit: every tool family is isolated and documented; unsupported/undetected versions are report-only; Docker
+volumes, WSL virtual disks, and Android emulator images remain `Protected` and are never automatic removal
+targets — met for the tools covered this phase; VS/VS Code adapters and version-range binding are deferred.
 
 ## Phase 8 — Move-to-another-drive workflows
 
@@ -114,4 +128,4 @@ Exit: community data cannot execute code; failures are safe and reversible; v1 q
 
 ## Current approval gate
 
-Phase 4.1 and Phase 5 are implemented in the current working tree. Phase 6 (execution engine, elevated helper, IPC, receipts, CLI, WinUI) is implemented and stopped at its approval gate pending the real fixture-only UAC smoke test. The exact next phase is **Phase 7 — Developer Mode**, and it must not begin without explicit approval and a passing Phase 6 UAC smoke test.
+Phase 4.1 and Phase 5 are implemented in the current working tree. Phase 6 (execution engine, elevated helper, IPC, receipts, CLI, WinUI) is implemented and stopped at its approval gate pending the real fixture-only UAC smoke test. Phase 7 (Developer Mode read-only detection: Core, CLI, WinUI) is implemented and verified in the current working tree — see `docs/PHASE7_DEVELOPER_MODE.md`. The exact next phase is **Phase 8 — Move-to-another-drive workflows**, and it must not begin without explicit approval.

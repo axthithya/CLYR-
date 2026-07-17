@@ -23,6 +23,7 @@ This is the concise cross-project index. Architecture details live in the linked
 | D-017 | 2026-07-13 | Accepted | Implement Phase 2 as one metadata-only bounded scanner shared by WinUI and CLI. | See ADR-0008; reparse traversal, content reads, cloud hydration, persistence, elevation, and mutation remain absent. |
 | D-018 | 2026-07-13 | Accepted | Report logical size only and label it Estimated because hard links are not deduplicated; allocated size is Unavailable. | Prevents false physical-usage precision while keeping the MVP bounded and testable. |
 | D-019 | 2026-07-13 | Accepted | Support ready fixed NTFS volumes for Phase 2 and report all other discovered drive capabilities as unsupported. | Avoids inferring safe behavior for ReFS, removable, network, optical, unready, or unverified filesystems. |
+| D-020 | 2026-07-17 | Accepted | Report Phase 7 developer-tool storage through the existing `CleanupCandidate`/plan pipeline, and confine the one new process-launch surface to a closed-argument, read-only Docker/WSL status probe with trusted name-only discovery. | See ADR-0015/0016/0017; no parallel eligibility model, no arbitrary command execution, no new elevation surface. |
 
 ## Change protocol
 

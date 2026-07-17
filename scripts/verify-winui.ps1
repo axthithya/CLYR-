@@ -207,6 +207,24 @@ try {
         'About'='About page'; 'Settings'='Settings page'
     }
     foreach ($entry in $expectations.GetEnumerator()) { Select-Page $window $entry.Key | Out-Null; Require-Named $window $entry.Value | Out-Null; if ($null -ne (Find-Named $window 'Start Analysis')) { throw "$($entry.Key) incorrectly exposes scan controls." } }
+
+    # Phase 7 Developer Mode: read-only tool detection against the fixture snapshot history. Only a snapshot
+    # picker and a Detect button exist; no install/run/prune control is ever wired up.
+    Select-Page $window 'Developer Mode' | Out-Null
+    Require-Named $window 'Developer Mode page' | Out-Null
+    Require-Named $window 'Developer Mode boundary notice' | Out-Null
+    Invoke-Named $window 'Detect developer tools'
+    Start-Sleep -Milliseconds 500
+    Require-Named $window 'Developer tool cards' | Out-Null
+    $detailsButton = Require-Named $window 'Node.js / npm view details'
+    $detailsButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Milliseconds 300
+    Require-Named $window 'Developer tool detail' | Out-Null
+    Invoke-Named $window 'Close developer tool details'
+    foreach ($forbidden in @('Run tool', 'Execute tool', 'Install now', 'Uninstall tool', 'Clean now', 'Start cleanup', 'Prune')) {
+        if ($null -ne (Find-Named $window $forbidden)) { throw "A disallowed Developer Mode control appeared: $forbidden" }
+    }
+    Write-Host 'Developer Mode read-only tool detection verified (no execution control present).' -ForegroundColor DarkGreen
     Select-Page $window 'Settings' | Out-Null
     Require-Named $window 'Settings page' | Out-Null
     Require-Named $window 'History settings' | Out-Null

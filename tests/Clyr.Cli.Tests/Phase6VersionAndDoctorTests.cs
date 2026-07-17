@@ -25,7 +25,7 @@ public sealed class Phase6VersionAndDoctorTests
         Assert.Contains("guarded low-risk execution is enabled only for approved CLYR-owned temporary artifacts", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("validated active-session plan", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("arbitrary paths and general cleanup are unavailable", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Developer Mode is not implemented yet", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no developer-tool action is currently enabled for execution", text, StringComparison.OrdinalIgnoreCase);
 
         // Must not regress to the stale Phase 5 "read-only scanner only" framing.
         Assert.DoesNotContain("read-only scanner available", text, StringComparison.OrdinalIgnoreCase);
