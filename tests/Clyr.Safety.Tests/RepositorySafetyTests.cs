@@ -298,6 +298,38 @@ public sealed class RepositorySafetyTests
         }
     }
 
+    [Fact]
+    public void ElevatedScanRetryContractsAndValidatorContainNoExecutionOrMutationCapability()
+    {
+        // Phase 7.2.6A adds only typed contracts and a pure validator for the future elevated scan retry — this
+        // proves that closure narrowly: neither file may reference process launch, shell execution, an
+        // elevation manifest concept, Phase 6 cleanup/execution, or any filesystem-mutation or ACL/ownership API.
+        var forbidden = new[]
+        {
+            "Process.Start", "ProcessStartInfo", "System.Diagnostics.Process", "powershell.exe", "cmd.exe",
+            "cmd /c", "runas", "requireAdministrator", "NamedPipe",
+            "File.Delete", "File.Move", "File.WriteAllText", "File.WriteAllBytes", "File.AppendAllText",
+            "File.Create(", "File.OpenWrite", "File.SetAttributes", "File.Replace", "File.Encrypt", "File.Decrypt",
+            "Directory.Delete", "Directory.Move", "Directory.CreateDirectory",
+            "FileSecurity", "DirectorySecurity", "SetAccessControl", "FileSystemAclExtensions",
+            "TakeOwnership", "Ownership.Set",
+            "Clyr.ElevatedHelper", "ElevatedHelperLauncher", "ElevatedHelperRequestHandler",
+            "NonElevatedCleanupExecutor", "CleanupPlanBuilder", "ExecutionTokenService", "CleanupCandidateFactory",
+            "BuiltInExecutionActions", "MoveKnownFolder", "MoveToAnotherDrive",
+        };
+        var files = new[]
+        {
+            Path.Combine(Root, "src", "Clyr.Contracts", "ElevatedScanRetry.cs"),
+            Path.Combine(Root, "src", "Clyr.Core", "ElevatedScanRetryValidation.cs"),
+        };
+        foreach (var file in files)
+        {
+            Assert.True(File.Exists(file), $"Expected file not found: {file}");
+            var text = File.ReadAllText(file);
+            foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+        }
+    }
+
     private static XDocument Project(string name) => XDocument.Load(Path.Combine(Root, "src", name, name + ".csproj"));
     private static IEnumerable<string> RepositoryFiles(string pattern) => Directory.EnumerateFiles(Root, pattern, SearchOption.AllDirectories)
         .Where(path => !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))

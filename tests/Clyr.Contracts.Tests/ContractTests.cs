@@ -25,4 +25,27 @@ public sealed class ContractTests
         Assert.False(result.IsValid);
         Assert.Single(result.Errors);
     }
+
+    [Fact]
+    public void ElevatedScanRetryValidationResultValidHasNoOutcomeDetail()
+    {
+        Assert.True(ElevatedScanRetryValidationResult.Valid.IsValid);
+        Assert.Null(ElevatedScanRetryValidationResult.Valid.Detail);
+    }
+
+    [Fact]
+    public void ElevatedScanRetryValidationResultInvalidCarriesOutcomeAndDetail()
+    {
+        var result = ElevatedScanRetryValidationResult.Invalid(ElevatedScanRetryValidationOutcome.Expired, "expired");
+        Assert.False(result.IsValid);
+        Assert.Equal(ElevatedScanRetryValidationOutcome.Expired, result.Outcome);
+        Assert.Equal("expired", result.Detail);
+    }
+
+    [Fact]
+    public void ElevatedScanOperationSupportsExactlyOneClosedOperation()
+    {
+        Assert.Single(Enum.GetValues<ElevatedScanOperation>());
+        Assert.Equal(ElevatedScanOperation.RetryPermissionLimitedRoots, Enum.GetValues<ElevatedScanOperation>()[0]);
+    }
 }
