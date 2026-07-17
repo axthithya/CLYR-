@@ -44,11 +44,13 @@ public sealed record PermissionLimitedRoot(
 
 /// <summary>
 /// A deterministic, order-independent manifest of the permission-limited roots produced by one scan, together
-/// with a digest binding it to the protocol version, the originating scan, and the drive. Not persisted by this
-/// task — see <c>ElevatedScanManifestBuilder</c> in Clyr.Core for how <see cref="Digest"/> is derived.
+/// with a digest binding it to the protocol version, the operation, the originating scan, the drive, and every
+/// security-relevant field of every root (not just its path) — changing any one of them invalidates
+/// <see cref="Digest"/>. Not persisted by this task — see <c>ElevatedScanManifestBuilder</c> in Clyr.Core for
+/// how the digest is derived.
 /// </summary>
 public sealed record ElevatedScanRequestManifest(
-    int ProtocolVersion, Guid OriginalScanExecutionId, string DriveIdentity,
+    int ProtocolVersion, ElevatedScanOperation Operation, Guid OriginalScanExecutionId, string DriveIdentity,
     ImmutableArray<PermissionLimitedRoot> Roots, string Digest);
 
 /// <summary>

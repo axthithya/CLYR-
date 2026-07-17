@@ -157,12 +157,94 @@ public sealed class ElevatedScanRetryValidatorTests
         var forward = BuildRoots(["C:\\Data\\Alpha", "C:\\Data\\Beta", "C:\\Data\\Gamma"]);
         var reversed = ImmutableArray.CreateRange(forward.Reverse());
 
-        var forwardManifest = ElevatedScanManifestBuilder.Build(ElevatedScanRetryProtocol.Version, ScanId, DriveIdentity, forward);
-        var reversedManifest = ElevatedScanManifestBuilder.Build(ElevatedScanRetryProtocol.Version, ScanId, DriveIdentity, reversed);
+        var forwardManifest = Manifest(forward);
+        var reversedManifest = Manifest(reversed);
 
         Assert.True(forwardManifest.IsSuccess);
         Assert.True(reversedManifest.IsSuccess);
         Assert.Equal(forwardManifest.Value!.Digest, reversedManifest.Value!.Digest);
+    }
+
+    [Fact]
+    public void ManifestDigestIsUnaffectedByPathCasing()
+    {
+        var lower = BuildRoots(["C:\\Users\\Test"]);
+        var upper = BuildRoots(["c:\\users\\test"]);
+        Assert.Equal(Manifest(lower).Value!.Digest, Manifest(upper).Value!.Digest);
+    }
+
+    [Fact]
+    public void ManifestDigestIsUnaffectedByATrailingSeparator()
+    {
+        var withoutTrailing = BuildRoots(["C:\\Data\\Alpha"]);
+        var withTrailing = BuildRoots(["C:\\Data\\Alpha\\"]);
+        Assert.Equal(Manifest(withoutTrailing).Value!.Digest, Manifest(withTrailing).Value!.Digest);
+    }
+
+    [Fact]
+    public void ChangingStableRootIdentifierChangesTheDigest()
+    {
+        var original = ImmutableArray.Create(new PermissionLimitedRoot("C:\\Data\\Alpha", ScanId, DriveIdentity, "root-1", PermissionLimitedReasonCode.AccessDenied));
+        var changed = ImmutableArray.Create(new PermissionLimitedRoot("C:\\Data\\Alpha", ScanId, DriveIdentity, "root-2", PermissionLimitedReasonCode.AccessDenied));
+        Assert.NotEqual(Manifest(original).Value!.Digest, Manifest(changed).Value!.Digest);
+    }
+
+    [Fact]
+    public void ChangingReasonCodeChangesTheDigest()
+    {
+        var original = ImmutableArray.Create(new PermissionLimitedRoot("C:\\Data\\Alpha", ScanId, DriveIdentity, "root-1", PermissionLimitedReasonCode.AccessDenied));
+        var changed = ImmutableArray.Create(new PermissionLimitedRoot("C:\\Data\\Alpha", ScanId, DriveIdentity, "root-1", PermissionLimitedReasonCode.ProtectedByOwner));
+        Assert.NotEqual(Manifest(original).Value!.Digest, Manifest(changed).Value!.Digest);
+    }
+
+    [Fact]
+    public void ChangingARootsOriginalScanExecutionIdChangesTheDigest()
+    {
+        var original = ImmutableArray.Create(new PermissionLimitedRoot("C:\\Data\\Alpha", ScanId, DriveIdentity, "root-1", PermissionLimitedReasonCode.AccessDenied));
+        var changed = ImmutableArray.Create(new PermissionLimitedRoot("C:\\Data\\Alpha", OtherScanId, DriveIdentity, "root-1", PermissionLimitedReasonCode.AccessDenied));
+        Assert.NotEqual(Manifest(original).Value!.Digest, Manifest(changed).Value!.Digest);
+    }
+
+    [Fact]
+    public void ChangingARootsDriveIdentityChangesTheDigest()
+    {
+        var original = ImmutableArray.Create(new PermissionLimitedRoot("C:\\Data\\Alpha", ScanId, DriveIdentity, "root-1", PermissionLimitedReasonCode.AccessDenied));
+        var changed = ImmutableArray.Create(new PermissionLimitedRoot("C:\\Data\\Alpha", ScanId, OtherDriveIdentity, "root-1", PermissionLimitedReasonCode.AccessDenied));
+        Assert.NotEqual(Manifest(original).Value!.Digest, Manifest(changed).Value!.Digest);
+    }
+
+    [Fact]
+    public void ChangingOperationChangesTheDigest()
+    {
+        var roots = BuildRoots(["C:\\Data\\Alpha"]);
+        var asRetry = ElevatedScanManifestBuilder.Build(ElevatedScanRetryProtocol.Version, ElevatedScanOperation.RetryPermissionLimitedRoots, ScanId, DriveIdentity, roots);
+        var asOther = ElevatedScanManifestBuilder.Build(ElevatedScanRetryProtocol.Version, (ElevatedScanOperation)999, ScanId, DriveIdentity, roots);
+        Assert.NotEqual(asRetry.Value!.Digest, asOther.Value!.Digest);
+    }
+
+    [Fact]
+    public void CaseOnlyDuplicateRootsAreRejected()
+    {
+        var roots = BuildRoots(["C:\\Data\\Alpha", "c:\\data\\alpha"]);
+        var request = BuildValidRequestFromRoots(roots);
+        AssertOutcome(request, ElevatedScanRetryValidationOutcome.DuplicateRoot);
+    }
+
+    [Fact]
+    public void TrailingSeparatorDuplicateRootsAreRejected()
+    {
+        var roots = BuildRoots(["C:\\Data\\Alpha", "C:\\Data\\Alpha\\"]);
+        var request = BuildValidRequestFromRoots(roots);
+        AssertOutcome(request, ElevatedScanRetryValidationOutcome.DuplicateRoot);
+    }
+
+    [Fact]
+    public void ValidationFailsWhenABoundRootFieldIsModifiedAfterTheDigestWasCreated()
+    {
+        var request = BuildValidRequest(RootPaths(1));
+        var tamperedRoot = request.PermissionLimitedRoots[0] with { StableRootIdentifier = "swapped-in-after-signing" };
+        var tampered = request with { PermissionLimitedRoots = [tamperedRoot] };
+        AssertOutcome(tampered, ElevatedScanRetryValidationOutcome.InvalidManifestDigest);
     }
 
     [Fact]
@@ -193,6 +275,9 @@ public sealed class ElevatedScanRetryValidatorTests
     private static ImmutableArray<PermissionLimitedRoot> BuildRoots(IEnumerable<string> paths) =>
         [.. paths.Select((path, index) => new PermissionLimitedRoot(path, ScanId, DriveIdentity, $"root-{index}", PermissionLimitedReasonCode.AccessDenied))];
 
+    private static Outcome<ElevatedScanRequestManifest> Manifest(IReadOnlyList<PermissionLimitedRoot> roots) =>
+        ElevatedScanManifestBuilder.Build(ElevatedScanRetryProtocol.Version, ElevatedScanOperation.RetryPermissionLimitedRoots, ScanId, DriveIdentity, roots);
+
     private static ElevatedScanRetryRequest BuildValidRequest(IEnumerable<string> paths, int maximumDiagnosticCount = 16,
         DateTimeOffset? createdAtUtc = null, DateTimeOffset? expiresAtUtc = null) =>
         BuildValidRequestFromRoots(BuildRoots(paths), maximumDiagnosticCount, createdAtUtc, expiresAtUtc);
@@ -201,7 +286,7 @@ public sealed class ElevatedScanRetryValidatorTests
         int maximumDiagnosticCount = 16, DateTimeOffset? createdAtUtc = null, DateTimeOffset? expiresAtUtc = null)
     {
         IReadOnlyList<PermissionLimitedRoot> rootsForManifest = roots.IsDefaultOrEmpty ? Array.Empty<PermissionLimitedRoot>() : roots;
-        var manifest = ElevatedScanManifestBuilder.Build(ElevatedScanRetryProtocol.Version, ScanId, DriveIdentity, rootsForManifest);
+        var manifest = Manifest(rootsForManifest);
         var digest = manifest.IsSuccess ? manifest.Value!.Digest : new string('0', 64);
         return new ElevatedScanRetryRequest(
             ElevatedScanRetryProtocol.Version, ElevatedScanOperation.RetryPermissionLimitedRoots,

@@ -14,8 +14,8 @@ namespace Clyr.Core;
 /// </summary>
 public static class ElevatedScanManifestBuilder
 {
-    public static Outcome<ElevatedScanRequestManifest> Build(int protocolVersion, Guid originalScanExecutionId,
-        string driveIdentity, IReadOnlyList<PermissionLimitedRoot> roots)
+    public static Outcome<ElevatedScanRequestManifest> Build(int protocolVersion, ElevatedScanOperation operation,
+        Guid originalScanExecutionId, string driveIdentity, IReadOnlyList<PermissionLimitedRoot> roots)
     {
         if (originalScanExecutionId == Guid.Empty)
             return Outcomes.Failure<ElevatedScanRequestManifest>("manifest.execution-id", "An originating scan execution ID is required.");
@@ -28,45 +28,64 @@ public static class ElevatedScanManifestBuilder
                 $"No more than {ElevatedScanRetryProtocol.MaxRoots} roots are supported in one manifest.");
 
         var ordered = roots
-            .GroupBy(root => NormalizePath(root.NormalizedRootPath), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(root => NormalizePath(root.NormalizedRootPath), StringComparer.Ordinal)
             .Select(group => group.First())
             .OrderBy(root => NormalizePath(root.NormalizedRootPath), StringComparer.Ordinal)
             .ToImmutableArray();
 
-        var digest = ComputeDigest(protocolVersion, originalScanExecutionId, driveIdentity, ordered);
-        return Outcomes.Success(new ElevatedScanRequestManifest(protocolVersion, originalScanExecutionId, driveIdentity, ordered, digest));
+        var digest = ComputeDigest(protocolVersion, operation, originalScanExecutionId, driveIdentity, ordered);
+        return Outcomes.Success(new ElevatedScanRequestManifest(protocolVersion, operation, originalScanExecutionId, driveIdentity, ordered, digest));
     }
 
-    /// <summary>SHA-256 over a canonical JSON encoding of protocol version, originating scan ID, drive identity,
-    /// and the already-ordered normalized root paths — the same shape <see cref="Build"/> produces, exposed
-    /// separately so a caller validating an externally supplied digest need not reconstruct a full manifest.</summary>
-    public static string ComputeDigest(int protocolVersion, Guid originalScanExecutionId, string driveIdentity,
-        IReadOnlyList<PermissionLimitedRoot> orderedRoots)
+    /// <summary>
+    /// SHA-256 over a canonical JSON encoding of every security-relevant field: protocol version, operation,
+    /// originating scan ID, drive identity, and — for each already-ordered root — its normalized path, its own
+    /// originating scan ID and drive identity (which may legitimately differ from the request's, and must be
+    /// caught if they do), its stable root identifier, and its reason code. Changing any one of these fields on
+    /// any root changes the digest. JSON's own null (via <see cref="Utf8JsonWriter.WriteNull"/>) is used for an
+    /// absent <see cref="PermissionLimitedRoot.StableRootIdentifier"/> so it can never collide with the empty
+    /// string, and every string is written as literal UTF-8 bytes with no culture-dependent formatting anywhere
+    /// in this method. Exposed separately from <see cref="Build"/> so a caller validating an externally supplied
+    /// digest need not reconstruct a full manifest.
+    /// </summary>
+    public static string ComputeDigest(int protocolVersion, ElevatedScanOperation operation, Guid originalScanExecutionId,
+        string driveIdentity, IReadOnlyList<PermissionLimitedRoot> orderedRoots)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartObject();
             writer.WriteNumber("protocolVersion", protocolVersion);
-            writer.WriteString("originalScanExecutionId", originalScanExecutionId.ToString());
+            writer.WriteString("operation", operation.ToString());
+            writer.WriteString("originalScanExecutionId", originalScanExecutionId.ToString("D"));
             writer.WriteString("driveIdentity", driveIdentity);
             writer.WriteStartArray("roots");
-            foreach (var root in orderedRoots) writer.WriteStringValue(NormalizePath(root.NormalizedRootPath));
+            foreach (var root in orderedRoots)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("normalizedRootPath", NormalizePath(root.NormalizedRootPath));
+                writer.WriteString("originalScanExecutionId", root.OriginalScanExecutionId.ToString("D"));
+                writer.WriteString("driveIdentity", root.DriveIdentity);
+                if (root.StableRootIdentifier is null) writer.WriteNull("stableRootIdentifier");
+                else writer.WriteString("stableRootIdentifier", root.StableRootIdentifier);
+                writer.WriteString("reasonCode", root.ReasonCode.ToString());
+                writer.WriteEndObject();
+            }
             writer.WriteEndArray();
             writer.WriteEndObject();
         }
         return Convert.ToHexString(SHA256.HashData(stream.ToArray())).ToLowerInvariant();
     }
 
+    /// <summary>Canonicalizes a Windows path for identity purposes only (duplicate detection and digest input):
+    /// separators unified, redundant trailing separators trimmed (a bare drive root such as "C:\" is preserved),
+    /// and the whole path upper-invariant-cased since Windows path comparison is case-insensitive. This never
+    /// touches the real filesystem and never resolves reparse points — it is a pure string transform.</summary>
     internal static string NormalizePath(string path)
     {
         var normalized = path.Replace('/', '\\').TrimEnd('\\');
-        if (normalized.Length >= 2 && normalized[1] == ':')
-        {
-            normalized = char.ToUpperInvariant(normalized[0]) + normalized[1..];
-            if (normalized.Length == 2) normalized += "\\";
-        }
-        return normalized;
+        if (normalized.Length == 2 && normalized[1] == ':') normalized += "\\";
+        return normalized.ToUpperInvariant();
     }
 }
 
@@ -129,7 +148,7 @@ public static class ElevatedScanRetryValidator
                 return Invalid(ElevatedScanRetryValidationOutcome.RootOutsideDrive, $"'{root.NormalizedRootPath}' is outside the selected drive.");
         }
 
-        var manifest = ElevatedScanManifestBuilder.Build(request.ProtocolVersion, request.OriginalScanExecutionId,
+        var manifest = ElevatedScanManifestBuilder.Build(request.ProtocolVersion, request.Operation, request.OriginalScanExecutionId,
             request.DriveIdentity, request.PermissionLimitedRoots);
         if (!manifest.IsSuccess || !FixedEquals(manifest.Value!.Digest, request.PermissionLimitedManifestDigest))
             return Invalid(ElevatedScanRetryValidationOutcome.InvalidManifestDigest, "The permission-limited manifest digest does not match the supplied roots.");
