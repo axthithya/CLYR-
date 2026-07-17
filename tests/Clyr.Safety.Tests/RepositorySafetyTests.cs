@@ -124,6 +124,12 @@ public sealed class RepositorySafetyTests
         var processLaunchBoundaryOnly = new[] { "Process.Start", "System.Diagnostics.Process", "ProcessStartInfo" };
         var executionBoundary = Path.Combine(Root, "src", "Clyr.Core", "Execution") + Path.DirectorySeparatorChar;
         var launcherFile = Path.Combine(executionBoundary, "ElevatedHelperLauncher.cs");
+        // Phase 7.1 adds exactly one more reviewed mutation surface: the Quick Analysis checkpoint store. It
+        // reads and writes only its own small JSON file inside CLYR's application-data checkpoints directory
+        // (never a scanned drive or user path), and File.Move/File.Delete here manage only that CLYR-owned
+        // cache file — the explicit "CLYR-owned persistence inside CLYR's application-data directory" carve-out
+        // from the scanning safety boundary, not a general filesystem-mutation capability.
+        var checkpointStoreFile = Path.Combine(Root, "src", "Clyr.Persistence", "ScanCheckpointStore.cs");
         // Phase 7 adds exactly one more reviewed process-launch surface: the narrow, non-elevated, read-only
         // developer-tool status probe. It never mutates anything and never accepts a caller-supplied command.
         var developerProbeFile = Path.Combine(Root, "src", "Clyr.Core", "DeveloperMode", "DeveloperToolProbeRunner.cs");
@@ -137,7 +143,8 @@ public sealed class RepositorySafetyTests
             var text = File.ReadAllText(source);
             foreach (var token in alwaysForbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
             Assert.DoesNotContain("requireAdministrator", text, StringComparison.Ordinal);
-            if (!source.StartsWith(executionBoundary, StringComparison.OrdinalIgnoreCase))
+            if (!source.StartsWith(executionBoundary, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(source, checkpointStoreFile, StringComparison.OrdinalIgnoreCase))
                 foreach (var token in mutationBoundaryOnly) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
             if (!string.Equals(source, launcherFile, StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(source, developerProbeFile, StringComparison.OrdinalIgnoreCase))

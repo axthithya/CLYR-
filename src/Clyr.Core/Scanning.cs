@@ -28,10 +28,20 @@ public static class ScanPathValidator
 }
 
 public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDiscovery drives, IClock clock,
-    IClassificationProvider? classificationProvider = null) : IScanService
+    IClassificationProvider? classificationProvider = null, IScanCheckpointStore? checkpoints = null,
+    QuickAnalysisPolicy? quickPolicy = null) : IScanService
 {
     private const int MaximumIssues = 32;
+    private const int MaximumPendingDirectories = 20_000;
+    private const int MaximumCheckpointDirectories = 500;
     private int active;
+
+    /// <summary>Directory leaf names that Quick Analysis's Stage B prioritizes over everything discovered so
+    /// far that isn't already known to matter — these are where the overwhelming majority of a typical Windows
+    /// drive's used space actually lives.</summary>
+    private static readonly string[] KnownHighValueRootNames = ["Windows", "Program Files", "Program Files (x86)", "ProgramData", "Users"];
+    private static readonly string[] KnownHighValueUserSubNames = ["AppData", "Downloads", "Documents"];
+    private static readonly string[] KnownDeveloperCacheNames = [".nuget", "npm-cache", "pip-cache", ".cache", "docker", "wsl", "android", ".android", ".gradle", "package cache", "yarn cache", "node_modules"];
 
     public async Task<ScanResult> ScanAsync(ScanRequest request, IProgress<ScanProgress>? progress, CancellationToken cancellationToken)
     {
@@ -49,93 +59,38 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
         if (drive is null) return Failed(request, "scan.drive-not-found", "The selected drive is not available.");
         if (!drive.IsReady || !drive.IsSupported) return Failed(request, "scan.drive-unsupported", drive.SupportReason);
 
-        var started = clock.UtcNow;
+        var policyVersion = (quickPolicy ?? QuickAnalysisPolicy.Default).PolicyVersion;
+        var checkpoint = request is { Mode: ScanMode.Quick, ContinueFromCheckpoint: true } ? checkpoints?.TryLoad(root, ScanMode.Quick) : null;
+        var checkpointRejectedReason = request is { Mode: ScanMode.Quick, ContinueFromCheckpoint: true } && checkpoint is null
+            ? "No saved checkpoint was found for this drive; Quick Analysis started from the beginning."
+            : checkpoint is not null && checkpoint.PolicyVersion != policyVersion
+                ? "The saved checkpoint used an older Quick Analysis policy and was discarded; Quick Analysis started from the beginning."
+                : null;
+        if (checkpoint is not null && checkpoint.PolicyVersion != policyVersion) checkpoint = null;
+
+        var sessionStarted = clock.UtcNow;
+        var started = checkpoint?.OriginalStartedAtUtc ?? sessionStarted;
         var classification = classificationProvider?.Start(request with { Root = root }, drive);
-        var policy = ScanPolicy.For(request);
+        var policy = ScanPolicy.For(request, quickPolicy);
         var topFiles = new BoundedRanking(policy.TopCount);
         var topDirectories = new BoundedRanking(policy.TopCount);
         var topLevel = new BoundedRanking(policy.TopLevelCount);
         var extensions = Enum.GetValues<ExtensionFamily>().ToDictionary(item => item, _ => new ExtensionCounter());
         var issues = new Dictionary<ScanIssueKind, MutableIssue>();
-        var stack = new Stack<DirectoryFrame>();
-        long files = 0, directories = 0, bytes = 0, inaccessible = 0, reparse = 0, cloud = 0, changed = 0, skipped = 0;
+        long files = checkpoint?.FilesObserved ?? 0, directories = checkpoint?.DirectoriesObserved ?? 0,
+            bytes = checkpoint?.LogicalBytesObserved ?? 0, inaccessible = 0, reparse = 0, cloud = 0, changed = 0, skipped = 0;
         var lastProgress = DateTimeOffset.MinValue;
+        var policyBoundaryHit = false;
 
-        progress?.Report(new(ScanStatus.Preparing, TimeSpan.Zero, 0, 0, 0, 0, RedactPath(root), "Preparing metadata-only scan."));
+        if (checkpointRejectedReason is not null) AddIssue(ScanIssueKind.Unsupported, "scan.checkpoint-unavailable", checkpointRejectedReason, ScanIssueSeverity.Information);
+        else if (checkpoint is not null) AddIssue(ScanIssueKind.Unsupported, "scan.checkpoint-resumed", "Quick Analysis resumed from a saved checkpoint instead of restarting at the root.", ScanIssueSeverity.Information);
+
+        progress?.Report(new(ScanStatus.Preparing, TimeSpan.Zero, files, directories, bytes, 0, RedactPath(root), "Preparing metadata-only scan."));
         try
         {
-            stack.Push(Open(root, 0));
-            while (stack.Count > 0)
-            {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    progress?.Report(new(ScanStatus.Cancelling, clock.UtcNow - started, files, directories, bytes,
-                        inaccessible + reparse + changed + skipped, RedactPath(stack.Peek().Path), "Cancellation acknowledged.",
-                        inaccessible, reparse, WarningCount()));
-                    return Finish(ScanStatus.Cancelled);
-                }
-
-                // Quick Analysis carries an explicit, documented time and item budget in addition to its depth
-                // limit (see ScanPolicy.For) so a first look never runs unboundedly long even against a huge,
-                // deeply nested tree. Deep Analysis has neither bound and runs until every safely accessible
-                // entry has been processed, the caller cancels, or a fatal error occurs.
-                if (policy.TimeBudget is { } timeBudget && clock.UtcNow - started >= timeBudget)
-                {
-                    AddIssue(ScanIssueKind.ResourceLimit, "scan.quick-time-budget", "Quick Analysis time budget reached; remaining areas were not examined.");
-                    return Finish(ScanStatus.CompletedWithWarnings);
-                }
-                if (policy.ItemBudget is { } itemBudget && files + directories >= itemBudget)
-                {
-                    AddIssue(ScanIssueKind.ResourceLimit, "scan.quick-item-budget", "Quick Analysis item budget reached; remaining areas were not examined.");
-                    return Finish(ScanStatus.CompletedWithWarnings);
-                }
-
-                var frame = stack.Peek();
-                FileSystemEntry? entry;
-                try
-                {
-                    if (!frame.Enumerator.MoveNext()) { CompleteDirectory(); continue; }
-                    entry = frame.Enumerator.Current;
-                }
-                catch (Exception exception) when (IsExpected(exception))
-                { CountException(exception); CompleteDirectory(); continue; }
-
-                if (entry is null) continue;
-                classification?.Observe(entry);
-                if ((entry.Traits & EntryTraits.ReparsePoint) != 0)
-                { reparse++; AddIssue(ScanIssueKind.ReparseSkipped, "scan.reparse-skipped", "A reparse point was not traversed."); continue; }
-                if ((entry.Traits & EntryTraits.Directory) != 0)
-                {
-                    directories++;
-                    if (frame.Depth < policy.MaximumDepth)
-                    {
-                        try { stack.Push(Open(entry.FullPath, frame.Depth + 1)); }
-                        catch (Exception exception) when (IsExpected(exception)) { CountException(exception); }
-                    }
-                    else { skipped++; AddIssue(ScanIssueKind.ResourceLimit, "scan.depth-limit", "Quick Analysis depth limit reached."); }
-                }
-                else
-                {
-                    files++;
-                    var size = Math.Max(0, entry.LogicalBytes);
-                    frame.DirectBytes += size; frame.FileCount++; bytes += size;
-                    if ((entry.Traits & EntryTraits.CloudPlaceholder) != 0)
-                    { cloud++; AddIssue(ScanIssueKind.CloudPlaceholder, "scan.cloud-metadata-only", "Cloud placeholder counted from metadata without hydration."); }
-                    topFiles.Add(new(entry.FullPath, size, 1, MeasurementPrecision.Estimated));
-                    var family = ExtensionClassifier.Classify(Path.GetExtension(entry.FullPath));
-                    extensions[family].Bytes += size; extensions[family].Count++;
-                }
-
-                var now = clock.UtcNow;
-                if (now - lastProgress >= TimeSpan.FromMilliseconds(250))
-                {
-                    lastProgress = now;
-                    progress?.Report(new(ScanStatus.Scanning, now - started, files, directories, bytes,
-                        inaccessible + reparse + changed + skipped, RedactPath(entry.FullPath), "Observing filesystem metadata.",
-                        inaccessible, reparse, WarningCount()));
-                }
-            }
-            return Finish(issues.Count == 0 ? ScanStatus.Completed : ScanStatus.CompletedWithWarnings);
+            if (request.Mode == ScanMode.Quick) RunQuick(checkpoint);
+            else RunDeep();
+            return cancelledResult ?? Finish(DetermineStatus());
         }
         catch (Exception exception) when (IsExpected(exception))
         {
@@ -144,34 +99,211 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                 files + directories == 0 ? "scan.root-unavailable" : null,
                 files + directories == 0 ? "The drive root could not be enumerated." : null);
         }
-        finally { while (stack.Count > 0) stack.Pop().Enumerator.Dispose(); }
 
-        DirectoryFrame Open(string path, int depth)
+        // Deep Analysis: a plain iterative, stack-based depth-first walk with no depth, time, or item bound. It
+        // runs until every safely accessible directory has been processed, the caller cancels, or a fatal error
+        // occurs — see ScanPolicy.For.
+        void RunDeep()
         {
-            try { return new(path, depth, fileSystem.Enumerate(path).GetEnumerator()); }
+            var stack = new Stack<DirectoryFrame>();
+            try
+            {
+                stack.Push(Open(root, 0, null));
+                while (stack.Count > 0)
+                {
+                    if (CheckCancellation(() => stack.Peek().Path)) return;
+                    var frame = stack.Peek();
+                    FileSystemEntry? entry;
+                    try
+                    {
+                        if (!frame.Enumerator.MoveNext()) { CompleteStackFrame(stack); continue; }
+                        entry = frame.Enumerator.Current;
+                    }
+                    catch (Exception exception) when (IsExpected(exception))
+                    { CountException(exception); CompleteStackFrame(stack); continue; }
+                    if (entry is null) continue;
+                    if (ObserveEntry(entry, frame, out var isDirectory) && isDirectory)
+                    {
+                        try { stack.Push(Open(entry.FullPath, frame.Depth + 1, frame)); }
+                        catch (Exception exception) when (IsExpected(exception)) { CountException(exception); }
+                    }
+                    ReportProgress(entry.FullPath);
+                }
+            }
+            finally { while (stack.Count > 0) stack.Pop().Enumerator.Dispose(); }
+        }
+
+        // Quick Analysis: Stage A (root itself, opened first and always) plus Stage B/C — a single active
+        // enumerator at a time, with every subdirectory it discovers placed into a bounded priority queue rather
+        // than descended into immediately. Known high-value roots (Windows, Program Files, ProgramData, Users,
+        // AppData/Downloads/Documents, common developer caches) are dequeued far ahead of everything else, so
+        // Quick reaches the areas most likely to explain drive usage before its budget runs out — never a plain
+        // alphabetical walk. Stage D is honest, bounded completion: time budget, item budget, depth policy,
+        // cancellation, or true exhaustion, each recorded as a distinct diagnostic.
+        void RunQuick(ScanCheckpoint? resumeFrom)
+        {
+            var pending = new PriorityQueue<PendingDirectory, (long NegBoost, long Order)>();
+            // Directories skipped only because Quick's depth policy was reached, not because of time/item
+            // pressure — these are real, known, high-priority gaps (the depth ceiling is what "Continue Quick
+            // Analysis" mainly exists to work around) and are worth persisting for the next continuation even
+            // when this run otherwise runs to exhaustion. Bounded for the same reason the pending queue is.
+            var depthDeferred = new List<string>();
+            long order = 0;
+            if (resumeFrom is not null)
+                // A continuation gets its own fresh depth budget starting from each resumed path (Depth 1, not
+                // that path's true filesystem depth) — otherwise a directory already at the depth ceiling could
+                // never be resumed into, and "Continue Quick Analysis" could never make progress past it.
+                foreach (var path in resumeFrom.PendingDirectories)
+                    Enqueue(new(path, 1, null, PriorityBoostFor(Path.GetFileName(path.TrimEnd('\\'))), order++));
+            else
+                pending.Enqueue(new(root, 0, null, long.MaxValue, order++), (long.MinValue, 0));
+
+            DirectoryFrame? current = null;
+            try
+            {
+                while (true)
+                {
+                    if (CheckCancellation(() => current?.Path ?? root)) return;
+                    if (policy.TimeBudget is { } timeBudget && clock.UtcNow - sessionStarted >= timeBudget)
+                    { SaveQuickCheckpoint(current, pending, depthDeferred); AddIssue(ScanIssueKind.ResourceLimit, "scan.quick-time-budget", $"Quick Analysis's {policy.TimeBudget.Value.TotalSeconds:F0}-second time budget was reached; remaining areas were not examined this run.", ScanIssueSeverity.PolicyBoundary); return; }
+                    if (policy.ItemBudget is { } itemBudget && files + directories >= itemBudget)
+                    { SaveQuickCheckpoint(current, pending, depthDeferred); AddIssue(ScanIssueKind.ResourceLimit, "scan.quick-item-budget", "Quick Analysis's item budget was reached; remaining areas were not examined this run.", ScanIssueSeverity.PolicyBoundary); return; }
+
+                    if (current is null)
+                    {
+                        if (!pending.TryDequeue(out var next, out _))
+                        {
+                            // Stage D: the priority queue is exhausted. If depth-policy skips left real,
+                            // known areas unexplored, that is still continuation-worthy — only a run that left
+                            // nothing behind at all counts as true, final exhaustion.
+                            if (depthDeferred.Count > 0) SaveQuickCheckpoint(null, pending, depthDeferred);
+                            return;
+                        }
+                        try { current = Open(next.Path, next.Depth, next.Parent); }
+                        catch (Exception exception) when (IsExpected(exception)) { CountException(exception); continue; }
+                    }
+
+                    var frame = current!;
+                    FileSystemEntry? entry;
+                    try
+                    {
+                        if (!frame.Enumerator.MoveNext()) { CompleteQueueFrame(frame); current = null; continue; }
+                        entry = frame.Enumerator.Current;
+                    }
+                    catch (Exception exception) when (IsExpected(exception))
+                    { CountException(exception); CompleteQueueFrame(frame); current = null; continue; }
+                    if (entry is null) continue;
+
+                    if (ObserveEntry(entry, frame, out var isDirectory) && isDirectory)
+                    {
+                        if (frame.Depth >= policy.MaximumDepth)
+                        {
+                            skipped++;
+                            AddIssue(ScanIssueKind.ResourceLimit, "scan.depth-limit", "Quick Analysis depth policy reached; a subdirectory was not examined this run.", ScanIssueSeverity.PolicyBoundary);
+                            if (depthDeferred.Count < MaximumCheckpointDirectories) depthDeferred.Add(entry.FullPath);
+                        }
+                        else Enqueue(new(entry.FullPath, frame.Depth + 1, frame, PriorityBoostFor(Path.GetFileName(entry.FullPath)), order++));
+                    }
+                    ReportProgress(entry.FullPath);
+                }
+            }
+            finally { current?.Enumerator.Dispose(); }
+
+            void Enqueue(PendingDirectory item)
+            {
+                if (pending.Count >= MaximumPendingDirectories)
+                { skipped++; AddIssue(ScanIssueKind.ResourceLimit, "scan.quick-pending-capacity", "Quick Analysis's pending-directory capacity was reached; a lower-priority area was not queued this run.", ScanIssueSeverity.PolicyBoundary); return; }
+                pending.Enqueue(item, (-item.Boost, item.Order));
+            }
+            void SaveQuickCheckpoint(DirectoryFrame? openFrame, PriorityQueue<PendingDirectory, (long, long)> queue, List<string> deferred)
+            {
+                policyBoundaryHit = true;
+                if (checkpoints is null) return;
+                var remaining = new List<string>(MaximumCheckpointDirectories);
+                if (openFrame is not null) remaining.Add(openFrame.Path);
+                foreach (var item in queue.UnorderedItems.OrderBy(x => x.Priority).Select(x => x.Element))
+                { if (remaining.Count >= MaximumCheckpointDirectories) break; remaining.Add(item.Path); }
+                foreach (var path in deferred)
+                { if (remaining.Count >= MaximumCheckpointDirectories) break; remaining.Add(path); }
+                checkpoints.Save(new(root, ScanMode.Quick, policyVersion, started, clock.UtcNow, files, directories, bytes, remaining));
+            }
+        }
+
+        bool CheckCancellation(Func<string> currentPath)
+        {
+            if (!cancellationToken.IsCancellationRequested) return false;
+            progress?.Report(new(ScanStatus.Cancelling, clock.UtcNow - started, files, directories, bytes,
+                inaccessible + reparse + changed + skipped, RedactPath(currentPath()), "Cancellation acknowledged.",
+                inaccessible, reparse, WarningCount()));
+            cancelledResult = Finish(ScanStatus.Cancelled);
+            return true;
+        }
+
+        bool ObserveEntry(FileSystemEntry entry, DirectoryFrame frame, out bool isDirectory)
+        {
+            classification?.Observe(entry);
+            isDirectory = false;
+            if ((entry.Traits & EntryTraits.ReparsePoint) != 0)
+            { reparse++; AddIssue(ScanIssueKind.ReparseSkipped, "scan.reparse-skipped", "A reparse point was not traversed.", ScanIssueSeverity.Information); return false; }
+            if ((entry.Traits & EntryTraits.Directory) != 0) { directories++; isDirectory = true; return true; }
+            files++;
+            var size = Math.Max(0, entry.LogicalBytes);
+            frame.DirectBytes += size; frame.FileCount++; bytes += size;
+            if ((entry.Traits & EntryTraits.CloudPlaceholder) != 0)
+            { cloud++; AddIssue(ScanIssueKind.CloudPlaceholder, "scan.cloud-metadata-only", "Cloud placeholder counted from metadata without hydration.", ScanIssueSeverity.Information); }
+            topFiles.Add(new(entry.FullPath, size, 1, MeasurementPrecision.Estimated));
+            var family = ExtensionClassifier.Classify(Path.GetExtension(entry.FullPath));
+            extensions[family].Bytes += size; extensions[family].Count++;
+            return true;
+        }
+
+        void ReportProgress(string currentPath)
+        {
+            var now = clock.UtcNow;
+            if (now - lastProgress < TimeSpan.FromMilliseconds(250)) return;
+            lastProgress = now;
+            progress?.Report(new(ScanStatus.Scanning, now - started, files, directories, bytes,
+                inaccessible + reparse + changed + skipped, RedactPath(currentPath), "Observing filesystem metadata.",
+                inaccessible, reparse, WarningCount()));
+        }
+
+        DirectoryFrame Open(string path, int depth, DirectoryFrame? parent)
+        {
+            try { return new(path, depth, parent, fileSystem.Enumerate(path).GetEnumerator()); }
             catch (Exception exception) when (IsExpected(exception)) { throw new ScanOpenException(exception); }
         }
-        void CompleteDirectory()
+        void CompleteStackFrame(Stack<DirectoryFrame> stack)
         {
             var completed = stack.Pop(); completed.Enumerator.Dispose();
-            var total = completed.DirectBytes;
-            if (stack.Count > 0) { stack.Peek().DirectBytes += total; stack.Peek().FileCount += completed.FileCount; }
-            if (completed.Depth == 1) topLevel.Add(new(completed.Path, total, completed.FileCount, MeasurementPrecision.Estimated));
-            if (completed.Depth > 0) topDirectories.Add(new(completed.Path, total, completed.FileCount, MeasurementPrecision.Estimated));
+            if (stack.Count > 0) { stack.Peek().DirectBytes += completed.DirectBytes; stack.Peek().FileCount += completed.FileCount; }
+            RegisterRanking(completed);
+        }
+        void CompleteQueueFrame(DirectoryFrame completed)
+        {
+            completed.Enumerator.Dispose();
+            if (completed.Parent is not null) { completed.Parent.DirectBytes += completed.DirectBytes; completed.Parent.FileCount += completed.FileCount; }
+            RegisterRanking(completed);
+        }
+        void RegisterRanking(DirectoryFrame completed)
+        {
+            if (completed.Depth == 1) topLevel.Add(new(completed.Path, completed.DirectBytes, completed.FileCount, MeasurementPrecision.Estimated));
+            if (completed.Depth > 0) topDirectories.Add(new(completed.Path, completed.DirectBytes, completed.FileCount, MeasurementPrecision.Estimated));
         }
         void CountException(Exception exception)
         {
             var actual = exception is ScanOpenException wrapped && wrapped.InnerException is not null ? wrapped.InnerException : exception;
-            if (actual is UnauthorizedAccessException) { inaccessible++; AddIssue(ScanIssueKind.AccessDenied, "scan.access-denied", "An entry was inaccessible."); }
-            else if (actual is FileNotFoundException or DirectoryNotFoundException) { changed++; AddIssue(ScanIssueKind.EntryChanged, "scan.entry-changed", "An entry changed during the scan."); }
-            else { skipped++; AddIssue(ScanIssueKind.Unexpected, "scan.enumeration-failed", "An entry could not be enumerated."); }
+            if (actual is UnauthorizedAccessException) { inaccessible++; AddIssue(ScanIssueKind.AccessDenied, "scan.access-denied", "An entry was inaccessible.", ScanIssueSeverity.PermissionLimited); }
+            else if (actual is FileNotFoundException or DirectoryNotFoundException) { changed++; AddIssue(ScanIssueKind.EntryChanged, "scan.entry-changed", "An entry changed during the scan.", ScanIssueSeverity.DataChanged); }
+            else { skipped++; AddIssue(ScanIssueKind.Unexpected, "scan.enumeration-failed", "An entry could not be enumerated.", ScanIssueSeverity.AccessWarning); }
         }
-        void AddIssue(ScanIssueKind kind, string code, string detail)
+        void AddIssue(ScanIssueKind kind, string code, string detail, ScanIssueSeverity severity)
         {
             if (issues.TryGetValue(kind, out var issue)) { issue.Count++; return; }
-            if (issues.Count < MaximumIssues) issues[kind] = new(kind, code, detail);
+            if (issues.Count < MaximumIssues) issues[kind] = new(kind, code, detail, severity);
         }
-        long WarningCount() => issues.Values.Sum(x => x.Count);
+        long WarningCount() => issues.Values.Where(x => x.Severity is ScanIssueSeverity.AccessWarning or ScanIssueSeverity.PermissionLimited or ScanIssueSeverity.DataChanged or ScanIssueSeverity.Fatal).Sum(x => x.Count);
+        ScanStatus DetermineStatus() => issues.Count == 0 || issues.Values.All(x => x.Severity is ScanIssueSeverity.Information or ScanIssueSeverity.PolicyBoundary)
+            ? ScanStatus.Completed : ScanStatus.CompletedWithWarnings;
         ScanResult Finish(ScanStatus status, string? failureCode = null, string? failureMessage = null)
         {
             var ended = clock.UtcNow;
@@ -179,6 +311,11 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
             long? unaccounted = drive.UsedBytes.HasValue ? Math.Max(0, drive.UsedBytes.Value - observed) : null;
             var coverage = new ScanCoverage(files, directories, inaccessible, reparse, cloud, changed, skipped, false, false, false);
             var classified = classification?.Complete(coverage, unaccounted);
+            // A checkpoint is only worth keeping when a policy boundary actually left work pending (saved just
+            // above, in RunQuick). Genuine exhaustion (Stage D) and any Deep Analysis run both mean there is
+            // nothing meaningful left for "Continue Quick Analysis" to resume, so the checkpoint is cleared.
+            if (request.Mode == ScanMode.Quick && !policyBoundaryHit) checkpoints?.Clear(root, ScanMode.Quick);
+            if (request.Mode == ScanMode.Deep) checkpoints?.Clear(root, ScanMode.Quick);
             var result = new ScanResult(Guid.NewGuid(), status, request.Mode, root, drive.FileSystem, started, ended, observed,
                 drive.UsedBytes, unaccounted, MeasurementPrecision.Estimated,
                 "Logical metadata bytes; hard-linked content may be counted more than once. Allocated size is not measured in Phase 2.",
@@ -186,7 +323,7 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                 topLevel.Items, topDirectories.Items, topFiles.Items,
                 extensions.Where(x => x.Value.Count > 0).OrderByDescending(x => x.Value.Bytes)
                     .Select(x => new ExtensionSummary(x.Key, x.Value.Bytes, x.Value.Count)).ToArray(),
-                issues.Values.Select(x => new ScanIssueSummary(x.Kind, x.Code, x.Count, x.Detail)).ToArray(), failureCode, failureMessage,
+                issues.Values.Select(x => new ScanIssueSummary(x.Kind, x.Code, x.Count, x.Detail, x.Severity)).ToArray(), failureCode, failureMessage,
                 classified);
             progress?.Report(new(status, ended - started, files, directories, bytes, inaccessible + reparse + changed + skipped,
                 RedactPath(root), TerminalMessage(status), inaccessible, reparse, WarningCount()));
@@ -194,6 +331,15 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
         }
     }
 
+    private ScanResult? cancelledResult;
+
+    private static long PriorityBoostFor(string name)
+    {
+        if (KnownHighValueRootNames.Contains(name, StringComparer.OrdinalIgnoreCase)) return 3;
+        if (KnownHighValueUserSubNames.Contains(name, StringComparer.OrdinalIgnoreCase)) return 2;
+        if (KnownDeveloperCacheNames.Contains(name, StringComparer.OrdinalIgnoreCase)) return 1;
+        return 0;
+    }
     private ScanResult Failed(ScanRequest request, string code, string message)
     {
         var now = clock.UtcNow;
@@ -208,21 +354,39 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
     private static string TerminalMessage(ScanStatus status) => status switch
     { ScanStatus.Completed => "Scan completed.", ScanStatus.CompletedWithWarnings => "Scan completed with coverage warnings.", ScanStatus.Cancelled => "Scan cancelled; partial observations retained.", _ => "Scan failed." };
 
-    private sealed class DirectoryFrame(string path, int depth, IEnumerator<FileSystemEntry> enumerator)
-    { public string Path { get; } = path; public int Depth { get; } = depth; public IEnumerator<FileSystemEntry> Enumerator { get; } = enumerator; public long DirectBytes { get; set; } public long FileCount { get; set; } }
-    private sealed class MutableIssue(ScanIssueKind kind, string code, string detail)
-    { public ScanIssueKind Kind { get; } = kind; public string Code { get; } = code; public string Detail { get; } = detail; public long Count { get; set; } = 1; }
+    private sealed class DirectoryFrame(string path, int depth, DirectoryFrame? parent, IEnumerator<FileSystemEntry> enumerator)
+    { public string Path { get; } = path; public int Depth { get; } = depth; public DirectoryFrame? Parent { get; } = parent; public IEnumerator<FileSystemEntry> Enumerator { get; } = enumerator; public long DirectBytes { get; set; } public long FileCount { get; set; } }
+    private readonly record struct PendingDirectory(string Path, int Depth, DirectoryFrame? Parent, long Boost, long Order);
+    private sealed class MutableIssue(ScanIssueKind kind, string code, string detail, ScanIssueSeverity severity)
+    { public ScanIssueKind Kind { get; } = kind; public string Code { get; } = code; public string Detail { get; } = detail; public ScanIssueSeverity Severity { get; } = severity; public long Count { get; set; } = 1; }
     private sealed class ExtensionCounter { public long Bytes { get; set; } public long Count { get; set; } }
     private sealed class ScanOpenException(Exception inner) : IOException("Directory enumeration could not start.", inner);
+}
+
+public interface IScanCheckpointStore
+{
+    ScanCheckpoint? TryLoad(string root, ScanMode mode);
+    void Save(ScanCheckpoint checkpoint);
+    void Clear(string root, ScanMode mode);
+}
+
+/// <summary>Quick Analysis's documented, typed budget. Replaces the previous unconditional 8-second cutoff:
+/// the target duration is a soft, displayed budget (not a promised exact completion time), configurable per
+/// caller, and versioned so a checkpoint saved under an older policy is safely rejected on load rather than
+/// silently reused.</summary>
+public sealed record QuickAnalysisPolicy(TimeSpan TargetDuration, long ItemBudget, int PolicyVersion)
+{
+    public static readonly QuickAnalysisPolicy Default = new(TimeSpan.FromSeconds(30), 250_000, PolicyVersion: 2);
 }
 
 /// <summary>
 /// The exact, documented bounds each mode runs under. Quick Analysis is deliberately bounded on three
 /// independent axes — depth, elapsed time, and item count — so a "fast first look" stays fast even against a
-/// pathologically large or deep subtree; hitting any one of them ends the scan honestly as
-/// <see cref="ScanStatus.CompletedWithWarnings"/> with a diagnostic identifying which bound was hit, never a
-/// silent truncation. Deep Analysis has no depth, time, or item bound: it runs until every safely accessible
-/// entry has been processed, the caller cancels, or a fatal error occurs.
+/// pathologically large or deep subtree; hitting any one of them ends the scan honestly, tagged with
+/// <see cref="ScanIssueSeverity.PolicyBoundary"/>, never a silent truncation and never reported as
+/// <see cref="ScanStatus.CompletedWithWarnings"/> on its own (see <c>ScanCoordinator.DetermineStatus</c>). Deep
+/// Analysis has no depth, time, or item bound: it runs until every safely accessible entry has been processed,
+/// the caller cancels, or a fatal error occurs.
 /// </summary>
 internal sealed record ScanPolicy(int MaximumDepth, int TopCount, int TopLevelCount, TimeSpan? TimeBudget, long? ItemBudget)
 {
@@ -230,19 +394,14 @@ internal sealed record ScanPolicy(int MaximumDepth, int TopCount, int TopLevelCo
     /// top-level contents of well-known high-value roots (Windows, ProgramData, Program Files, Users) and one
     /// level into each, without an unbounded recursive walk.</summary>
     private const int QuickMaximumDepth = 3;
-    /// <summary>Quick Analysis stops examining new entries after this much wall-clock time has elapsed, even if
-    /// the traversal is not otherwise complete.</summary>
-    private static readonly TimeSpan QuickTimeBudget = TimeSpan.FromSeconds(8);
-    /// <summary>Quick Analysis stops after this many files-plus-directories have been examined.</summary>
-    private const long QuickItemBudget = 250_000;
 
-    public static ScanPolicy For(ScanRequest request)
+    public static ScanPolicy For(ScanRequest request, QuickAnalysisPolicy? quickPolicy = null)
     {
         var defaultTop = request.Mode == ScanMode.Quick ? 25 : 100;
         var top = Math.Clamp(request.TopCount ?? defaultTop, 1, 1000);
-        return request.Mode == ScanMode.Quick
-            ? new(QuickMaximumDepth, top, 256, QuickTimeBudget, QuickItemBudget)
-            : new(512, top, 1000, null, null);
+        if (request.Mode != ScanMode.Quick) return new(512, top, 1000, null, null);
+        var effective = quickPolicy ?? QuickAnalysisPolicy.Default;
+        return new(QuickMaximumDepth, top, 256, effective.TargetDuration, effective.ItemBudget);
     }
 }
 

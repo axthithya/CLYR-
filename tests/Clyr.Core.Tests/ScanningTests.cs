@@ -93,8 +93,8 @@ public sealed class ScanningTests
             ["C:\\a\\b\\c"] = [Dir("C:\\a\\b\\c\\d")]
         });
         var result = await Scanner(fs).ScanAsync(new("C:\\", ScanMode.Quick), null, default);
-        Assert.Equal(ScanStatus.CompletedWithWarnings, result.Status);
-        Assert.Contains(result.Issues, item => item.Code == "scan.depth-limit");
+        Assert.Equal(ScanStatus.Completed, result.Status);
+        Assert.Contains(result.Issues, item => item.Code == "scan.depth-limit" && item.Severity == ScanIssueSeverity.PolicyBoundary);
         Assert.DoesNotContain("C:\\a\\b\\c\\d", fs.EnumeratedDirectories);
     }
 

@@ -73,10 +73,11 @@ public sealed partial class CliApplication
 
     private int Scan(IReadOnlyList<string> arguments, TextWriter output, TextWriter error)
     {
-        if (arguments.Count < 2) { error.WriteLine("Usage: clyr scan <root> [--quick|--deep] [--top N] [--json] [--output <file>] [--no-persist]"); return 2; }
+        if (arguments.Count < 2) { error.WriteLine("Usage: clyr scan <root> [--quick|--deep] [--top N] [--json] [--output <file>] [--no-persist] [--continue]"); return 2; }
         var mode = ScanMode.Quick;
         var json = false;
         var noPersist = false;
+        var continueFromCheckpoint = false;
         int? top = null;
         string? destination = null;
         for (var index = 2; index < arguments.Count; index++)
@@ -87,6 +88,9 @@ public sealed partial class CliApplication
                 case "--deep": mode = ScanMode.Deep; break;
                 case "--json": json = true; break;
                 case "--no-persist": noPersist = true; break;
+                // Resumes Quick Analysis from its own last CLYR-owned checkpoint instead of restarting at the
+                // drive root; ignored (with no error) for Deep, which has no checkpoint concept.
+                case "--continue": continueFromCheckpoint = true; break;
                 case "--top" when index + 1 < arguments.Count && int.TryParse(arguments[++index], out var parsed) && parsed is >= 1 and <= 1000: top = parsed; break;
                 case "--output" when index + 1 < arguments.Count: destination = arguments[++index]; break;
                 default: error.WriteLine("Invalid scan option. Run clyr --help."); return 2;
@@ -105,7 +109,7 @@ public sealed partial class CliApplication
             // --no-persist deliberately runs the unwrapped scanner (no SnapshotSavingScanService), so a
             // diagnostic or real-machine verification run never writes to CLYR's real local history.
             var activeScanner = noPersist ? nonPersistingScanner : scanner;
-            var result = activeScanner!.ScanAsync(new(root, mode, top), progress, cancellation.Token).GetAwaiter().GetResult();
+            var result = activeScanner!.ScanAsync(new(root, mode, top, continueFromCheckpoint), progress, cancellation.Token).GetAwaiter().GetResult();
             var serialized = exporter!.Serialize(result);
             if (destination is not null)
             {

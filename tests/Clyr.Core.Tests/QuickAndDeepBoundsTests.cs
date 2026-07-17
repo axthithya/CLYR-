@@ -13,8 +13,11 @@ public sealed class QuickAndDeepBoundsTests
         // silently truncating or taking as long as Deep would.
         var scanner = new ScanCoordinator(new FlatFileSystem(300_000), new FakeDrives(), new SystemClock());
         var result = await scanner.ScanAsync(new("C:\\", ScanMode.Quick), null, default);
-        Assert.Equal(ScanStatus.CompletedWithWarnings, result.Status);
-        Assert.Contains(result.Issues, item => item.Code == "scan.quick-item-budget");
+        // Reaching Quick's own, documented item budget is expected, by-design behavior — a PolicyBoundary
+        // diagnostic, not a scan failure — so the terminal status must read as a normal Completed, never
+        // CompletedWithWarnings, unless a real coverage problem also occurred.
+        Assert.Equal(ScanStatus.Completed, result.Status);
+        Assert.Contains(result.Issues, item => item.Code == "scan.quick-item-budget" && item.Severity == ScanIssueSeverity.PolicyBoundary);
         Assert.True(result.Coverage.FilesObserved <= 250_000, $"Quick observed {result.Coverage.FilesObserved} files, exceeding its documented item budget.");
         Assert.True(result.Coverage.FilesObserved > 0);
     }
@@ -26,8 +29,8 @@ public sealed class QuickAndDeepBoundsTests
         // enforced independently of the item/depth bounds, deterministically and without a real 8-second wait.
         var scanner = new ScanCoordinator(new FlatFileSystem(10), new FakeDrives(), new JumpAfterFirstReadClock());
         var result = await scanner.ScanAsync(new("C:\\", ScanMode.Quick), null, default);
-        Assert.Equal(ScanStatus.CompletedWithWarnings, result.Status);
-        Assert.Contains(result.Issues, item => item.Code == "scan.quick-time-budget");
+        Assert.Equal(ScanStatus.Completed, result.Status);
+        Assert.Contains(result.Issues, item => item.Code == "scan.quick-time-budget" && item.Severity == ScanIssueSeverity.PolicyBoundary);
     }
 
     [Fact]
@@ -49,8 +52,8 @@ public sealed class QuickAndDeepBoundsTests
         var quick = await new ScanCoordinator(fs, new FakeDrives(), new SystemClock()).ScanAsync(new("C:\\", ScanMode.Quick), null, default);
         var deep = await new ScanCoordinator(fs, new FakeDrives(), new SystemClock()).ScanAsync(new("C:\\", ScanMode.Deep), null, default);
 
-        Assert.Equal(ScanStatus.CompletedWithWarnings, quick.Status);
-        Assert.Contains(quick.Issues, item => item.Code == "scan.depth-limit");
+        Assert.Equal(ScanStatus.Completed, quick.Status);
+        Assert.Contains(quick.Issues, item => item.Code == "scan.depth-limit" && item.Severity == ScanIssueSeverity.PolicyBoundary);
         Assert.True(quick.LogicalBytesObserved < deep.LogicalBytesObserved,
             "Deep must observe strictly more than Quick when data exists beyond Quick's depth limit.");
         Assert.Equal(NestedFileSystem.DeepFileBytes, deep.LogicalBytesObserved);
