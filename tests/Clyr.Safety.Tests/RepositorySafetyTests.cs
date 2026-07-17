@@ -330,6 +330,36 @@ public sealed class RepositorySafetyTests
         }
     }
 
+    [Fact]
+    public void ElevatedScanIpcTransportContainsNoMutationExecutionOrNetworkCapability()
+    {
+        // Phase 7.2.6B adds the bounded named-pipe IPC transport for the future elevated scan retry. Named-pipe
+        // writes are the whole point of this file, so unlike the narrower 7.2.6A check above, "NamedPipe" itself
+        // is expected here — everything else on the forbidden list (mutation APIs, ACL/ownership mutation,
+        // process launch, shell invocation, real network sockets, and any Phase 6/Phase 8 reference) is not.
+        var forbidden = new[]
+        {
+            "Process.Start", "ProcessStartInfo", "System.Diagnostics.Process", "powershell.exe", "cmd.exe",
+            "cmd /c", "runas", "requireAdministrator",
+            "File.Delete", "File.Move", "File.WriteAllText", "File.WriteAllBytes", "File.AppendAllText",
+            "File.Create(", "File.OpenWrite", "File.SetAttributes", "File.Replace", "File.Encrypt", "File.Decrypt",
+            "Directory.Delete", "Directory.Move", "Directory.CreateDirectory",
+            "FileSystemAclExtensions", "TakeOwnership", "Ownership.Set",
+            "System.Net.Sockets", "TcpClient", "TcpListener", "UdpClient", "HttpClient", "WebRequest",
+            "Clyr.ElevatedHelper", "ElevatedHelperLauncher", "ElevatedHelperRequestHandler",
+            "NonElevatedCleanupExecutor", "CleanupPlanBuilder", "ExecutionTokenService", "CleanupCandidateFactory",
+            "BuiltInExecutionActions", "MoveKnownFolder", "MoveToAnotherDrive", "BinaryFormatter",
+        };
+        var file = Path.Combine(Root, "src", "Clyr.Core", "ElevatedScanIpc.cs");
+        Assert.True(File.Exists(file), $"Expected file not found: {file}");
+        var text = File.ReadAllText(file);
+        foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+        // PipeSecurity/PipeAccessRule/SetAccessRule here configure the current-user-only ACL on CLYR's own
+        // ephemeral IPC pipe — a fundamentally different concept from mutating a scanned file's or directory's
+        // ACL/ownership on disk (the FileSecurity/DirectorySecurity/SetAccessControl tokens forbidden above).
+        Assert.Contains("PipeSecurity", text, StringComparison.Ordinal);
+    }
+
     private static XDocument Project(string name) => XDocument.Load(Path.Combine(Root, "src", name, name + ".csproj"));
     private static IEnumerable<string> RepositoryFiles(string pattern) => Directory.EnumerateFiles(Root, pattern, SearchOption.AllDirectories)
         .Where(path => !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))

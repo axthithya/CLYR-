@@ -30,6 +30,28 @@ public static class ElevatedScanRetryProtocol
     /// since this authorizes a one-time, narrow, read-only retry of a specific prior scan's inaccessible roots,
     /// not a standing grant.</summary>
     public static readonly TimeSpan MaxRequestLifetime = TimeSpan.FromMinutes(5);
+
+    /// <summary>The declared length prefix of a serialized <see cref="ElevatedScanRetryRequest"/> frame is
+    /// rejected — before any buffer sized to it is allocated — once it exceeds this many bytes.</summary>
+    public const int MaxRequestFrameBytes = 256 * 1024;
+    /// <summary>Same bound as <see cref="MaxRequestFrameBytes"/>, applied to a serialized
+    /// <see cref="ElevatedScanRetryResponse"/> frame. Larger than the request bound because
+    /// <see cref="ElevatedScanRetryResponse.BoundedDiagnostics"/> can legitimately carry up to
+    /// <see cref="MaxDiagnosticCount"/> short diagnostic strings.</summary>
+    public const int MaxResponseFrameBytes = 1024 * 1024;
+}
+
+/// <summary>
+/// Naming and validation rules for the random, per-request named pipe used by <c>ElevatedScanIpcTransport</c>.
+/// The name itself carries no meaning beyond "this one request" — no drive path, username, scan path, execution
+/// ID, or other identifying information is ever encoded into it.
+/// </summary>
+public static class ElevatedScanPipeNameFormat
+{
+    public const string Prefix = "clyr-elevated-scan-";
+    /// <summary>16 random bytes (128 bits) hex-encoded lowercase — 32 characters.</summary>
+    public const int RandomHexLength = 32;
+    public static readonly int ExpectedTotalLength = Prefix.Length + RandomHexLength;
 }
 
 /// <summary>
@@ -97,3 +119,28 @@ public sealed record ElevatedScanRetryValidationResult(ElevatedScanRetryValidati
     public static ElevatedScanRetryValidationResult Valid { get; } = new(ElevatedScanRetryValidationOutcome.Valid, null);
     public static ElevatedScanRetryValidationResult Invalid(ElevatedScanRetryValidationOutcome outcome, string detail) => new(outcome, detail);
 }
+
+/// <summary>How an <see cref="ElevatedScanRetryRequest"/> was resolved. <see cref="ValidationRejected"/> and
+/// <see cref="ProtocolRejected"/> are distinct: the former means the request parsed but
+/// <c>ElevatedScanRetryValidator</c> rejected its contents; the latter means the frame itself could not be
+/// interpreted as a well-formed request at all (malformed JSON, wrong protocol version at the transport level).</summary>
+public enum ElevatedScanRetryOutcome
+{
+    Completed, ValidationRejected, Cancelled, TimedOut, ProtocolRejected, Failed
+}
+
+/// <summary>
+/// The one closed response shape for <see cref="ElevatedScanOperation.RetryPermissionLimitedRoots"/>. Every
+/// figure is a plain count or byte total already computed by the (future) elevated scan — never a command,
+/// script, executable path, argument, destination path, cleanup action, or Phase 6 execution token.
+/// <see cref="BoundedDiagnostics"/> holds up to <see cref="ElevatedScanRetryProtocol.MaxDiagnosticCount"/> short,
+/// safe diagnostic codes/messages — never a raw, unrestricted exception dump.
+/// </summary>
+public sealed record ElevatedScanRetryResponse(
+    int ProtocolVersion, string Nonce, ElevatedScanRetryOutcome Outcome,
+    DateTimeOffset StartedAtUtc, DateTimeOffset CompletedAtUtc,
+    int RootsAttempted, int RootsCompleted, int RootsStillInaccessible,
+    long FilesExamined, long DirectoriesExamined, long LogicalBytesObserved,
+    long AllocatedBytesObserved, long UniqueAllocatedBytesObserved,
+    long HardLinkEntriesDetected, long SparseFileCount, long CompressedFileCount,
+    ImmutableArray<string> BoundedDiagnostics);
