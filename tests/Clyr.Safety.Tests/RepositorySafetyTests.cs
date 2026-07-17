@@ -385,6 +385,81 @@ public sealed class RepositorySafetyTests
         foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ElevatedScannerHasItsOwnRequireAdministratorManifestDistinctFromEverythingElse()
+    {
+        var scannerManifest = File.ReadAllText(Path.Combine(Root, "src", "Clyr.ElevatedScanner", "app.manifest"));
+        Assert.Contains("requireAdministrator", scannerManifest, StringComparison.Ordinal);
+
+        // The main app must remain asInvoker, unaffected by the new elevated executable's manifest.
+        var appManifest = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "app.manifest"));
+        Assert.Contains("asInvoker", appManifest, StringComparison.Ordinal);
+        Assert.DoesNotContain("requireAdministrator", appManifest, StringComparison.Ordinal);
+
+        // The Phase 6 helper's own manifest is untouched by this phase — same requireAdministrator level it
+        // already had, not reused or repointed at the new executable.
+        var helperManifest = File.ReadAllText(Path.Combine(Root, "src", "Clyr.ElevatedHelper", "app.manifest"));
+        Assert.Contains("requireAdministrator", helperManifest, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ElevatedScannerProjectReferencesOnlyContractsAndCore()
+    {
+        var project = Project("Clyr.ElevatedScanner");
+        var references = project.Descendants("ProjectReference").Select(item => item.Attribute("Include")?.Value ?? string.Empty).ToArray();
+        Assert.Equal(2, references.Length);
+        Assert.Contains(references, reference => reference.Contains("Clyr.Contracts.csproj", StringComparison.Ordinal));
+        Assert.Contains(references, reference => reference.Contains("Clyr.Core.csproj", StringComparison.Ordinal));
+
+        var forbiddenReferences = new[]
+        {
+            "Clyr.App", "Clyr.Cli", "Clyr.Persistence", "Clyr.Rules", "Clyr.Windows", "Clyr.ElevatedHelper",
+        };
+        Assert.DoesNotContain(references, reference => forbiddenReferences.Any(forbidden => reference.Contains(forbidden, StringComparison.Ordinal)));
+        Assert.Empty(project.Descendants("PackageReference"));
+    }
+
+    [Fact]
+    public void ElevatedScannerExecutableContainsNoMutationExecutionIpcOrScanningCapability()
+    {
+        // Phase 7.2.6D is scaffolding-and-bootstrap only: no filesystem mutation, no process launch, no shell
+        // invocation, no network access, no reference to Phase 6 cleanup/execution, and — specifically for this
+        // subphase — no reference at all to the real IPC transport or the metadata retry engine, since neither
+        // is wired up yet.
+        var forbidden = new[]
+        {
+            "Process.Start", "ProcessStartInfo", "System.Diagnostics.Process", "powershell.exe", "cmd.exe",
+            "cmd /c", "runas",
+            "File.Delete", "File.Move", "File.WriteAllText", "File.WriteAllBytes", "File.AppendAllText",
+            "File.Create(", "File.OpenWrite", "File.Replace", "File.SetAttributes",
+            "Directory.Delete", "Directory.Move", "Directory.CreateDirectory",
+            "FileSecurity", "DirectorySecurity", "SetAccessControl", "FileSystemAclExtensions",
+            "TakeOwnership", "Ownership.Set",
+            "System.Net.Sockets", "TcpClient", "TcpListener", "UdpClient", "HttpClient", "WebRequest",
+            "Clyr.ElevatedHelper", "ElevatedHelperLauncher", "ElevatedHelperRequestHandler",
+            "NonElevatedCleanupExecutor", "CleanupPlanBuilder", "ExecutionTokenService", "CleanupCandidateFactory",
+            "BuiltInExecutionActions", "MoveKnownFolder", "MoveToAnotherDrive",
+            "ElevatedScanIpcTransport", "ElevatedMetadataRetryEngine", "IFileSystemEnumerator", "NamedPipe",
+        };
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(Root, "src", "Clyr.ElevatedScanner"), "*.cs", SearchOption.AllDirectories))
+        {
+            var text = File.ReadAllText(file);
+            foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ElevatedScannerProgramNeverReturnsSuccessInThisSubphase()
+    {
+        var program = File.ReadAllText(Path.Combine(Root, "src", "Clyr.ElevatedScanner", "Program.cs"));
+        // Every branch must resolve to one of the three named, nonzero placeholder exit codes; nothing in this
+        // temporary subphase may hard-code a literal 0 return.
+        Assert.DoesNotContain("return 0", program, StringComparison.Ordinal);
+        Assert.Contains("ExitCode.InvalidArguments", program, StringComparison.Ordinal);
+        Assert.Contains("ExitCode.InvalidPipeName", program, StringComparison.Ordinal);
+        Assert.Contains("ExitCode.TransportNotConnected", program, StringComparison.Ordinal);
+    }
+
     private static XDocument Project(string name) => XDocument.Load(Path.Combine(Root, "src", name, name + ".csproj"));
     private static IEnumerable<string> RepositoryFiles(string pattern) => Directory.EnumerateFiles(Root, pattern, SearchOption.AllDirectories)
         .Where(path => !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
