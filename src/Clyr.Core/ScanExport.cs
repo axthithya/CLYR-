@@ -37,7 +37,8 @@ public sealed class ScanReportExporter : IScanReportExporter
             {
                 TopLevelDirectories = Redact(result.Root, result.TopLevelDirectories, "folder"),
                 LargestDirectories = Redact(result.Root, result.LargestDirectories, "directory"),
-                LargestFiles = Redact(result.Root, result.LargestFiles, "file")
+                LargestFiles = Redact(result.Root, result.LargestFiles, "file"),
+                RootContributions = RedactContributions(result.Root, result.RootContributions)
             }
         };
         return JsonSerializer.Serialize(report, Options);
@@ -63,7 +64,8 @@ public sealed class ScanReportExporter : IScanReportExporter
             {
                 TopLevelDirectories = Redact(result.Root, result.TopLevelDirectories, "folder"),
                 LargestDirectories = Redact(result.Root, result.LargestDirectories, "directory"),
-                LargestFiles = Redact(result.Root, result.LargestFiles, "file")
+                LargestFiles = Redact(result.Root, result.LargestFiles, "file"),
+                RootContributions = RedactContributions(result.Root, result.RootContributions)
             }
         };
         return JsonSerializer.Serialize(report, Options);
@@ -71,4 +73,15 @@ public sealed class ScanReportExporter : IScanReportExporter
 
     private static RankedPath[] Redact(string root, IReadOnlyList<RankedPath> paths, string kind) =>
         paths.Select((item, index) => item with { DisplayPath = root + "<" + kind + "-" + (index + 1) + ">" }).ToArray();
+
+    // Phase 7.2.6G2: root-contribution paths and their derived canonical identity are exactly as
+    // privacy-sensitive as the ranked-path fields above (both can contain a username or other personal
+    // directory name) and get the same redaction treatment before ever leaving this exporter.
+    private static ScanRootContribution[] RedactContributions(string root, IReadOnlyList<ScanRootContribution> contributions) =>
+        contributions.Select((item, index) => item with
+        {
+            RootPath = root + "<root-" + (index + 1) + ">",
+            CanonicalRootIdentity = "<redacted>",
+            StableRootIdentifier = null
+        }).ToArray();
 }

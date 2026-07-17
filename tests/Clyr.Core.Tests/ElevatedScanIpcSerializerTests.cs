@@ -83,6 +83,19 @@ public sealed class ElevatedScanIpcSerializerTests
     }
 
     [Fact]
+    public void ExcessiveRootResultCountIsRejectedByTheCodec()
+    {
+        // Phase 7.2.6G2: the response's per-root results are bounded the same way the request's own root list
+        // already is.
+        var rootResults = Enumerable.Range(0, ElevatedScanRetryProtocol.MaxRoots + 1)
+            .Select(index => new ElevatedRootRetryResult($"C:\\Data\\Root{index}", null, ElevatedRootRetryOutcome.Completed, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+            .ToImmutableArray();
+        var response = ValidResponse() with { RootResults = rootResults };
+        var bytes = ElevatedScanIpcSerializer.SerializeResponse(response);
+        Assert.Throws<ElevatedScanIpcFrameException>(() => ElevatedScanIpcSerializer.DeserializeResponse(bytes));
+    }
+
+    [Fact]
     public void ExcessiveRootCountIsRejectedByTheCodec()
     {
         var roots = Enumerable.Range(0, ElevatedScanRetryProtocol.MaxRoots + 1)

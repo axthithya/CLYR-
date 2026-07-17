@@ -110,6 +110,10 @@ public static class ElevatedScanIpcSerializer
         if (!Enum.IsDefined(response.Outcome)) throw Malformed("response");
         if (!response.BoundedDiagnostics.IsDefaultOrEmpty && response.BoundedDiagnostics.Length > ElevatedScanRetryProtocol.MaxDiagnosticCount)
             throw new ElevatedScanIpcFrameException("ipc.diagnostics-exceed-bound", "The response declares more diagnostics than the protocol allows.");
+        // Phase 7.2.6G2: bounded the same way the request's own root list already is — a response cannot
+        // declare more per-root results than the protocol permits roots at all.
+        if (!response.RootResults.IsDefaultOrEmpty && response.RootResults.Length > ElevatedScanRetryProtocol.MaxRoots)
+            throw new ElevatedScanIpcFrameException("ipc.root-results-exceed-bound", "The response declares more per-root results than the protocol allows.");
         return response;
     }
 

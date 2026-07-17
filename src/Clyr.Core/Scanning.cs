@@ -96,6 +96,12 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
         var seenFileIdentities = new HashSet<ulong>();
         var lastProgress = DateTimeOffset.MinValue;
         var policyBoundaryHit = false;
+        // Phase 7.2.6G2: bounded per-top-level-root accounting, Deep Analysis only (see RunDeep). Never one
+        // record per directory — only the same depth-1 roots already ranked in TopLevelDirectories, capped at
+        // ScanRootContributionLimits.MaxContributions so an elevated retry's reconciler can safely tell exactly
+        // what a specific permission-limited root already contributed, without which it could never safely add
+        // an elevated retry's bytes without risking double-counting.
+        var rootContributions = new List<ScanRootContribution>();
 
         if (checkpointRejectedReason is not null) AddIssue(ScanIssueKind.Unsupported, "scan.checkpoint-unavailable", checkpointRejectedReason, ScanIssueSeverity.Information);
         else if (checkpoint is not null) AddIssue(ScanIssueKind.Unsupported, "scan.checkpoint-resumed", "Quick Analysis resumed from a saved checkpoint instead of restarting at the root.", ScanIssueSeverity.Information);
@@ -126,7 +132,7 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                 stack.Push(Open(root, 0, null));
                 while (stack.Count > 0)
                 {
-                    if (CheckCancellation(() => stack.Peek().Path)) return;
+                    if (CheckCancellation(() => stack.Peek().Path, stack.Peek())) return;
                     var frame = stack.Peek();
                     FileSystemEntry? entry;
                     try
@@ -135,12 +141,28 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                         entry = frame.Enumerator.Current;
                     }
                     catch (Exception exception) when (IsExpected(exception))
-                    { CountException(exception); CompleteStackFrame(stack); continue; }
+                    {
+                        CountException(exception);
+                        if (frame.Root is { } rootAccumulator) { rootAccumulator.InaccessibleEntryCount++; rootAccumulator.HadFailure = true; }
+                        CompleteStackFrame(stack);
+                        continue;
+                    }
                     if (entry is null) continue;
                     if (ObserveEntry(entry, frame, out var isDirectory) && isDirectory)
                     {
                         try { stack.Push(Open(entry.FullPath, frame.Depth + 1, frame)); }
-                        catch (Exception exception) when (IsExpected(exception)) { CountException(exception); }
+                        catch (Exception exception) when (IsExpected(exception))
+                        {
+                            CountException(exception);
+                            if (frame.Depth == 0)
+                                // The top-level root itself could never even be opened — no DirectoryFrame, and
+                                // so no RootAccumulator, was ever created for it. Zero observed bytes, by
+                                // construction: a later elevated retry that completes this root may safely add
+                                // its bytes outright (see ElevatedScanResultReconciler).
+                                RecordRootContribution(entry.FullPath, ScanRootEnumerationState.InaccessibleAtRoot,
+                                    new RootAccumulator(entry.FullPath) { InaccessibleEntryCount = 1 });
+                            else if (frame.Root is { } rootAccumulator) { rootAccumulator.InaccessibleEntryCount++; rootAccumulator.HadFailure = true; }
+                        }
                     }
                     ReportProgress(entry.FullPath);
                 }
@@ -246,12 +268,16 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
             }
         }
 
-        bool CheckCancellation(Func<string> currentPath)
+        bool CheckCancellation(Func<string> currentPath, DirectoryFrame? currentFrame = null)
         {
             if (!cancellationToken.IsCancellationRequested) return false;
             progress?.Report(new(ScanStatus.Cancelling, clock.UtcNow - started, files, directories, bytes,
                 inaccessible + reparse + changed + skipped, RedactPath(currentPath()), "Cancellation acknowledged.",
                 inaccessible, reparse, WarningCount()));
+            // The one top-level root still in flight (if any — Deep Analysis only, via currentFrame) gets a
+            // truthful Cancelled contribution with whatever partial totals it had accumulated so far; every
+            // other already-completed root keeps the contribution CompleteStackFrame already recorded for it.
+            if (currentFrame?.Root is { } inFlightRoot) RecordRootContribution(inFlightRoot.Path, ScanRootEnumerationState.Cancelled, inFlightRoot);
             cancelledResult = Finish(ScanStatus.Cancelled);
             return true;
         }
@@ -261,17 +287,29 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
             classification?.Observe(entry);
             isDirectory = false;
             if ((entry.Traits & EntryTraits.ReparsePoint) != 0)
-            { reparse++; AddIssue(ScanIssueKind.ReparseSkipped, "scan.reparse-skipped", "A reparse point was not traversed.", ScanIssueSeverity.Information); return false; }
-            if ((entry.Traits & EntryTraits.Directory) != 0) { directories++; isDirectory = true; return true; }
+            {
+                reparse++;
+                if (frame.Root is { } reparseRoot) reparseRoot.ReparsePointsSkipped++;
+                AddIssue(ScanIssueKind.ReparseSkipped, "scan.reparse-skipped", "A reparse point was not traversed.", ScanIssueSeverity.Information);
+                return false;
+            }
+            if ((entry.Traits & EntryTraits.Directory) != 0)
+            {
+                directories++;
+                if (frame.Root is { } directoryRoot) directoryRoot.DirectoriesExamined++;
+                isDirectory = true;
+                return true;
+            }
             files++;
             var size = Math.Max(0, entry.LogicalBytes);
             frame.DirectBytes += size; frame.FileCount++; bytes += size;
+            if (frame.Root is { } fileRoot) { fileRoot.FilesExamined++; fileRoot.LogicalBytesObserved += size; }
             if ((entry.Traits & EntryTraits.CloudPlaceholder) != 0)
             { cloud++; AddIssue(ScanIssueKind.CloudPlaceholder, "scan.cloud-metadata-only", "Cloud placeholder counted from metadata without hydration.", ScanIssueSeverity.Information); }
             topFiles.Add(new(entry.FullPath, size, 1, MeasurementPrecision.Estimated));
             var family = ExtensionClassifier.Classify(Path.GetExtension(entry.FullPath));
             extensions[family].Bytes += size; extensions[family].Count++;
-            ObserveAllocation(entry);
+            ObserveAllocation(entry, frame);
             return true;
         }
 
@@ -280,8 +318,10 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
         // FilesWithUnavailableAllocatedSize instead of a guessed number. A file whose NTFS identity could not
         // be read is still counted in AllocatedBytesObserved (raw sum) but cannot be de-duplicated, so it is
         // conservatively also added to UniqueAllocatedBytesObserved — undercounting hard-link savings is safer
-        // than overstating them.
-        void ObserveAllocation(FileSystemEntry entry)
+        // than overstating them. Phase 7.2.6G2: the same file is also fed to its top-level root's own
+        // RootAccumulator (with its own, root-scoped identity set — see RootAccumulator.ObserveAllocation) so a
+        // later elevated retry reconciler knows exactly what that specific root already contributed.
+        void ObserveAllocation(FileSystemEntry entry, DirectoryFrame frame)
         {
             var allocated = entry.AllocatedBytes;
             if (allocated is { } value) allocatedBytes += Math.Max(0, value);
@@ -294,6 +334,13 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                 else visibleHardLinkEntries++;
             }
             else if (allocated is { } fallback) uniqueAllocatedBytes += Math.Max(0, fallback);
+
+            if (frame.Root is { } root)
+            {
+                root.ObserveAllocation(allocated, entry.FileIdentity);
+                if ((entry.Traits & EntryTraits.Sparse) != 0) root.SparseFileCount++;
+                if ((entry.Traits & EntryTraits.Compressed) != 0) root.CompressedFileCount++;
+            }
         }
 
         void ReportProgress(string currentPath)
@@ -308,7 +355,16 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
 
         DirectoryFrame Open(string path, int depth, DirectoryFrame? parent)
         {
-            try { return new(path, depth, parent, fileSystem.Enumerate(path).GetEnumerator()); }
+            try
+            {
+                var frame = new DirectoryFrame(path, depth, parent, fileSystem.Enumerate(path).GetEnumerator());
+                // Depth 1 gets its own fresh accumulator; every deeper frame inherits the same reference, so any
+                // nested frame reaches its top-level root's totals in O(1) without a separate bubble-up pass.
+                // (Populated for both Deep and Quick traversal alike — only Deep's CompleteStackFrame ever turns
+                // one into a finalized ScanRootContribution, so this never changes Quick's own behavior.)
+                frame.Root = depth == 1 ? new RootAccumulator(path) : parent?.Root;
+                return frame;
+            }
             catch (Exception exception) when (IsExpected(exception)) { throw new ScanOpenException(exception); }
         }
         void CompleteStackFrame(Stack<DirectoryFrame> stack)
@@ -316,6 +372,18 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
             var completed = stack.Pop(); completed.Enumerator.Dispose();
             if (stack.Count > 0) { stack.Peek().DirectBytes += completed.DirectBytes; stack.Peek().FileCount += completed.FileCount; }
             RegisterRanking(completed);
+            if (completed.Depth == 1 && completed.Root is { } completedRoot)
+                RecordRootContribution(completed.Path, completedRoot.HadFailure ? ScanRootEnumerationState.PartiallyObserved : ScanRootEnumerationState.Completed, completedRoot);
+        }
+        void RecordRootContribution(string path, ScanRootEnumerationState state, RootAccumulator accumulator)
+        {
+            if (rootContributions.Count >= ScanRootContributionLimits.MaxContributions) return;
+            rootContributions.Add(new ScanRootContribution(ElevatedScanManifestBuilder.NormalizePath(path), null, path, state,
+                accumulator.FilesExamined, accumulator.DirectoriesExamined, accumulator.LogicalBytesObserved,
+                accumulator.AllocatedBytesObserved, accumulator.UniqueAllocatedBytesObserved, accumulator.HardLinkEntriesDetected,
+                accumulator.AllocationUnavailableCount, accumulator.SparseFileCount, accumulator.CompressedFileCount,
+                accumulator.InaccessibleEntryCount, accumulator.ReparsePointsSkipped,
+                accumulator.InaccessibleEntryCount + accumulator.ReparsePointsSkipped));
         }
         void CompleteQueueFrame(DirectoryFrame completed)
         {
@@ -377,7 +445,7 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                 extensions.Where(x => x.Value.Count > 0).OrderByDescending(x => x.Value.Bytes)
                     .Select(x => new ExtensionSummary(x.Key, x.Value.Bytes, x.Value.Count)).ToArray(),
                 issues.Values.Select(x => new ScanIssueSummary(x.Kind, x.Code, x.Count, x.Detail, x.Severity)).ToArray(), failureCode, failureMessage,
-                classified, allocation);
+                classified, allocation, rootContributions);
             progress?.Report(new(status, ended - started, files, directories, bytes, inaccessible + reparse + changed + skipped,
                 RedactPath(root), TerminalMessage(status), inaccessible, reparse, WarningCount()));
             return result;
@@ -408,7 +476,56 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
     { ScanStatus.Completed => "Scan completed.", ScanStatus.CompletedWithWarnings => "Scan completed with coverage warnings.", ScanStatus.Cancelled => "Scan cancelled; partial observations retained.", _ => "Scan failed." };
 
     private sealed class DirectoryFrame(string path, int depth, DirectoryFrame? parent, IEnumerator<FileSystemEntry> enumerator)
-    { public string Path { get; } = path; public int Depth { get; } = depth; public DirectoryFrame? Parent { get; } = parent; public IEnumerator<FileSystemEntry> Enumerator { get; } = enumerator; public long DirectBytes { get; set; } public long FileCount { get; set; } }
+    {
+        public string Path { get; } = path;
+        public int Depth { get; } = depth;
+        public DirectoryFrame? Parent { get; } = parent;
+        public IEnumerator<FileSystemEntry> Enumerator { get; } = enumerator;
+        public long DirectBytes { get; set; }
+        public long FileCount { get; set; }
+        /// <summary>Direct reference to the depth-1 ancestor's accumulator (or this frame's own, when this
+        /// frame itself is depth 1) — <see langword="null"/> only for the depth-0 scan-root frame, whose direct
+        /// children have no root-contribution parent yet. Set once in <c>Open</c>; every nested frame reaches
+        /// its top-level root's accumulator in O(1), so per-root totals never need the same bubble-up-on-complete
+        /// propagation <see cref="DirectBytes"/>/<see cref="FileCount"/> use for ranking.</summary>
+        public RootAccumulator? Root { get; set; }
+    }
+
+    /// <summary>Phase 7.2.6G2: running, memory-bounded totals for exactly one top-level (depth-1) scan root,
+    /// finalized into one bounded <see cref="ScanRootContribution"/> when that root's subtree finishes (or is
+    /// cancelled mid-walk). Never holds a per-file inventory — only these aggregate counters and one small
+    /// identity set scoped to this root alone (used for <c>UniqueAllocatedBytesObservedWithinRoot</c>,
+    /// deliberately independent of the scan-wide identity set so a hard link pointing outside this root is
+    /// never silently treated as "already seen").</summary>
+    private sealed class RootAccumulator(string path)
+    {
+        private readonly HashSet<ulong> localIdentities = [];
+        public string Path { get; } = path;
+        public bool HadFailure { get; set; }
+        public long FilesExamined { get; set; }
+        public long DirectoriesExamined { get; set; }
+        public long LogicalBytesObserved { get; set; }
+        public long AllocatedBytesObserved { get; set; }
+        public long UniqueAllocatedBytesObserved { get; set; }
+        public long HardLinkEntriesDetected { get; set; }
+        public long AllocationUnavailableCount { get; set; }
+        public long SparseFileCount { get; set; }
+        public long CompressedFileCount { get; set; }
+        public long InaccessibleEntryCount { get; set; }
+        public long ReparsePointsSkipped { get; set; }
+
+        public void ObserveAllocation(long? allocated, ulong? identity)
+        {
+            if (allocated is { } value) AllocatedBytesObserved += Math.Max(0, value);
+            else AllocationUnavailableCount++;
+            if (identity is { } stableIdentity)
+            {
+                if (localIdentities.Add(stableIdentity)) { if (allocated is { } unique) UniqueAllocatedBytesObserved += Math.Max(0, unique); }
+                else HardLinkEntriesDetected++;
+            }
+            else if (allocated is { } fallback) UniqueAllocatedBytesObserved += Math.Max(0, fallback);
+        }
+    }
     private readonly record struct PendingDirectory(string Path, int Depth, DirectoryFrame? Parent, long Boost, long Order);
     private sealed class MutableIssue(ScanIssueKind kind, string code, string detail, ScanIssueSeverity severity)
     { public ScanIssueKind Kind { get; } = kind; public string Code { get; } = code; public string Detail { get; } = detail; public ScanIssueSeverity Severity { get; } = severity; public long Count { get; set; } = 1; }

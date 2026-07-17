@@ -84,13 +84,49 @@ public sealed record ScanCoverage(long FilesObserved, long DirectoriesObserved, 
     long ReparsePointsSkipped, long CloudPlaceholdersObserved, long ChangedEntries, long OtherSkippedEntries,
     bool ContentBytesRead, bool ReparsePointsFollowed, bool CloudFilesHydrated);
 
+/// <summary>How one recorded scan root ended. <see cref="InaccessibleAtRoot"/> means the root itself could
+/// never be opened at all (zero observed bytes, by construction) — a later elevated retry that completes this
+/// root may safely add its bytes outright. <see cref="PartiallyObserved"/> means the root opened but the scan
+/// hit at least one failure somewhere within it, so it carries a truthful but incomplete contribution that a
+/// later retry must subtract before adding its own. <see cref="Completed"/> means the root needs no retry at
+/// all.</summary>
+public enum ScanRootEnumerationState { Completed, PartiallyObserved, InaccessibleAtRoot, Cancelled, Failed }
+
+/// <summary>
+/// Phase 7.2.6G2: one bounded, immutable per-root accounting record — never an unrestricted per-directory
+/// inventory. <see cref="ScanResult.RootContributions"/> holds these only for top-level scan roots (the same
+/// depth-1 directories already ranked in <see cref="ScanResult.TopLevelDirectories"/>), capped at
+/// <see cref="ScanRootContributionLimits.MaxContributions"/> entries, so an elevated retry's result reconciler
+/// can tell exactly what a specific permission-limited root already contributed to the original scan — without
+/// this, reconciliation cannot safely add elevated bytes without risking double-counting.
+/// <see cref="CanonicalRootIdentity"/> is the normalized root path (see <c>ElevatedScanManifestBuilder.NormalizePath</c>)
+/// used to correlate this record against a later <c>PermissionLimitedRoot</c>/<c>ElevatedRootRetryResult</c>.
+/// </summary>
+public sealed record ScanRootContribution(
+    string CanonicalRootIdentity, string? StableRootIdentifier, string RootPath,
+    ScanRootEnumerationState EnumerationState, long FilesExamined, long DirectoriesExamined,
+    long LogicalBytesObserved, long AllocatedBytesObserved, long UniqueAllocatedBytesObservedWithinRoot,
+    long HardLinkEntriesDetected, long AllocationUnavailableCount, long SparseFileCount, long CompressedFileCount,
+    long InaccessibleEntryCount, long ReparsePointsSkipped, long DiagnosticCount);
+
+public static class ScanRootContributionLimits
+{
+    /// <summary>Matches <c>ElevatedScanRetryProtocol.MaxRoots</c> — the same bound the elevated retry manifest
+    /// already enforces, since these records exist specifically to make that retry's reconciliation safe.</summary>
+    public const int MaxContributions = 64;
+}
+
 public sealed record ScanResult(Guid ScanId, ScanStatus Status, ScanMode Mode, string Root, string FileSystem,
     DateTimeOffset StartedAt, DateTimeOffset EndedAt, long LogicalBytesObserved, long? DriveUsedBytes,
     long? UnaccountedBytes, MeasurementPrecision Precision, string AccountingNote, ScanCoverage Coverage,
     IReadOnlyList<RankedPath> TopLevelDirectories, IReadOnlyList<RankedPath> LargestDirectories,
     IReadOnlyList<RankedPath> LargestFiles, IReadOnlyList<ExtensionSummary> ExtensionFamilies,
     IReadOnlyList<ScanIssueSummary> Issues, string? FailureCode, string? FailureMessage,
-    ClassificationResult? Classification = null, AllocationAccounting? Allocation = null)
+    ClassificationResult? Classification = null, AllocationAccounting? Allocation = null,
+    IReadOnlyList<ScanRootContribution>? RootContributions = null)
 {
+    /// <summary>Never <see langword="null"/> regardless of how this record was constructed — a missing/default
+    /// value here always normalizes to empty rather than requiring every caller to null-check.</summary>
+    public IReadOnlyList<ScanRootContribution> RootContributions { get; init; } = RootContributions ?? [];
     public bool IsPartial => Status is ScanStatus.Cancelled or ScanStatus.CompletedWithWarnings;
 }

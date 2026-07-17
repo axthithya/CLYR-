@@ -107,37 +107,69 @@ public static class ElevatedScanResultReconciler
                 startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
                 ["The response's per-root results do not correspond exactly, one-to-one, to the requested roots."]);
 
-        // Phase 7.2.6G1 can only prove a root contributed zero bytes to the original scan in the narrow case
-        // where the entire original scan observed zero logical bytes overall — there is no finer, per-root
-        // accounting signal on ScanResult yet (that is later, out-of-scope work). Anything short of that proof
-        // means the elevated bytes cannot be safely added without risking double-counting whatever the original
-        // scan already attributed to part of this root.
-        if (!OriginalScanProvedZeroRootContribution(originalResult))
-            return NotApplied(ElevatedReconciliationOutcome.RequiresReplacementData, originalResult, request, reconciliationId,
-                startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
-                ["The original scan may already have observed part of one or more retried roots; exact " +
-                 "replacement requires root-level original accounting that is not yet available."]);
-
-        var remaining = ImmutableArray.CreateBuilder<PermissionLimitedRoot>();
-        var applied = ImmutableArray.CreateBuilder<ElevatedRootRetryResult>();
-        long additionalLogical = 0, additionalAllocated = 0;
-        var rootsCompleted = 0;
+        // Phase 7.2.6G2: validate every completed retry root's safety BEFORE applying any of them — one
+        // unsafe root aborts the whole reconciliation (never a partial application), matching Phase 7.2.6G1's
+        // established "return NotApplied, change nothing" pattern.
+        var deltas = new List<(PermissionLimitedRoot Root, ElevatedRootRetryResult RootResult, long DeltaLogical, long DeltaAllocated)>();
         foreach (var requestRoot in request.PermissionLimitedRoots)
         {
-            var rootResult = resultsByPath[ElevatedScanManifestBuilder.NormalizePath(requestRoot.NormalizedRootPath)];
-            if (rootResult.Outcome == ElevatedRootRetryOutcome.Completed)
+            var normalized = ElevatedScanManifestBuilder.NormalizePath(requestRoot.NormalizedRootPath);
+            var rootResult = resultsByPath[normalized];
+            if (rootResult.Outcome != ElevatedRootRetryOutcome.Completed) continue;
+
+            if (originalResult.RootContributions.Count > 0)
             {
-                rootsCompleted++;
-                applied.Add(rootResult);
-                additionalLogical += Math.Max(0, rootResult.LogicalBytesObserved);
-                additionalAllocated += Math.Max(0, rootResult.AllocatedBytesObserved);
+                // Phase 7.2.6G2: a real per-root signal exists — use it instead of the coarser Phase 7.2.6G1
+                // whole-scan heuristic below.
+                var contribution = FindContribution(originalResult, normalized);
+                if (contribution is null)
+                    return NotApplied(ElevatedReconciliationOutcome.RequiresReplacementData, originalResult, request, reconciliationId,
+                        startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
+                        ["No original root-level contribution record exists for a retried root; exact replacement requires it."]);
+                if (contribution.EnumerationState == ScanRootEnumerationState.Completed)
+                    return NotApplied(ElevatedReconciliationOutcome.RootSetMismatch, originalResult, request, reconciliationId,
+                        startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
+                        ["A retried root was already fully Completed by the original scan and should never have been in the retry manifest."]);
+
+                // InaccessibleAtRoot contributed zero bytes by construction, so nothing needs subtracting.
+                // PartiallyObserved contributed a truthful-but-incomplete amount that must be subtracted before
+                // the elevated figure is added, so the original's partial bytes are never double-counted.
+                var subtractLogical = contribution.EnumerationState == ScanRootEnumerationState.PartiallyObserved ? contribution.LogicalBytesObserved : 0;
+                var subtractAllocated = contribution.EnumerationState == ScanRootEnumerationState.PartiallyObserved ? contribution.AllocatedBytesObserved : 0;
+                deltas.Add((requestRoot, rootResult, rootResult.LogicalBytesObserved - subtractLogical, rootResult.AllocatedBytesObserved - subtractAllocated));
             }
-            else remaining.Add(requestRoot);
+            else
+            {
+                // Phase 7.2.6G1 legacy fallback for a scan with no per-root contributions recorded at all
+                // (for example, a Quick Analysis result, or one produced before this phase): the only provable
+                // "this root contributed zero bytes" condition is the whole original scan having observed
+                // literally nothing. Anything short of that means the elevated bytes cannot be safely added
+                // without risking double-counting whatever the original scan already attributed to part of
+                // this root.
+                if (originalResult.LogicalBytesObserved > 0)
+                    return NotApplied(ElevatedReconciliationOutcome.RequiresReplacementData, originalResult, request, reconciliationId,
+                        startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
+                        ["The original scan may already have observed part of one or more retried roots, and carries no " +
+                         "root-level contribution records; exact replacement cannot be proven safe."]);
+                deltas.Add((requestRoot, rootResult, Math.Max(0, rootResult.LogicalBytesObserved), Math.Max(0, rootResult.AllocatedBytesObserved)));
+            }
         }
 
-        // Never a falsely exact global-unique-allocation total: the elevated engine only de-duplicates hard
-        // links within its own retry attempt, and the original scan may hold another link to the same physical
-        // content outside the retried roots. Combined unique allocation is deliberately never computed here.
+        var appliedPaths = deltas.Select(delta => ElevatedScanManifestBuilder.NormalizePath(delta.Root.NormalizedRootPath)).ToHashSet(StringComparer.Ordinal);
+        var remaining = ImmutableArray.CreateBuilder<PermissionLimitedRoot>();
+        foreach (var requestRoot in request.PermissionLimitedRoots)
+            if (!appliedPaths.Contains(ElevatedScanManifestBuilder.NormalizePath(requestRoot.NormalizedRootPath)))
+                remaining.Add(requestRoot);
+
+        var applied = ImmutableArray.CreateBuilder<ElevatedRootRetryResult>(deltas.Count);
+        long additionalLogical = 0, additionalAllocated = 0;
+        foreach (var delta in deltas) { applied.Add(delta.RootResult); additionalLogical += delta.DeltaLogical; additionalAllocated += delta.DeltaAllocated; }
+        var rootsCompleted = deltas.Count;
+
+        // Never a falsely exact global-unique-allocation total: the elevated engine (and, per root,
+        // ScanCoordinator) only de-duplicate hard links within their own attempt/root, and the original scan may
+        // hold another link to the same physical content outside the retried roots. Combined unique allocation
+        // is deliberately never computed here, regardless of whether per-root unique values exist.
         var consistency = AccountingConsistency.Consistent;
         var limitations = ImmutableArray<string>.Empty;
         if (applied.Count > 0)
@@ -164,10 +196,8 @@ public static class ElevatedScanResultReconciler
     private static bool IsEligibleOriginalScan(ScanResult originalResult) =>
         originalResult.Mode == ScanMode.Deep && originalResult.Status is ScanStatus.Completed or ScanStatus.CompletedWithWarnings;
 
-    /// <summary>The only currently provable "this root contributed zero bytes" condition: the whole original
-    /// scan observed literally nothing. See the call site for why a finer, per-root signal is not yet
-    /// available.</summary>
-    private static bool OriginalScanProvedZeroRootContribution(ScanResult originalResult) => originalResult.LogicalBytesObserved <= 0;
+    private static ScanRootContribution? FindContribution(ScanResult originalResult, string normalizedRequestPath) =>
+        originalResult.RootContributions.FirstOrDefault(contribution => string.Equals(contribution.CanonicalRootIdentity, normalizedRequestPath, StringComparison.Ordinal));
 
     private static bool TryCorrelateRootResults(ElevatedScanRetryRequest request, ElevatedScanRetryResponse response,
         out Dictionary<string, ElevatedRootRetryResult> resultsByPath)
