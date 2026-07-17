@@ -403,29 +403,32 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
-    public void ElevatedScannerProjectReferencesOnlyContractsAndCore()
+    public void ElevatedScannerProjectReferencesOnlyContractsCoreAndWindows()
     {
+        // Phase 7.2.6E adds exactly one more approved reference — Clyr.Windows, for the real read-only metadata
+        // enumerator — and no other.
         var project = Project("Clyr.ElevatedScanner");
         var references = project.Descendants("ProjectReference").Select(item => item.Attribute("Include")?.Value ?? string.Empty).ToArray();
-        Assert.Equal(2, references.Length);
+        Assert.Equal(3, references.Length);
         Assert.Contains(references, reference => reference.Contains("Clyr.Contracts.csproj", StringComparison.Ordinal));
         Assert.Contains(references, reference => reference.Contains("Clyr.Core.csproj", StringComparison.Ordinal));
+        Assert.Contains(references, reference => reference.Contains("Clyr.Windows.csproj", StringComparison.Ordinal));
 
         var forbiddenReferences = new[]
         {
-            "Clyr.App", "Clyr.Cli", "Clyr.Persistence", "Clyr.Rules", "Clyr.Windows", "Clyr.ElevatedHelper",
+            "Clyr.App", "Clyr.Cli", "Clyr.Persistence", "Clyr.Rules", "Clyr.ElevatedHelper",
         };
         Assert.DoesNotContain(references, reference => forbiddenReferences.Any(forbidden => reference.Contains(forbidden, StringComparison.Ordinal)));
         Assert.Empty(project.Descendants("PackageReference"));
     }
 
     [Fact]
-    public void ElevatedScannerExecutableContainsNoMutationExecutionIpcOrScanningCapability()
+    public void ElevatedScannerExecutableContainsNoMutationOrProcessLaunchCapability()
     {
-        // Phase 7.2.6D is scaffolding-and-bootstrap only: no filesystem mutation, no process launch, no shell
-        // invocation, no network access, no reference to Phase 6 cleanup/execution, and — specifically for this
-        // subphase — no reference at all to the real IPC transport or the metadata retry engine, since neither
-        // is wired up yet.
+        // Phase 7.2.6E wires the executable to the existing bounded IPC transport and read-only retry engine —
+        // referencing those two types is now expected and required, unlike the 7.2.6D scaffolding subphase.
+        // What must still never appear: filesystem mutation, process launch, shell invocation, network access,
+        // or any reference to Phase 6 cleanup/execution or the separate Phase 6 elevated helper.
         var forbidden = new[]
         {
             "Process.Start", "ProcessStartInfo", "System.Diagnostics.Process", "powershell.exe", "cmd.exe",
@@ -439,9 +442,10 @@ public sealed class RepositorySafetyTests
             "Clyr.ElevatedHelper", "ElevatedHelperLauncher", "ElevatedHelperRequestHandler",
             "NonElevatedCleanupExecutor", "CleanupPlanBuilder", "ExecutionTokenService", "CleanupCandidateFactory",
             "BuiltInExecutionActions", "MoveKnownFolder", "MoveToAnotherDrive",
-            "ElevatedScanIpcTransport", "ElevatedMetadataRetryEngine", "IFileSystemEnumerator", "NamedPipe",
         };
-        foreach (var file in Directory.EnumerateFiles(Path.Combine(Root, "src", "Clyr.ElevatedScanner"), "*.cs", SearchOption.AllDirectories))
+        var files = Directory.EnumerateFiles(Path.Combine(Root, "src", "Clyr.ElevatedScanner"), "*.cs", SearchOption.AllDirectories)
+            .Concat([Path.Combine(Root, "src", "Clyr.Core", "ElevatedScannerHost.cs")]);
+        foreach (var file in files)
         {
             var text = File.ReadAllText(file);
             foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
@@ -449,15 +453,22 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
-    public void ElevatedScannerProgramNeverReturnsSuccessInThisSubphase()
+    public void ElevatedScannerProgramMapsEveryHostOutcomeToADocumentedExitCode()
     {
         var program = File.ReadAllText(Path.Combine(Root, "src", "Clyr.ElevatedScanner", "Program.cs"));
-        // Every branch must resolve to one of the three named, nonzero placeholder exit codes; nothing in this
-        // temporary subphase may hard-code a literal 0 return.
+        // Exit code 0 is now legitimate (a response was successfully sent) but only ever through the named
+        // ExitCode.Success constant — never a bare literal "return 0".
         Assert.DoesNotContain("return 0", program, StringComparison.Ordinal);
-        Assert.Contains("ExitCode.InvalidArguments", program, StringComparison.Ordinal);
-        Assert.Contains("ExitCode.InvalidPipeName", program, StringComparison.Ordinal);
-        Assert.Contains("ExitCode.TransportNotConnected", program, StringComparison.Ordinal);
+        foreach (var code in new[]
+        {
+            "ExitCode.Success", "ExitCode.InvalidArguments", "ExitCode.InvalidPipeName",
+            "ExitCode.ConnectionOrRequestTimeout", "ExitCode.ProtocolFailure", "ExitCode.Cancelled", "ExitCode.UnexpectedHostFailure",
+        })
+            Assert.Contains(code, program, StringComparison.Ordinal);
+        // No console output of any kind — a path, request payload, nonce, manifest data, or exception detail
+        // must never reach this process's own console.
+        foreach (var token in new[] { "Console.Write", "Console.Error", "Debug.Write", "Trace.Write" })
+            Assert.DoesNotContain(token, program, StringComparison.Ordinal);
     }
 
     private static XDocument Project(string name) => XDocument.Load(Path.Combine(Root, "src", name, name + ".csproj"));

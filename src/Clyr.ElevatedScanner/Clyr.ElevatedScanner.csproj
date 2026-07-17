@@ -11,5 +11,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Clyr.Contracts\Clyr.Contracts.csproj" />
     <ProjectReference Include="..\Clyr.Core\Clyr.Core.csproj" />
+    <ProjectReference Include="..\Clyr.Windows\Clyr.Windows.csproj" />
   </ItemGroup>
 </Project>

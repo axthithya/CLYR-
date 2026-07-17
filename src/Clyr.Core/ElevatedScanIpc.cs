@@ -158,11 +158,15 @@ public static class ElevatedScanIpcTransport
     /// Server side, connection-scoped: validate the pipe name, accept exactly one connection, read exactly one
     /// bounded request frame, independently re-validate it with <c>ElevatedScanRetryValidator</c>, invoke
     /// <paramref name="handleRequest"/> only if that validation passes, write exactly one bounded response frame,
-    /// then return. There is no listening loop and no second accepted connection. Never enumerates files,
-    /// validates real drives, performs scanning, launches a process, writes a file, or uses the network — the
-    /// pipe itself is the only I/O surface this method touches.
+    /// then return that same response. There is no listening loop and no second accepted connection. Never
+    /// enumerates files, validates real drives, performs scanning, launches a process, writes a file, or uses
+    /// the network — the pipe itself is the only I/O surface this method touches. The returned response is
+    /// exactly the bytes that were sent on the wire — including a <c>ValidationRejected</c> or
+    /// <c>ProtocolRejected</c> response built here without ever invoking <paramref name="handleRequest"/> — so a
+    /// caller that needs to know what was actually sent (for example, to decide its own process exit code) does
+    /// not have to duplicate this method's validation and rejection logic to reconstruct it.
     /// </summary>
-    public static async Task RunOneShotAsync(string pipeName, ElevatedScanIpcServerTimeouts timeouts, IClock clock,
+    public static async Task<ElevatedScanRetryResponse> RunOneShotAsync(string pipeName, ElevatedScanIpcServerTimeouts timeouts, IClock clock,
         Func<ElevatedScanRetryRequest, CancellationToken, Task<ElevatedScanRetryResponse>> handleRequest,
         CancellationToken cancellationToken)
     {
@@ -207,6 +211,7 @@ public static class ElevatedScanIpcTransport
         var responseBytes = ElevatedScanIpcSerializer.SerializeResponse(response);
         await WithTimeout(timeouts.ResponseWrite,
             ct => WriteFrameAsync(server, responseBytes, ElevatedScanRetryProtocol.MaxResponseFrameBytes, ct), cancellationToken).ConfigureAwait(false);
+        return response;
     }
 
     /// <summary>
