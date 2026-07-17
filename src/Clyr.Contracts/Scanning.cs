@@ -42,7 +42,13 @@ public enum AccountingConsistency
     AccountingBasisMismatch = 16,
     /// <summary>One or more roots were inaccessible to this scan (permission denied), so any remainder figure
     /// may include storage this scan simply could not see, not storage that is somehow unaccounted-for junk.</summary>
-    PermissionLimited = 32
+    PermissionLimited = 32,
+    /// <summary>A unique-allocated-bytes figure was combined across two independent scans (for example, an
+    /// original non-elevated scan and a later elevated permission-limited-root retry) without being able to
+    /// prove no hard link spans both — the same physical content could have already been counted once by one
+    /// scan and again by the other. Any "unique" total under this flag is qualified or unavailable, never a
+    /// falsely exact global figure.</summary>
+    CrossScanIdentityReconciliationUnavailable = 64
 }
 
 /// <summary>

@@ -132,12 +132,34 @@ public enum ElevatedScanRetryOutcome
     Completed, ValidationRejected, Cancelled, TimedOut, ProtocolRejected, Failed, PartiallyCompleted
 }
 
+/// <summary>How one retried permission-limited root ended, within one <see cref="ElevatedScanRetryResponse"/>.</summary>
+public enum ElevatedRootRetryOutcome { Completed, StillInaccessible, Cancelled, Failed }
+
+/// <summary>
+/// Phase 7.2.6G1: bounded, per-root retry detail. The response's own aggregate counters
+/// (<see cref="ElevatedScanRetryResponse.RootsCompleted"/> and friends) cannot tell a caller — or a result
+/// reconciler — <em>which</em> specific root succeeded, so this exists to carry that binding explicitly.
+/// <see cref="CanonicalRootIdentity"/> is the normalized root path used to correlate this result back to the
+/// originating request's <see cref="PermissionLimitedRoot.NormalizedRootPath"/>; it is never a free-form,
+/// user-typed path. This is not an unrestricted per-file inventory — one bounded record per requested root,
+/// nothing more.
+/// </summary>
+public sealed record ElevatedRootRetryResult(
+    string CanonicalRootIdentity, string? StableRootIdentifier, ElevatedRootRetryOutcome Outcome,
+    long FilesExamined, long DirectoriesExamined, long LogicalBytesObserved, long AllocatedBytesObserved,
+    long UniqueAllocatedBytesObservedWithinRoot, long HardLinkEntriesDetected, long AllocationUnavailableCount,
+    long SparseFileCount, long CompressedFileCount);
+
 /// <summary>
 /// The one closed response shape for <see cref="ElevatedScanOperation.RetryPermissionLimitedRoots"/>. Every
 /// figure is a plain count or byte total already computed by the (future) elevated scan — never a command,
 /// script, executable path, argument, destination path, cleanup action, or Phase 6 execution token.
 /// <see cref="BoundedDiagnostics"/> holds up to <see cref="ElevatedScanRetryProtocol.MaxDiagnosticCount"/> short,
-/// safe diagnostic codes/messages — never a raw, unrestricted exception dump.
+/// safe diagnostic codes/messages — never a raw, unrestricted exception dump. <see cref="RootResults"/> is
+/// optional and defaults to empty for backward compatibility with every response already produced by
+/// <c>ElevatedMetadataRetryEngine</c> (Phase 7.2.6C) — that engine does not yet populate per-root detail;
+/// populating it is later, out-of-scope work. A caller (such as the Phase 7.2.6G1 result reconciler) that needs
+/// per-root detail and finds this empty or incomplete must treat that as insufficient data, never guess.
 /// </summary>
 public sealed record ElevatedScanRetryResponse(
     int ProtocolVersion, string Nonce, ElevatedScanRetryOutcome Outcome,
@@ -146,4 +168,7 @@ public sealed record ElevatedScanRetryResponse(
     long FilesExamined, long DirectoriesExamined, long LogicalBytesObserved,
     long AllocatedBytesObserved, long UniqueAllocatedBytesObserved,
     long HardLinkEntriesDetected, long SparseFileCount, long CompressedFileCount,
-    ImmutableArray<string> BoundedDiagnostics);
+    ImmutableArray<string> BoundedDiagnostics, ImmutableArray<ElevatedRootRetryResult> RootResults = default)
+{
+    public ImmutableArray<ElevatedRootRetryResult> RootResults { get; init; } = RootResults.IsDefault ? [] : RootResults;
+}
