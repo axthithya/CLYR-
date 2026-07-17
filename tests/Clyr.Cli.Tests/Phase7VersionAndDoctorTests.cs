@@ -4,14 +4,14 @@ using Clyr.Rules;
 
 namespace Clyr.Cli.Tests;
 
-public sealed class Phase6VersionAndDoctorTests
+public sealed class Phase7VersionAndDoctorTests
 {
     [Fact]
-    public void VersionReportsThePhase6DevelopmentVersion()
+    public void VersionReportsThePhase7DevelopmentVersion()
     {
         var output = new StringWriter();
         Assert.Equal(0, CreateApplication().Run(["--version"], output, TextWriter.Null));
-        Assert.Equal("CLYR 0.6.0-phase6", output.ToString().Trim());
+        Assert.Equal("CLYR 0.7.0-phase7", output.ToString().Trim());
     }
 
     [Fact]
@@ -30,8 +30,8 @@ public sealed class Phase6VersionAndDoctorTests
         // Must not regress to the stale Phase 5 "read-only scanner only" framing.
         Assert.DoesNotContain("read-only scanner available", text, StringComparison.OrdinalIgnoreCase);
 
-        // Must not overclaim: no broad/general cleanup support, and no Phase 7 (Developer Mode tool adapters)
-        // capability implied as present.
+        // Must not overclaim: no broad/general cleanup support, and no developer-tool execution capability implied
+        // as present — Phase 7 only added read-only detection, never execution.
         foreach (var overclaim in new[] { "general cleanup available", "cleanup any file", "Developer Mode available", "tool adapters" })
             Assert.DoesNotContain(overclaim, text, StringComparison.OrdinalIgnoreCase);
     }

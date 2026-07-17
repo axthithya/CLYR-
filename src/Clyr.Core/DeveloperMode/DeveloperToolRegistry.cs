@@ -83,6 +83,15 @@ public static class DeveloperToolRegistry
                 [new("developer.not-installed", descriptor.DisplayName + " was not found through any trusted discovery path.")], observedBytes, null);
         }
 
+        // Best-effort, supplementary identity metadata: the actual trust decision was already made by
+        // discovering this executable under its one canonical, non-user-writable location (see
+        // TrustedExecutableLocator); an absent signature here is common even for genuine Windows components
+        // (many are catalog-signed rather than embedded-signed) and is surfaced for transparency, not treated
+        // as a reason to refuse the already-trusted, narrow, read-only probe.
+        var identityDiagnostic = located.PublisherOrSignature is { Length: > 0 } publisher
+            ? new DeveloperToolDiagnostic("developer.publisher", "Executable signer: " + publisher)
+            : new DeveloperToolDiagnostic("developer.publisher-unverified", descriptor.DisplayName + "'s executable signature could not be read from this file; trust is based on its canonical installation location only.");
+
         var arguments = descriptor.Id switch
         {
             DeveloperToolId.Docker => ImmutableArray.Create("--version"),
@@ -92,7 +101,7 @@ public static class DeveloperToolRegistry
         if (arguments.IsEmpty)
         {
             return new(descriptor.Id, DeveloperToolStatus.ProbeFailed, null, located.DiscoverySource, candidates,
-                [new("developer.probe-unsupported", "No safe read-only probe is defined for this tool yet.")], observedBytes, null);
+                [new("developer.probe-unsupported", "No safe read-only probe is defined for this tool yet."), identityDiagnostic], observedBytes, null);
         }
 
         var request = new DeveloperToolProbeRequest(descriptor.Id, located.NormalizedFullPath, arguments, descriptor.ProbeTimeout, descriptor.MaxProbeOutputBytes);
@@ -101,27 +110,27 @@ public static class DeveloperToolRegistry
         catch (Exception ex) when (ex is IOException or OperationCanceledException)
         {
             return new(descriptor.Id, DeveloperToolStatus.ProbeFailed, null, located.DiscoverySource, candidates,
-                [new("developer.probe-failed", "The read-only status probe did not complete.")], observedBytes, null);
+                [new("developer.probe-failed", "The read-only status probe did not complete."), identityDiagnostic], observedBytes, null);
         }
 
         if (result.TimedOut)
         {
             return new(descriptor.Id, DeveloperToolStatus.ProbeFailed, null, located.DiscoverySource, candidates,
-                [new("developer.probe-timeout", "The read-only status probe timed out.")], observedBytes, null);
+                [new("developer.probe-timeout", "The read-only status probe timed out."), identityDiagnostic], observedBytes, null);
         }
         if (!result.Succeeded)
         {
             return new(descriptor.Id, candidates.Length > 0 ? DeveloperToolStatus.PartiallyDetected : DeveloperToolStatus.ProbeFailed,
                 null, located.DiscoverySource, candidates,
-                [new("developer.probe-nonzero-exit", "The tool reported a non-zero exit status.")], observedBytes, null);
+                [new("developer.probe-nonzero-exit", "The tool reported a non-zero exit status."), identityDiagnostic], observedBytes, null);
         }
 
         var version = ExtractVersion(result.StandardOutput);
         var status = candidates.Length > 0 ? DeveloperToolStatus.FullyDetected : DeveloperToolStatus.InstalledNoData;
-        var diagnostics = result.OutputTruncated
-            ? ImmutableArray.Create(new DeveloperToolDiagnostic("developer.probe-output-truncated", "Probe output exceeded the bounded limit and was truncated."))
-            : ImmutableArray<DeveloperToolDiagnostic>.Empty;
-        return new(descriptor.Id, status, version, located.DiscoverySource, candidates, diagnostics, observedBytes, null);
+        var diagnosticsBuilder = ImmutableArray.CreateBuilder<DeveloperToolDiagnostic>();
+        if (result.OutputTruncated) diagnosticsBuilder.Add(new("developer.probe-output-truncated", "Probe output exceeded the bounded limit and was truncated."));
+        diagnosticsBuilder.Add(identityDiagnostic);
+        return new(descriptor.Id, status, version, located.DiscoverySource, candidates, diagnosticsBuilder.ToImmutable(), observedBytes, null);
     }
 
     private static string? ExtractVersion(string? output)

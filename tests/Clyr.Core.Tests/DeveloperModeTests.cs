@@ -84,6 +84,8 @@ public sealed class TrustedExecutableLocatorTests : IDisposable
 {
     private readonly string tempDirectory = Path.Combine(Path.GetTempPath(), "clyr-tool-locator-" + Guid.NewGuid().ToString("N"));
     private readonly string? previousPath = Environment.GetEnvironmentVariable("PATH");
+    private readonly DeveloperToolDescriptor wslDescriptor = DeveloperToolRegistry.Descriptor(DeveloperToolId.Wsl);
+    private readonly DeveloperToolDescriptor dockerDescriptor = DeveloperToolRegistry.Descriptor(DeveloperToolId.Docker);
 
     public TrustedExecutableLocatorTests() => Directory.CreateDirectory(tempDirectory);
     public void Dispose()
@@ -92,38 +94,113 @@ public sealed class TrustedExecutableLocatorTests : IDisposable
         if (Directory.Exists(tempDirectory)) Directory.Delete(tempDirectory, recursive: true);
     }
 
-    [Fact]
-    public void LocatesATrustedExecutableOnPath()
+    private static void WriteFakeExe(string path)
     {
-        var exePath = Path.Combine(tempDirectory, "fixture-tool.exe");
-        File.WriteAllText(exePath, "not a real PE — only existence and extension matter for discovery");
-        Environment.SetEnvironmentVariable("PATH", tempDirectory + Path.PathSeparator + previousPath);
-        var descriptor = new DeveloperToolDescriptor(DeveloperToolId.Docker, "Fixture", ["windows"], ["fixture-tool.exe"], true, TimeSpan.FromSeconds(1), 1024, "test");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, "not a real PE — only existence, extension, and attributes matter for discovery");
+    }
 
-        var located = new TrustedExecutableLocator().Locate(descriptor);
+    [Fact]
+    public void CanonicalSystem32WslIsLocatedAndTrusted()
+    {
+        var system32 = Path.Combine(tempDirectory, "System32");
+        WriteFakeExe(Path.Combine(system32, "wsl.exe"));
+
+        var located = new TrustedExecutableLocator(system32Root: system32).Locate(wslDescriptor);
 
         Assert.NotNull(located);
-        Assert.Equal("PATH", located!.DiscoverySource);
-        Assert.Equal(Path.GetFullPath(exePath), located.NormalizedFullPath);
+        Assert.Equal("trusted-system32", located!.DiscoverySource);
+        Assert.Equal(Path.GetFullPath(Path.Combine(system32, "wsl.exe")), located.NormalizedFullPath);
     }
 
     [Fact]
-    public void RejectsAScriptEvenWithATrustedName()
+    public void CanonicalDockerDesktopExecutableIsLocatedAndTrusted()
     {
-        var scriptPath = Path.Combine(tempDirectory, "fixture-tool.cmd");
-        File.WriteAllText(scriptPath, "@echo off");
-        Environment.SetEnvironmentVariable("PATH", tempDirectory + Path.PathSeparator + previousPath);
-        var descriptor = new DeveloperToolDescriptor(DeveloperToolId.Docker, "Fixture", ["windows"], ["fixture-tool.cmd"], true, TimeSpan.FromSeconds(1), 1024, "test");
+        var programFiles = Path.Combine(tempDirectory, "ProgramFiles");
+        var dockerExe = Path.Combine(programFiles, "Docker", "Docker", "resources", "bin", "docker.exe");
+        WriteFakeExe(dockerExe);
 
-        Assert.Null(new TrustedExecutableLocator().Locate(descriptor));
+        var located = new TrustedExecutableLocator(programFilesRoot: programFiles).Locate(dockerDescriptor);
+
+        Assert.NotNull(located);
+        Assert.Equal("trusted-program-files:Docker", located!.DiscoverySource);
+        Assert.Equal(Path.GetFullPath(dockerExe), located.NormalizedFullPath);
     }
 
     [Fact]
-    public void ReturnsNullWhenNothingIsFound()
+    public void PathShadowedDockerExecutableIsNeverConsulted()
     {
-        Environment.SetEnvironmentVariable("PATH", tempDirectory);
-        var descriptor = new DeveloperToolDescriptor(DeveloperToolId.Docker, "Fixture", ["windows"], ["does-not-exist-anywhere.exe"], true, TimeSpan.FromSeconds(1), 1024, "test");
-        Assert.Null(new TrustedExecutableLocator().Locate(descriptor));
+        // A rogue docker.exe earlier on PATH must never be preferred over — or even considered alongside —
+        // the real one, because the locator no longer reads PATH at all for probe-capable tools.
+        var shadowDirectory = Path.Combine(tempDirectory, "shadow-on-path");
+        WriteFakeExe(Path.Combine(shadowDirectory, "docker.exe"));
+        Environment.SetEnvironmentVariable("PATH", shadowDirectory + Path.PathSeparator + previousPath);
+
+        // No real candidate exists under the trusted Program Files root in this scenario.
+        var emptyProgramFiles = Path.Combine(tempDirectory, "empty-program-files");
+        Directory.CreateDirectory(emptyProgramFiles);
+
+        var located = new TrustedExecutableLocator(programFilesRoot: emptyProgramFiles).Locate(dockerDescriptor);
+
+        Assert.Null(located);
+    }
+
+    [Fact]
+    public void DuplicateDockerCandidatesAreTreatedAsAmbiguousNotSilentlyResolved()
+    {
+        var programFiles = Path.Combine(tempDirectory, "ProgramFiles");
+        WriteFakeExe(Path.Combine(programFiles, "Docker", "Docker", "resources", "bin", "docker.exe"));
+        WriteFakeExe(Path.Combine(programFiles, "Docker", "Legacy", "docker.exe"));
+
+        var located = new TrustedExecutableLocator(programFilesRoot: programFiles).Locate(dockerDescriptor);
+
+        Assert.Null(located);
+    }
+
+    [Fact]
+    public void FakeWslOutsideTheCanonicalSystem32RootIsNeverTrusted()
+    {
+        var realSystem32 = Path.Combine(tempDirectory, "System32");
+        Directory.CreateDirectory(realSystem32); // no wsl.exe here — the real trusted root is empty
+        var impostorDirectory = Path.Combine(tempDirectory, "not-system32");
+        WriteFakeExe(Path.Combine(impostorDirectory, "wsl.exe"));
+        Environment.SetEnvironmentVariable("PATH", impostorDirectory + Path.PathSeparator + previousPath);
+
+        var located = new TrustedExecutableLocator(system32Root: realSystem32).Locate(wslDescriptor);
+
+        Assert.Null(located);
+    }
+
+    [Fact]
+    public void ExecutableInAProjectDirectoryIsNeverTrustedEvenWhenNamedCorrectly()
+    {
+        var projectDirectory = Path.Combine(tempDirectory, "src", "some-project");
+        WriteFakeExe(Path.Combine(projectDirectory, "docker.exe"));
+        var emptyProgramFiles = Path.Combine(tempDirectory, "empty-program-files");
+        Directory.CreateDirectory(emptyProgramFiles);
+
+        // A project directory is never a trusted root, whether or not it happens to be on PATH.
+        Environment.SetEnvironmentVariable("PATH", projectDirectory + Path.PathSeparator + previousPath);
+        var located = new TrustedExecutableLocator(programFilesRoot: emptyProgramFiles).Locate(dockerDescriptor);
+
+        Assert.Null(located);
+    }
+
+    [Fact]
+    public void ReparsePointExecutableAtTheCanonicalLocationIsRejected()
+    {
+        var system32 = Path.Combine(tempDirectory, "System32");
+        Directory.CreateDirectory(system32);
+        var target = Path.Combine(tempDirectory, "elsewhere-target.exe");
+        WriteFakeExe(target);
+        var linkPath = Path.Combine(system32, "wsl.exe");
+        try { File.CreateSymbolicLink(linkPath, target); }
+        catch (IOException) { return; } // symlink creation requires Developer Mode/elevation on some hosts; nothing to prove here.
+        catch (UnauthorizedAccessException) { return; }
+
+        var located = new TrustedExecutableLocator(system32Root: system32).Locate(wslDescriptor);
+
+        Assert.Null(located);
     }
 
     [Fact]
@@ -131,6 +208,41 @@ public sealed class TrustedExecutableLocatorTests : IDisposable
     {
         var descriptor = new DeveloperToolDescriptor(DeveloperToolId.NodeNpm, "Fixture", ["windows"], [], false, TimeSpan.Zero, 0, "test");
         Assert.Null(new TrustedExecutableLocator().Locate(descriptor));
+    }
+}
+
+public sealed class TrustedExecutableValidationTests
+{
+    [Fact]
+    public void RejectsARelativePathBeforeEverTouchingTheFileSystem()
+    {
+        // Path.IsPathRooted is checked before File.Exists, so a relative candidate is rejected deterministically
+        // regardless of what the current process's working directory happens to contain — no CWD mutation
+        // needed (and none performed, since this test project's other tests run in parallel).
+        Assert.False(TrustedExecutableValidation.IsTrustedExecutableFile("docker.exe"));
+        Assert.False(TrustedExecutableValidation.IsTrustedExecutableFile(@"Docker\docker.exe"));
+    }
+
+    [Fact]
+    public void RejectsAScriptEvenWithAnExeLookingNameSwap()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "clyr-validation-" + Guid.NewGuid().ToString("N") + ".cmd");
+        File.WriteAllText(path, "@echo off");
+        try { Assert.False(TrustedExecutableValidation.IsTrustedExecutableFile(path)); }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void RejectsAPathThatDoesNotExist() =>
+        Assert.False(TrustedExecutableValidation.IsTrustedExecutableFile(@"C:\does\not\exist\docker.exe"));
+
+    [Fact]
+    public void AcceptsARealAbsoluteNonReparseExeFile()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "clyr-validation-" + Guid.NewGuid().ToString("N") + ".exe");
+        File.WriteAllText(path, "fixture");
+        try { Assert.True(TrustedExecutableValidation.IsTrustedExecutableFile(path)); }
+        finally { File.Delete(path); }
     }
 }
 

@@ -45,7 +45,7 @@ public partial class App : Application
             ? configuredDemoDataOnly
             : false;
         var applicationConfiguration = new ApplicationConfiguration(
-            configurationRoot["Application:Phase"] ?? "Phase 6",
+            configurationRoot["Application:Phase"] ?? "Phase 7",
             demoDataOnly);
 
         var services = new ServiceCollection();

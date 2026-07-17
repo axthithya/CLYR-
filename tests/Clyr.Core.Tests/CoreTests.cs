@@ -42,11 +42,11 @@ public sealed class CoreTests
     [Fact]
     public void ApplicationVersionReadsTheSingleAuthoritativeVersionFromAssemblyMetadata()
     {
-        // Directory.Build.props sets <Version>0.6.0-phase6</Version> for every project in the repository,
+        // Directory.Build.props sets <Version>0.7.0-phase7</Version> for every project in the repository,
         // including this test assembly, so reading it back here proves the same central value CLI and WinUI
         // read at their own entry points — there is no separate literal to drift out of sync.
         var version = ApplicationVersion.Current;
-        Assert.Equal("0.6.0-phase6", version.Value);
+        Assert.Equal("0.7.0-phase7", version.Value);
     }
 
     private sealed class FakeEnvironment : IEnvironmentInfo

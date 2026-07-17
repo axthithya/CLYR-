@@ -25,7 +25,7 @@ public sealed class RepositorySafetyTests
     {
         var centralProps = XDocument.Load(Path.Combine(Root, "Directory.Build.props"));
         var version = centralProps.Descendants("Version").Select(item => item.Value).SingleOrDefault();
-        Assert.Equal("0.6.0-phase6", version);
+        Assert.Equal("0.7.0-phase7", version);
 
         // No individual project may declare its own Version/AssemblyVersion/FileVersion/InformationalVersion —
         // Directory.Build.props is the only place this is ever set.
@@ -38,15 +38,27 @@ public sealed class RepositorySafetyTests
         }
 
         // Program.cs (CLI) and App.xaml.cs (WinUI) must read the shared ApplicationVersion.Current rather than
-        // duplicating the literal version string themselves.
+        // duplicating the literal version string themselves. The regex guards every past and present phase
+        // literal ("0.5.0", "0.6.0-phase6", "0.7.0-phase7", ...) generically, so this does not need editing
+        // again the next time the version bumps.
         var cliProgram = File.ReadAllText(Path.Combine(Root, "src", "Clyr.Cli", "Program.cs"));
         var appXamlCs = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "App.xaml.cs"));
+        // Deliberately narrow to the app's own "N.N.N-phaseN" scheme (not a bare semver like a rule-pack
+        // version "1.0.0", which legitimately appears as an unrelated fallback literal in this same file).
+        var versionLiteral = new Regex("\"\\d+\\.\\d+\\.\\d+-phase\\d+\"", RegexOptions.None, TimeSpan.FromSeconds(1));
         foreach (var source in new[] { cliProgram, appXamlCs })
         {
             Assert.Contains("ApplicationVersion.Current", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("0.5.0", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("\"0.6.0", source, StringComparison.Ordinal);
+            Assert.False(versionLiteral.IsMatch(source), "A hard-coded version literal was found outside Directory.Build.props.");
         }
+
+        // AboutViewModel (the WinUI About page's source of truth) must read the injected IApplicationVersion
+        // instance rather than a literal — App.xaml.cs registers that instance as ApplicationVersion.Current, so
+        // this, together with the CLI check above, proves CLI and WinUI display exactly the same value.
+        var appSessionViewModel = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "ViewModels", "AppSessionViewModel.cs"));
+        Assert.Contains("AboutViewModel(AppSessionViewModel session, IApplicationVersion version", appSessionViewModel, StringComparison.Ordinal);
+        Assert.Contains("public string Version { get; } = version.Value;", appSessionViewModel, StringComparison.Ordinal);
+        Assert.False(versionLiteral.IsMatch(appSessionViewModel), "A hard-coded version literal was found in AppSessionViewModel.cs.");
     }
 
     [Fact]
