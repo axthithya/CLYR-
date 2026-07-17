@@ -160,3 +160,13 @@ The immutable StorageSnapshot, SnapshotDrive, SnapshotCategory, SnapshotFinding,
 ## Phase 5 immutable plan model
 
 CleanupPlan is immutable and contains schema/ID/version, PlanBinding, PlanExpiry, sorted CleanupPlanItem values, EstimatedImpact, risk, confidence, warnings, ExecutionNotAvailableInPhase5, and a canonical SHA-256 digest. ActionDefinition, CleanupTarget, CleanupConsequence, PlanDiagnostic, ProtectedPathViolation, PlanValidationResult, and DryRunResult are closed typed contracts. Plans are bounded process-memory records; changing selection creates a new ID and digest.
+## Phase 6 execution and receipt model
+
+`ExecutionToken`, `ExecutionRequest`, `ExecutionItemResult`, `ExecutionSummary`, and `ExecutionReceipt`
+(`Clyr.Contracts`) are the Phase 6 typed contracts. `ExecutionToken` is in-memory-only and never persisted.
+`ExecutionReceipt` is the one Phase 6 record that is persisted — in CLYR-owned SQLite (schema v3,
+`ExecutionReceipt` table, additive over the Phase 4 snapshot schema) via `SqliteExecutionReceiptStore`. A row in
+a terminal state is immutable; `SaveAsync` refuses to overwrite one. No raw file paths, and no reusable
+execution authority (tokens, nonces), are ever persisted. Helper IPC contracts (`HelperRequest`/`HelperResponse`,
+`HelperTargetManifestItem`) are closed sealed records that exist only for the duration of one IPC exchange and
+are never persisted either.

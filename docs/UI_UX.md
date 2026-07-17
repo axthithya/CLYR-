@@ -154,3 +154,17 @@ These are defined per-theme (Default, Light, HighContrast) in `App.xaml` and ver
 ## Phase 5 Review Plan experience
 
 Results links to Review Plan. The tenth page uses the same ResponsivePageHost, design tokens, PageHeader, scrolling, and navigation architecture as the committed Phase 4.1 pages. It selects nothing by default, disables protected/manual/unsupported/insufficient choices, explains every reason, and keeps the dry-run banner visible. Preview shows plan ID, digest, creation/expiry, potential logical bytes, unavailable physical bytes, risk, confidence, validation, consequences, rollback, and ExecutionNotAvailableInPhase5. Final controls are Save dry-run report, Discard plan, and Done; execution controls do not exist.
+## Phase 6 execution experience
+
+Review Plan gains an execution panel that appears only when the current plan contains an item eligible for
+Phase 6 execution. Nothing is preselected. "Run selected cleanup" stays disabled until at least one executable
+item is checked. Confirmation is a dedicated dialog whose primary button stays disabled until the "I understand
+that selected cache or temporary data may be permanently removed" checkbox is checked; the dialog states the
+action may be irreversible and that actual free-space change may differ from the estimate. During a run the
+page shows live state text, removed/skipped/failed counters, a redacted current-target line, and an always-
+available Cancel control. The finished state maps every `ExecutionState` (Completed, PartiallyCompleted,
+Cancelled, Failed, Interrupted, Rejected, Unknown outcome) to plain text, shows removed logical bytes separately
+from observed free-space change, and offers View details, Export receipt, Run a new analysis (navigates to
+Scan; never auto-rescans), and Done. A persistent receipt-history list — view, export, and delete only CLYR's
+own local rows — sits below. No control names arbitrary paths, drives, or tools; Developer Mode remains a
+static preview with no interactive controls at all.

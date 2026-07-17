@@ -12,6 +12,8 @@ $env:MSBUILDDISABLENODEREUSE = '1'
 $previousSkipGit = $env:CLYR_SKIP_GIT_CHECKS
 if ($SkipGitChecks) { $env:CLYR_SKIP_GIT_CHECKS = '1' }
 
+. (Join-Path $PSScriptRoot 'lib\RepoScan.ps1')
+
 function Invoke-Gate([string]$name, [string[]]$arguments) {
     Write-Host "==> $name"
     & $dotnet @arguments
@@ -57,20 +59,20 @@ try {
     # launch/elevation only inside ElevatedHelperLauncher.cs and the Clyr.ElevatedHelper project; both exceptions
     # are enforced precisely by Clyr.Safety.Tests.RepositorySafetyTests, which is the authoritative check. This
     # scan is excluded from those two locations so it continues to guard everything else in the repository.
-    $forbiddenSource = rg -n 'File\.Delete|File\.Move|Directory\.Delete|RecycleOption|Process\.Start|System\.Diagnostics\.Process|runas|powershell\.exe|cmd\.exe|ShellExecute|SHFileOperation' src --glob '*.cs' `
-        --glob '!src/Clyr.Core/Execution/**' --glob '!src/Clyr.ElevatedHelper/**'
-    if ($LASTEXITCODE -eq 0) { throw ('A forbidden cleanup/process/elevation primitive was found: ' + ($forbiddenSource -join '; ')) }
+    $forbiddenSourceResult = Find-RepositoryPattern -Pattern 'File\.Delete|File\.Move|Directory\.Delete|RecycleOption|Process\.Start|System\.Diagnostics\.Process|runas|powershell\.exe|cmd\.exe|ShellExecute|SHFileOperation' `
+        -Paths @('src') -Include '*.cs' -ExcludeDirs @('src/Clyr.Core/Execution', 'src/Clyr.ElevatedHelper')
+    if ($forbiddenSourceResult.Found) { throw ('A forbidden cleanup/process/elevation primitive was found: ' + ($forbiddenSourceResult.Matches -join '; ')) }
     # 'plan execute' is a legitimate Phase 6 CLI command narrowly implemented in these three reviewed files.
-    $forbiddenCli = rg -n 'plan execute|plan apply|clyr clean|clyr prune' src/Clyr.Cli --glob '*.cs' `
-        --glob '!**/PlanCliCommands.cs' --glob '!**/ExecutionCliCommands.cs' --glob '!**/CliApplication.cs'
-    if ($LASTEXITCODE -eq 0) { throw ('A forbidden cleanup CLI command was found: ' + ($forbiddenCli -join '; ')) }
-    $secrets = rg -n '(AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{30,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----)' src tests scripts docs .github rules --glob '!**/bin/**' --glob '!**/obj/**'
-    if ($LASTEXITCODE -eq 0) { throw ('A credential-like value was found: ' + ($secrets -join '; ')) }
+    $forbiddenCliResult = Find-RepositoryPattern -Pattern 'plan execute|plan apply|clyr clean|clyr prune' -Paths @('src/Clyr.Cli') -Include '*.cs' `
+        -ExcludeDirs @('src/Clyr.Cli/PlanCliCommands.cs', 'src/Clyr.Cli/ExecutionCliCommands.cs', 'src/Clyr.Cli/CliApplication.cs')
+    if ($forbiddenCliResult.Found) { throw ('A forbidden cleanup CLI command was found: ' + ($forbiddenCliResult.Matches -join '; ')) }
+    $secretsResult = Find-RepositoryPattern -Pattern '(AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{30,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----)' -Paths @('src', 'tests', 'scripts', 'docs', '.github', 'rules')
+    if ($secretsResult.Found) { throw ('A credential-like value was found: ' + ($secretsResult.Matches -join '; ')) }
     $userProfile = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
-    $machinePaths = rg -n -F $userProfile src tests scripts docs .github rules README.md PHASE_STATUS.md ROADMAP.md CHANGELOG.md
-    if ($LASTEXITCODE -eq 0) { throw ('A machine-specific user path was found: ' + ($machinePaths -join '; ')) }
-    $trailing = rg -n '[ \t]+\r?$' src tests scripts docs .github rules README.md PHASE_STATUS.md ROADMAP.md CHANGELOG.md --glob '!**/bin/**' --glob '!**/obj/**'
-    if ($LASTEXITCODE -eq 0) { throw ('Trailing whitespace was found: ' + ($trailing -join '; ')) }
+    $machinePathsResult = Find-RepositoryPattern -Pattern $userProfile -Literal -Paths @('src', 'tests', 'scripts', 'docs', '.github', 'rules', 'README.md', 'PHASE_STATUS.md', 'ROADMAP.md', 'CHANGELOG.md')
+    if ($machinePathsResult.Found) { throw ('A machine-specific user path was found: ' + ($machinePathsResult.Matches -join '; ')) }
+    $trailingResult = Find-RepositoryPattern -Pattern '[ \t]+\r?$' -Paths @('src', 'tests', 'scripts', 'docs', '.github', 'rules', 'README.md', 'PHASE_STATUS.md', 'ROADMAP.md', 'CHANGELOG.md')
+    if ($trailingResult.Found) { throw ('Trailing whitespace was found: ' + ($trailingResult.Matches -join '; ')) }
 
     if (-not $SkipUiAutomation) {
         & powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify-responsive-layout.ps1

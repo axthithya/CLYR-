@@ -202,3 +202,14 @@ Arbitrary executable plugins, runtime code download, generic scripts, and rule-s
 ## Phase 5 cleanup-planning boundary
 
 Phase 5 adds a Core-only candidate factory, immutable plan builder, canonical serializer, integrity validator, bounded process-memory store, privacy-safe report exporter, and an executor whose only production result is ExecutionNotAvailableInPhase5. WinUI and CLI consume these contracts but receive no filesystem-mutation, process-launch, elevation, helper, registry, permission, or Windows-settings adapter. Plans bind source scan/snapshot, drive identity, rule pack, compatibility version, privacy mode, selection, expiry, and observed target metadata; they never grant execution authority.
+## Phase 6 execution boundary
+
+Phase 6 adds a narrow execution surface entirely within `Clyr.Core.Execution`: a non-elevated executor, a
+shared per-target TOCTOU revalidator (`ExecutionTargetProcessor`) used by both the app process and the
+elevated helper, an in-memory one-time token service, and typed IPC contracts. A separate executable project,
+`Clyr.ElevatedHelper` (`requireAdministrator` manifest, `asInvoker` main app unchanged), references only
+`Clyr.Contracts` and `Clyr.Core` — no WinUI, no App SDK. `Clyr.Persistence` gains `SqliteExecutionReceiptStore`
+(schema v3). WinUI and CLI both call the same `NonElevatedCleanupExecutor`; there is no second, less-validated
+execution path. Deletion (`File.Delete`) exists only inside `src/Clyr.Core/Execution/`; process launch
+(`Process.Start`) exists only inside `ElevatedHelperLauncher.cs`; both boundaries are enforced by
+`Clyr.Safety.Tests.RepositorySafetyTests`. See `docs/PHASE6_EXECUTION.md` and ADR-0002/0012/0013/0014.

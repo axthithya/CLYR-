@@ -140,3 +140,13 @@ An export implementation is acceptable only when it is deterministic, offline, u
 ## Phase 5 cleanup-plan dry-run report
 
 rules/schemas/cleanup-plan-report.schema.json defines the support-safe report. It contains schema/application/plan IDs, digest, creation/expiry, source snapshot, privacy-safe drive fingerprint, rule-pack version, candidates, eligibility/risk/confidence, logical bytes/item count/uncertainty, consequences, rollback, protected validation, stale status, execution availability, privacy mode, and limitations. Raw paths, user names, and file contents are explicitly absent. Valid and hostile fixtures live under rules/examples.
+## Phase 6 execution receipt export
+
+Execution receipts (`ExecutionReceipt`) export as indented JSON via the CLI (`clyr execution export <id>
+--output <path>`) and the WinUI receipt-history "View"/"Export" actions, using the same privacy posture as the
+Phase 5 dry-run report: schema version, execution/plan IDs and plan digest, application/rule-pack version, a
+SHA-256 drive-identity fingerprint (never the raw identity), timestamps, final state, removed/skipped/failed
+counts and logical-byte totals kept separate from each other, best-effort drive free-space before/after (each
+independently nullable), warnings, limitations, and the receipt's own SHA-256 integrity digest. No raw file
+paths are ever included. Wording is "removed logical bytes" and "observed free-space change" as two separate
+numbers — never a single "recovered N GB" claim.

@@ -7,6 +7,8 @@ $dotnet = Join-Path $root '.tools\dotnet\dotnet.exe'
 if (-not (Test-Path -LiteralPath $dotnet)) { $dotnet = 'dotnet' }
 $env:MSBUILDDISABLENODEREUSE = '1'
 
+. (Join-Path $PSScriptRoot 'lib\RepoScan.ps1')
+
 function Invoke-Gate([string]$name, [string[]]$arguments) {
     Write-Host "==> $name"
     & $dotnet @arguments
@@ -36,8 +38,9 @@ try {
         if ($content.Contains('MaxWidth=')) { throw "$($page)Page defines an independent maximum content width." }
     }
 
-    [string[]]$scanControls = @(rg -l 'Start Analysis|Cancel Analysis' src/Clyr.App/Pages --glob '*.xaml')
-    if ($LASTEXITCODE -ne 0 -or $scanControls.Count -ne 1 -or -not $scanControls[0].EndsWith('ScanPage.xaml', [StringComparison]::OrdinalIgnoreCase)) {
+    $scanControlResult = Find-RepositoryPattern -Pattern 'Start Analysis|Cancel Analysis' -Paths @('src/Clyr.App/Pages') -Include '*.xaml'
+    [string[]]$scanControlFiles = @($scanControlResult.Matches | ForEach-Object { ($_ -split ':', 2)[0] } | Sort-Object -Unique)
+    if ($scanControlFiles.Count -ne 1 -or -not $scanControlFiles[0].EndsWith('ScanPage.xaml', [StringComparison]::OrdinalIgnoreCase)) {
         throw 'Full scan controls must exist only on ScanPage.xaml.'
     }
 
@@ -46,9 +49,9 @@ try {
 
     # Phase 6 (approved after Phase 4.1) narrowly permits process launch/elevation inside ElevatedHelperLauncher.cs
     # and the Clyr.ElevatedHelper project only; Clyr.Safety.Tests.RepositorySafetyTests enforces this precisely.
-    $forbidden = rg -n 'DeleteFile|MoveFile|Process\.Start|runas|FileMode\.Open.*FileAccess\.Write' src --glob '*.cs' `
-        --glob '!src/Clyr.Core/Execution/**' --glob '!src/Clyr.ElevatedHelper/**'
-    if ($LASTEXITCODE -eq 0) { throw "A forbidden mutation/elevation primitive was found:`n$forbidden" }
+    $forbiddenResult = Find-RepositoryPattern -Pattern 'DeleteFile|MoveFile|Process\.Start|runas|FileMode\.Open.*FileAccess\.Write' `
+        -Paths @('src') -Include '*.cs' -ExcludeDirs @('src/Clyr.Core/Execution', 'src/Clyr.ElevatedHelper')
+    if ($forbiddenResult.Found) { throw "A forbidden mutation/elevation primitive was found:`n$($forbiddenResult.Matches -join "`n")" }
 
     if (-not $SkipUiAutomation) {
         & powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-winui.ps1

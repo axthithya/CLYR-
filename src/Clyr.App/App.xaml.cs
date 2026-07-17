@@ -77,7 +77,7 @@ public partial class App : Application
         services.AddSingleton(_ => new ExecutionSessionContext(new ExecutionSessionId(Guid.NewGuid())));
         services.AddSingleton(uiFixture ? ExecutionFixtureRoot.CreateSeeded() : new ExecutionFixtureRoot(null));
         services.AddSingleton<IExecutionReceiptStore>(_ => uiFixture
-            ? null!
+            ? new UiFixtureExecutionReceiptStore()
             : new SqliteExecutionReceiptStore(Path.Combine(dataDirectory, "history.db")));
         services.AddSingleton(_ => BuiltInRulePackLoader.Load(Path.Combine(AppContext.BaseDirectory, "rules", "builtin")));
         if (!uiFixture) services.AddSingleton<IScanService>(provider =>

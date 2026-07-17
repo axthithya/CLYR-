@@ -173,3 +173,21 @@ No fabricated test count, benchmark, screenshot, support version, package behavi
 Use the repository-pinned .tools/dotnet/dotnet.exe and run scripts/verify-phase5.ps1. The gate includes Phase 0–4.1 regressions, warning-free Release build, the complete test suite, formatting, focused planning/security/CLI/rule/schema/repository tests, dependency vulnerability audit, static credential/machine-path/forbidden-primitive/whitespace checks, and fixture-only ten-page UI verification. Use -SkipGitChecks only for an intentionally uncommitted review tree; it does not skip non-Git checks.
 
 Phase 5 has no cleanup operator procedure, elevation procedure, helper deployment, supported command adapter, or recovery journal because execution does not exist.
+## Phase 6 operator verification
+
+Run `scripts/verify-phase6.ps1`. It chains the complete Phase 0–5 verifier, the full solution build/test/format,
+Phase 6–specific test filters, repository safety scans scoped to the reviewed execution boundary, a dependency
+vulnerability audit, and `git diff --check`. Pass `-SkipUiAutomation` to skip the rendered WinUI pass (requires
+an interactive desktop) and `-SkipInteractiveUac` to skip the real UAC elevation prompt (also requires an
+interactive desktop with a person present to approve it) — the script prints exactly which of these were run.
+None of the repository's safety scans depend on an externally installed tool: `scripts/lib/RepoScan.ps1` prefers
+a repository-pinned or PATH ripgrep when available and transparently falls back to a pure PowerShell
+`Select-String` scan otherwise, so the full verifier runs from a stock PowerShell session.
+
+To run the real fixture-only UAC smoke test specifically, run `scripts/run-phase6-uac-smoke.ps1` from an
+interactive desktop session and approve the UAC prompt it triggers; it creates and cleans up its own synthetic
+fixture data and never touches a real user, system, browser, Docker, WSL, package-cache, or project path.
+
+Phase 6's only operator-facing execution surface is `clyr plan execute`/`clyr execution *` (CLI) and the Review
+Plan execution panel (WinUI); there is no elevation procedure to document beyond the smoke test above, since the
+one enabled action does not require elevation.

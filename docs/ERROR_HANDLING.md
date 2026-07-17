@@ -180,3 +180,14 @@ CLI JSON must carry the detailed state and version; callers must not infer “no
 ## Phase 5 planning failures
 
 Planning distinguishes invalid selection, missing evidence, protected policy, unsupported source, integrity mismatch, stale binding, expired plan, changed target metadata, unsafe path, report-schema failure, and unavailable execution. Validation is fail-closed and returns typed diagnostics; it never repairs a plan, executes a fallback command, or mutates a target.
+## Phase 6 execution failures and recovery
+
+Execution distinguishes rejected authority (unknown/expired/consumed token, digest mismatch, wrong
+session/user/drive), per-target skips (changed, locked, protected, outside root, reparse, cloud placeholder,
+access denied, not found), and genuine failures. Skips are never forced and never reported as removed. A
+process-level crash mid-execution today leaves no persisted row at all (see `docs/PHASE6_EXECUTION.md`'s
+"What remains") rather than a reconcilable one — `ExecutionState.Interrupted`/`UnknownOutcome` and
+`ReconcileInterruptedAsync` exist and are unit-tested for when a "started" placeholder row is added, but nothing
+currently writes one. A cancelled or partially completed run always produces an honest receipt reflecting only
+what was confirmed to happen; there is no automatic retry, and a new attempt always requires a new plan and a
+new one-time token.

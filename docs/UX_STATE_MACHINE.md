@@ -109,3 +109,12 @@ The safe UI fixture follows the same view-model transitions with fake drive, sca
 ## Phase 5 planning states
 
 Results transitions to ReviewPlanEmpty or CandidateSelection. CandidateSelection toggles DryRunEligible findings only. Preview creates a new immutable PlanPreview; changed selection requires a new plan ID and digest. PlanPreview may prepare a privacy-safe report, discard the process-local record, return to Results, or become Expired, Stale, or Invalid after validation. There is no execution transition.
+## Phase 6 execution states
+
+PlanPreview gains an execution branch, reachable only when the plan contains an item that independently passes
+`ExecutionEligibilityValidator`. Selecting executable items is a distinct, always-empty-by-default state from
+dry-run candidate selection. Confirming (via the gated dialog) transitions to Running, which reports live
+counters and accepts Cancelling. Running resolves to exactly one terminal state — Completed, PartiallyCompleted,
+Cancelled, Failed, Interrupted, or Rejected — never a generic "done." A terminal state is immutable in the
+receipt; returning to Review Plan and starting a new selection always creates a new plan and a new one-time
+token rather than mutating the finished record. There is no automatic transition back into scanning.

@@ -122,3 +122,21 @@ Gates cover migration/idempotency, transactional normalized round-trip, lifecycl
 ## Phase 5 verification matrix
 
 Core tests cover eligibility precedence, immutable ordering, digest recomputation/mutation, selection bounds, overflow, expiry, stale drive/rule/category/app/privacy bindings, target metadata, dry-run uncertainty, memory retention, and disabled execution. Security theories cover traversal, sibling prefixes, UNC/device paths, alternate streams, reparses, protected paths, 8.3 ambiguity, and environment escapes. Rule/schema, CLI, repository-safety, and fixture-only UI tests cover plan commands, absent mutation commands, no preselection, preview/export/discard, and ten-page responsive bounds.
+## Phase 6 verification matrix
+
+Core tests (`ExecutionTests.cs`, `HelperIpcTests.cs`) cover the happy path, token single-use/expiry/mismatch
+rejection, tampered plan digest, wrong session/user, target-outside-root, plan-time reparse claims,
+changed-since-plan targets, missing targets, pre-start cancellation, non-built-in items never executing, a real
+named-pipe round trip, and a real connection timeout — all against synthetic temporary fixture directories.
+Persistence tests (`ExecutionReceiptStoreTests.cs`) cover round-trip accounting, terminal-state immutability,
+list ordering, discard, and interrupted-row reconciliation. CLI tests (`Phase6ExecutionCliTests.cs`) exercise
+`plan create` → `plan execute` → `execution list` end to end, including a real deletion of a synthetic fixture
+file under CLYR's own trusted root, plus wrong-digest and plan-replay rejection. Repository safety tests
+(`RepositorySafetyTests.cs`) confine `File.Delete`/`Directory.Delete` to `src/Clyr.Core/Execution/**` and
+`Process.Start` to `ElevatedHelperLauncher.cs`, and prove `requireAdministrator` appears only in the helper's
+own manifest. UI architecture tests (`UiArchitectureTests.cs`) prove no default selection, the required
+consent/accountability vocabulary, absence of one-click phrasing, and that Developer Mode has no interactive
+controls. `scripts/verify-winui.ps1`'s execution steps were run against a real rendered window in this session
+(not merely parsed) and passed. The one test this repository cannot run in most environments is a real,
+interactive fixture-only UAC elevation — `scripts/run-phase6-uac-smoke.ps1` requires a person at the desktop to
+approve the prompt; see `docs/PHASE6_EXECUTION.md` for its current status.

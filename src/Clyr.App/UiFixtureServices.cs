@@ -1,5 +1,6 @@
 using Clyr.Contracts;
 using Clyr.Core;
+using Clyr.Persistence;
 
 namespace Clyr.App;
 
@@ -28,6 +29,39 @@ public sealed record ExecutionFixtureRoot(string? Path)
         }
         return new(path);
     }
+}
+
+/// <summary>
+/// In-memory-only execution receipt store for CLYR_UI_FIXTURE=1 launches. It exists so UI Automation can
+/// exercise the receipt history/view/export/delete flow deterministically without ever opening the real
+/// CLYR-owned SQLite history database — nothing here is written to disk.
+/// </summary>
+internal sealed class UiFixtureExecutionReceiptStore : IExecutionReceiptStore
+{
+    private readonly Dictionary<ExecutionId, ExecutionReceipt> receipts = [];
+
+    public Task SaveAsync(ExecutionReceipt receipt, CancellationToken cancellationToken = default)
+    {
+        receipts[receipt.ExecutionId] = receipt;
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<ExecutionReceiptSummary>> ListAsync(int limit = 50, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ExecutionReceiptSummary>>(receipts.Values
+            .OrderByDescending(receipt => receipt.StartedAtUtc)
+            .Take(limit)
+            .Select(receipt => new ExecutionReceiptSummary(receipt.ExecutionId, receipt.SourcePlanId, receipt.StartedAtUtc,
+                receipt.CompletedAtUtc, receipt.FinalState, receipt.Summary.RemovedCount, receipt.Summary.SkippedCount,
+                receipt.Summary.FailedCount, receipt.Summary.RemovedLogicalBytes))
+            .ToArray());
+
+    public Task<ExecutionReceipt?> GetAsync(ExecutionId id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(receipts.TryGetValue(id, out var receipt) ? receipt : null);
+
+    public Task<bool> DiscardAsync(ExecutionId id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(receipts.Remove(id));
+
+    public Task<int> ReconcileInterruptedAsync(TimeSpan staleAfter, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult(0);
 }
 
 internal sealed class UiFixtureDriveDiscovery : IDriveDiscovery

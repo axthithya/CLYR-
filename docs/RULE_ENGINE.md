@@ -126,3 +126,12 @@ These checks are planned gates; Phase 0 validates the static schemas and example
 ## Phase 5 optional action descriptors
 
 Built-in detection remains valid when action metadata is absent. An optional descriptor is accepted only with schema version 1, type report-only or review-files, a trusted known-folder root identity, and an informational non-protected built-in rule protected by manifest integrity. Invalid descriptors reject the pack atomically. External rules remain inactive; scripts, executable paths, shell text, raw argument arrays, arbitrary roots, and remote downloads remain prohibited.
+## Phase 6 built-in execution allowlist
+
+Execution eligibility is decided independently of the rule engine's detection-only classification. Exactly one
+built-in action, `builtin.clyr-owned-temp-artifacts` (`Clyr.Core.Execution.BuiltInExecutionActions`), is defined
+as a fixed, non-configurable, non-rule-pack-loaded registry entry — it cannot be added to, overridden, or
+extended by any rule pack, built-in or external. `ClyrOwnedTempArtifactScanner` is a dedicated scanner over
+CLYR's own trusted root (`%LocalAppData%\Clyr\Temp`), separate from `Clyr.Rules`' classification pipeline;
+nothing a rule pack declares can redirect it to a different root or relax its 7-day age / 512-item / 512 MiB
+bounds. Every other classification finding remains report-only or manual-review-only exactly as in Phase 5.

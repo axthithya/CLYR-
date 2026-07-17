@@ -64,11 +64,18 @@ presence of the required consent/accountability vocabulary. Developer Mode remai
 no `Click=` handlers at all — verified by a new test.
 
 `App.xaml.cs` wires `IExecutionTokenService`, an `ExecutionSessionContext` (one `ExecutionSessionId` per app
-launch), and `IExecutionReceiptStore` (real `SqliteExecutionReceiptStore` normally; `null` when
-`CLYR_UI_FIXTURE=1`, since the fixture harness never touches the real history database). `ExecutionFixtureRoot`
+launch), and `IExecutionReceiptStore` (real `SqliteExecutionReceiptStore` normally; an in-memory-only
+`UiFixtureExecutionReceiptStore` when `CLYR_UI_FIXTURE=1`, so receipt history/view/export/delete can be
+exercised by UI Automation without ever opening the real CLYR-owned history database). `ExecutionFixtureRoot`
 gives fixture launches a private temporary directory seeded with four synthetic stale files instead of the real
 `%LocalAppData%\Clyr\Temp` — so `scripts/verify-winui.ps1`'s execution steps run entirely against synthetic data
-it creates and cleans up itself.
+it creates and cleans up itself. This was verified with a real rendered WinUI window in this session: the full
+execution flow (no default selection, gated confirmation requiring the acknowledgement checkbox, a completed
+fixture run, receipt history/view/export/delete, and all six responsive sizes with no horizontal overflow) ran
+and passed for real — see the completion report for the exact sequence and what it does not prove (a live
+mid-run cancellation racing to `PartiallyCompleted` specifically, since local fixture deletes are too fast to
+reliably interrupt from an external script; that exact code path is instead proven deterministically by
+`Clyr.Core.Tests.ExecutionTests`).
 
 ## CLI (unchanged from the previous Phase 6 slice; see prior report for detail)
 

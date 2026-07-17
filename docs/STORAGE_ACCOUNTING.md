@@ -151,3 +151,12 @@ Allocated, exclusive allocated, ADS, sparse/compression physical effect, and sta
 
 Acceptance requires zero protected-path violations and no UI/CLI/export label that turns an estimate, review candidate, logical placeholder size, or movable byte into guaranteed reclaimable space.
 Phase 5 plans carry observed logical bytes and item counts from source metadata. Estimated physical bytes remain unavailable unless safely evidenced. Dry-run output names hard-link, allocation, compression, cloud, inaccessible, changing, locked, filesystem-metadata, and cache-recreation limitations. No Phase 5 value is called reclaimable or recovered.
+## Phase 6 execution accounting
+
+`ExecutionSummary` keeps removed, skipped, and failed counts and logical-byte totals in separate fields — they
+are never summed into one "cleaned" number. `ExecutionReceipt` additionally reports drive free-space before and
+after (each independently nullable when unavailable) and an observed free-space delta computed only when both
+are present; this delta is reported separately from removed logical bytes and is explicitly described as
+possibly differing from it, since allocation, compression, hard links, and concurrent activity by other
+processes are outside CLYR's control. No Phase 6 value is called "recovered" or "reclaimed" — only "removed
+logical bytes" and "observed free-space change."

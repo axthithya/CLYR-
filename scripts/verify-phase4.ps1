@@ -7,6 +7,8 @@ $localDotnet = Join-Path $root ".tools\dotnet\dotnet.exe"
 $dotnet = if (Test-Path -LiteralPath $localDotnet) { $localDotnet } else { "dotnet" }
 $env:MSBUILDDISABLENODEREUSE = "1"
 
+. (Join-Path $PSScriptRoot 'lib\RepoScan.ps1')
+
 function Invoke-Gate([string]$name, [string[]]$arguments) {
     Write-Host "==> $name"
     & $dotnet @arguments
@@ -25,9 +27,9 @@ try {
     Get-Content -Raw .\rules\schemas\comparison-report.schema.json | ConvertFrom-Json | Out-Null
     # Phase 6 (approved after Phase 4) narrowly permits process launch/elevation inside ElevatedHelperLauncher.cs
     # and the Clyr.ElevatedHelper project only; Clyr.Safety.Tests.RepositorySafetyTests enforces this precisely.
-    $forbidden = rg -n "DeleteFile|MoveFile|Process\.Start|runas|FileMode\.Open.*FileAccess\.Write" src --glob "*.cs" `
-        --glob "!src/Clyr.Core/Execution/**" --glob "!src/Clyr.ElevatedHelper/**"
-    if ($LASTEXITCODE -eq 0) { throw "A forbidden mutation/elevation primitive was found:`n$forbidden" }
+    $forbiddenResult = Find-RepositoryPattern -Pattern "DeleteFile|MoveFile|Process\.Start|runas|FileMode\.Open.*FileAccess\.Write" `
+        -Paths @("src") -Include "*.cs" -ExcludeDirs @("src/Clyr.Core/Execution", "src/Clyr.ElevatedHelper")
+    if ($forbiddenResult.Found) { throw "A forbidden mutation/elevation primitive was found:`n$($forbiddenResult.Matches -join "`n")" }
     if ($IncludeUiSmoke) {
         & powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-winui.ps1
         if ($LASTEXITCODE -ne 0) { throw "WinUI smoke test failed." }

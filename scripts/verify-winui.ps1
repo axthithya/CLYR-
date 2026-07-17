@@ -144,39 +144,26 @@ try {
         $cancelButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     }
     Start-Sleep -Milliseconds 600
+    # The progress panel collapses itself once a terminal state is reached (see ReviewPlanPage.RunExecutionAsync's
+    # finally block) — checking for it here, after completion, would be racing the very panel we just watched
+    # disappear. Its live appearance during the run is exercised by the flow itself; what we can deterministically
+    # assert afterward is that a terminal 'Execution result' rendered. Local fixture deletes are near-instantaneous,
+    # so the cancel click above typically loses the race and this reaches Completed rather than Cancelled — the
+    # Cancelled/PartiallyCompleted code paths themselves are proven separately and deterministically by
+    # Clyr.Core.Tests.ExecutionTests, which do not depend on UI Automation timing.
     Require-Named $window 'Execution result' | Out-Null
-    $firstState = Require-Named $window 'Execution progress'
-    Write-Host 'Execution attempt 1 (cancel-attempted) reached a terminal state.' -ForegroundColor DarkGreen
+    Write-Host 'Execution reached a terminal state and a receipt was produced.' -ForegroundColor DarkGreen
 
-    # Attempt 2, on a freshly created plan: select the built-in candidate again and let it run to completion.
-    $builtIn2 = Require-Named $window 'CLYR temporary scratch files DryRunEligible candidate'
-    $builtIn2.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
-    Invoke-Named $window 'Preview dry-run plan'
-    Start-Sleep -Milliseconds 300
-    $executableItem2 = Find-Named $window 'CLYR temporary scratch files executable item'
-    if ($null -ne $executableItem2) {
-        $executableItem2.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
-        Start-Sleep -Milliseconds 150
-        Invoke-Named $window 'Run selected cleanup'
-        Start-Sleep -Milliseconds 200
-        $dialog2 = Require-Named $window 'Final cleanup confirmation dialog'
-        $ack2 = $dialog2.FindFirst([System.Windows.Automation.TreeScope]::Descendants,
-            [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, 'Cleanup consent acknowledgement'))
-        $ack2.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
-        Start-Sleep -Milliseconds 150
-        $primary2 = $dialog2.FindFirst([System.Windows.Automation.TreeScope]::Descendants,
-            [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, 'Run selected cleanup'))
-        $primary2.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-        Start-Sleep -Milliseconds 700
-        Require-Named $window 'Execution result' | Out-Null
-        Write-Host 'Execution attempt 2 (run to completion) reached a terminal state.' -ForegroundColor DarkGreen
+    $receiptList = Require-Named $window 'Execution receipt list'
+    $historyButtons = $receiptList.FindAll([System.Windows.Automation.TreeScope]::Descendants,
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))
+    $viewButton = $null
+    for ($i = 0; $i -lt $historyButtons.Count; $i++) {
+        if ($historyButtons.Item($i).Current.Name.StartsWith('View execution receipt ', [StringComparison]::Ordinal)) { $viewButton = $historyButtons.Item($i); break }
     }
-    else {
-        Write-Host 'Fixture scratch files were already exhausted by attempt 1; attempt 2 skipped (attempt 1 already completed the fixture deletions).' -ForegroundColor DarkYellow
-    }
-
-    Invoke-Named $window 'View execution receipt details'
-    Start-Sleep -Milliseconds 150
+    if ($null -eq $viewButton) { throw 'No receipt history "View" button was found.' }
+    $viewButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Milliseconds 500
     $receiptText = Require-Named $window 'Execution receipt details'
     $receiptPattern = $null
     if (-not $receiptText.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$receiptPattern)) { throw 'Execution receipt details did not expose an accessible text value.' }
@@ -188,6 +175,21 @@ try {
         Write-Host 'Receipt history list contains at least one entry (group count check skipped if control type differs).' -ForegroundColor DarkYellow
     }
     Write-Host 'Execution receipt history, view-details, and export vocabulary all verified.' -ForegroundColor DarkGreen
+
+    # Receipt deletion: delete only the one CLYR-owned receipt row we just viewed and confirm it is gone.
+    $deleteButtons = $receiptList.FindAll([System.Windows.Automation.TreeScope]::Descendants,
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))
+    $deleteButton = $null
+    for ($i = 0; $i -lt $deleteButtons.Count; $i++) {
+        if ($deleteButtons.Item($i).Current.Name.StartsWith('Delete execution receipt ', [StringComparison]::Ordinal)) { $deleteButton = $deleteButtons.Item($i); break }
+    }
+    if ($null -eq $deleteButton) { throw 'No receipt history "Delete receipt" button was found.' }
+    $deletedName = $deleteButton.Current.Name
+    $deleteButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Milliseconds 200
+    $stillPresent = Find-Named $window $deletedName
+    if ($null -ne $stillPresent) { throw 'The deleted execution receipt still appears in history.' }
+    Write-Host 'Execution receipt deletion verified (only the one CLYR-owned row was removed).' -ForegroundColor DarkGreen
 
     Select-Page $window 'History' | Out-Null
     $history = Require-Named $window 'Local snapshot history'

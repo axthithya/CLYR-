@@ -59,3 +59,16 @@ The Review Plan banner, candidate list, eligible checkboxes, preview, report, an
 
 Actual Windows High Contrast activation, 125%/150% DPI, and Windows text scaling remain uncompleted manual release checks. Automated window resizing and theme-resource inspection are not represented as operating-system scaling evidence.
 
+## Phase 6 execution accessibility
+
+The execution panel, confirmation dialog, progress state, finished state, and receipt-history rows all carry
+stable `AutomationProperties.Name` values (e.g. "Run selected cleanup", "Final cleanup confirmation dialog",
+"Cleanup consent acknowledgement", "Execution progress", "Execution result", "Cancel execution", "Execution
+receipt history", "View execution receipt <id>", "Delete execution receipt <id>"). State text (Completed,
+Partially completed, Cancelled, Failed, Interrupted, Rejected, Unknown outcome) is plain text, never color-only.
+The state and result text blocks use `AutomationProperties.LiveSetting` so assistive technology announces
+progress and outcome changes without requiring focus to move. A rendered UI Automation pass in this session
+exercised the confirmation gating, a completed fixture execution, and the full receipt history/view/export/
+delete flow with a screen-reader-equivalent (UI Automation tree) client and confirmed every required control is
+programmatically discoverable by name. Real Narrator reading order, actual Windows High Contrast activation,
+and 125%/150%/200% text scaling remain manual release checks, exactly as for all prior phases.
