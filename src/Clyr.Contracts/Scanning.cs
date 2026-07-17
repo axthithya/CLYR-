@@ -11,7 +11,8 @@ public sealed record DriveSummary(string Root, string Label, string FileSystem, 
     bool IsSystemVolume, bool IsSupported, string SupportReason, long? CapacityBytes, long? UsedBytes, long? FreeBytes);
 public sealed record ScanRequest(string Root, ScanMode Mode, int? TopCount = null);
 public sealed record ScanProgress(ScanStatus Status, TimeSpan Elapsed, long FilesObserved, long DirectoriesObserved,
-    long LogicalBytesObserved, long SkippedEntries, string CurrentPath, string Message);
+    long LogicalBytesObserved, long SkippedEntries, string CurrentPath, string Message,
+    long InaccessibleEntries = 0, long ReparsePointsSkipped = 0, long WarningCount = 0);
 public sealed record RankedPath(string DisplayPath, long LogicalBytes, long FileCount, MeasurementPrecision Precision);
 public sealed record ExtensionSummary(ExtensionFamily Family, long LogicalBytes, long FileCount);
 public sealed record ScanIssueSummary(ScanIssueKind Kind, string Code, long Count, string SafeDetail);

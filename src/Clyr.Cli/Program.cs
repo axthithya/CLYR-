@@ -20,9 +20,12 @@ var receiptStore = new SqliteExecutionReceiptStore(Path.Combine(dataDirectory, "
 var identity = new HmacDriveIdentityProvider(new WindowsVolumeIdentitySource(),
     new FileIdentityKeyProvider(Path.Combine(dataDirectory, "identity.key")), drives);
 var applicationVersion = ApplicationVersion.Current;
-IScanService scanner = new ScanCoordinator(new WindowsFileSystemEnumerator(), drives, new SystemClock(), packResult.Pack);
-scanner = new SnapshotSavingScanService(scanner, new SnapshotFactory(identity, applicationVersion), store);
+IScanService rawScanner = new ScanCoordinator(new WindowsFileSystemEnumerator(), drives, new SystemClock(), packResult.Pack);
+IScanService scanner = new SnapshotSavingScanService(rawScanner, new SnapshotFactory(identity, applicationVersion), store);
 var application = new CliApplication(environment, new DemoDataService(), validator, new PrivacyRedactor(environment),
     "CLYR " + applicationVersion.Value, drives, scanner, new ScanReportExporter(), packResult, store, new InMemoryCleanupPlanStore(),
-    receiptStore);
+    receiptStore)
+{
+    NonPersistingScanner = rawScanner
+};
 return application.Run(args, Console.Out, Console.Error);

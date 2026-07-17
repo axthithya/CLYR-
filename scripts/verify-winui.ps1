@@ -70,25 +70,82 @@ try {
     Select-Page $window 'Overview' | Out-Null
     Require-Named $window 'Overview page' | Out-Null
     Require-Named $window 'System drive summary' | Out-Null
-    if ($null -ne (Find-Named $window 'Start Analysis')) { throw 'Overview incorrectly exposes full scan controls.' }
+    if ($null -ne (Find-Named $window 'Quick Analysis mode card')) { throw 'Overview incorrectly exposes full scan controls.' }
+
+    function Get-ToggleState([System.Windows.Automation.AutomationElement]$element) {
+        return $element.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState
+    }
+    function Toggle-Card([System.Windows.Automation.AutomationElement]$element) {
+        $element.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
+        Start-Sleep -Milliseconds 150
+    }
 
     Select-Page $window 'Scan' | Out-Null
     Require-Named $window 'Quick Analysis mode card' | Out-Null
     Require-Named $window 'Deep Analysis mode card' | Out-Null
-    Invoke-Named $window 'Start Analysis'
+
+    # Scan-mode selection: one authoritative ScanMode? SelectedScanMode drives both cards' checkmarks and the
+    # primary button's text — verified end to end against the real rendered controls, not merely the ViewModel.
+    $quickCard = Require-Named $window 'Quick Analysis mode card'
+    $deepCard = Require-Named $window 'Deep Analysis mode card'
+    $off = [System.Windows.Automation.ToggleState]::Off
+    $on = [System.Windows.Automation.ToggleState]::On
+
+    if ((Get-ToggleState $quickCard) -ne $off -or (Get-ToggleState $deepCard) -ne $off) { throw 'A mode card appeared selected on initial load; SelectedScanMode must start at None.' }
+    $startButton = Require-Named $window 'Choose Quick or Deep Analysis'
+    if ($startButton.Current.IsEnabled) { throw 'The primary action must be disabled while SelectedScanMode is None.' }
+
+    Toggle-Card $quickCard
+    if ((Get-ToggleState $quickCard) -ne $on -or (Get-ToggleState $deepCard) -ne $off) { throw 'Selecting Quick did not select only Quick.' }
+    Require-Named $window 'Run Quick Analysis' | Out-Null
+
+    Toggle-Card $quickCard
+    if ((Get-ToggleState $quickCard) -ne $off -or (Get-ToggleState $deepCard) -ne $off) { throw 'Clicking the already-selected Quick card did not deselect it.' }
+    Require-Named $window 'Choose Quick or Deep Analysis' | Out-Null
+
+    Toggle-Card $deepCard
+    if ((Get-ToggleState $deepCard) -ne $on -or (Get-ToggleState $quickCard) -ne $off) { throw 'Selecting Deep did not select only Deep.' }
+    Require-Named $window 'Run Deep Analysis' | Out-Null
+
+    Toggle-Card $deepCard
+    if ((Get-ToggleState $deepCard) -ne $off -or (Get-ToggleState $quickCard) -ne $off) { throw 'Clicking the already-selected Deep card did not deselect it.' }
+
+    Toggle-Card $quickCard
+    Toggle-Card $deepCard
+    if ((Get-ToggleState $quickCard) -ne $off -or (Get-ToggleState $deepCard) -ne $on) { throw 'Switching from Quick to Deep left Quick selected (both appeared selected simultaneously).' }
+    Toggle-Card $quickCard
+    if ((Get-ToggleState $deepCard) -ne $off -or (Get-ToggleState $quickCard) -ne $on) { throw 'Switching from Deep to Quick left Deep selected (both appeared selected simultaneously).' }
+
+    # Run Quick, cancel it, then run Quick again — proving lifecycle, cancellation, and "Run Again" wording.
+    Invoke-Named $window 'Run Quick Analysis'
     Start-Sleep -Milliseconds 300
     $cancel = Require-Named $window 'Cancel Analysis'
     if (-not $cancel.Current.IsEnabled) { throw 'Cancellation was not enabled during fixture analysis.' }
+    if ($quickCard.Current.IsEnabled -or $deepCard.Current.IsEnabled) { throw 'Mode cards must be disabled while a scan is running.' }
     $cancel.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     Start-Sleep -Seconds 2
-    Invoke-Named $window 'Start Analysis'
+    Require-Named $window 'Run Quick Analysis Again' | Out-Null
+    Invoke-Named $window 'Run Quick Analysis Again'
     Start-Sleep -Seconds 2
+    Require-Named $window 'Run Quick Analysis Again' | Out-Null
+    Write-Host '  Scan-mode selection (exclusive toggle, no simultaneous checkmarks) and Quick lifecycle (run, cancel, run again) verified.' -ForegroundColor DarkGreen
+
+    # Selecting Deep after a Quick attempt must read "Run Deep Analysis" (a fresh first run), never "...Again".
+    Toggle-Card $deepCard
+    Require-Named $window 'Run Deep Analysis' | Out-Null
+    Invoke-Named $window 'Run Deep Analysis'
+    Start-Sleep -Seconds 2
+    if ($null -ne (Find-Named $window 'Run tool')) { throw 'A disallowed control appeared on the Scan page.' }
+    foreach ($forbidden in @('Delete', 'Clean now', 'Remove', 'Run PowerShell', 'Run Command')) {
+        if ($null -ne (Find-Named $window $forbidden)) { throw "A disallowed cleanup/deletion control appeared on the Scan page: $forbidden" }
+    }
+    Write-Host '  Deep Analysis run and no-cleanup-control-on-Scan verified.' -ForegroundColor DarkGreen
 
     Select-Page $window 'Results' | Out-Null
     Require-Named $window 'Results page' | Out-Null
     Require-Named $window 'Contributor visualization' | Out-Null
     Require-Named $window 'Contributor text alternatives' | Out-Null
-    if ($null -ne (Find-Named $window 'Start Analysis')) { throw 'Results incorrectly exposes scan controls.' }
+    if ($null -ne (Find-Named $window 'Quick Analysis mode card')) { throw 'Results incorrectly exposes scan controls.' }
 
     Select-Page $window 'Review Plan' | Out-Null
     Require-Named $window 'Review Plan page' | Out-Null
@@ -206,7 +263,7 @@ try {
         'Developer Mode'='Developer Mode page'; 'Privacy'='Privacy page'; 'Licenses'='Licenses page';
         'About'='About page'; 'Settings'='Settings page'
     }
-    foreach ($entry in $expectations.GetEnumerator()) { Select-Page $window $entry.Key | Out-Null; Require-Named $window $entry.Value | Out-Null; if ($null -ne (Find-Named $window 'Start Analysis')) { throw "$($entry.Key) incorrectly exposes scan controls." } }
+    foreach ($entry in $expectations.GetEnumerator()) { Select-Page $window $entry.Key | Out-Null; Require-Named $window $entry.Value | Out-Null; if ($null -ne (Find-Named $window 'Quick Analysis mode card')) { throw "$($entry.Key) incorrectly exposes scan controls." } }
 
     # Phase 7 Developer Mode: read-only tool detection against the fixture snapshot history. Only a snapshot
     # picker and a Detect button exist; no install/run/prune control is ever wired up.
@@ -296,7 +353,7 @@ try {
     }
     if ($null -ne (Find-Named $window 'Run tool')) { throw 'A Developer Mode tool-execution control appeared (Phase 7 boundary violation).' }
     if ($null -ne (Find-Named $window 'Move to drive')) { throw 'A move-to-drive control appeared (Phase 8 boundary violation).' }
-    Write-Host 'WinUI UI Automation PASSED: ten distinct pages, fixture scan/cancel/complete, dry-run plan selection/preview, Phase 6 fixture-only execution (no default selection, gated confirmation, cancel-attempted and completed runs, receipt history/view/export), history comparison, license/about verification, common bounds at six sizes (1600x900 to 800x600), vertical scroll, no horizontal scroll, no one-click cleanup control, and no Phase 7/8 control.' -ForegroundColor Green
+    Write-Host 'WinUI UI Automation PASSED: ten distinct pages, exclusive toggleable scan-mode selection (no initial selection, deselect-on-second-click, exclusive switching, never both checked), Quick run/cancel/run-again and Deep run lifecycle, fixture scan/cancel/complete, dry-run plan selection/preview, Phase 6 fixture-only execution (no default selection, gated confirmation, cancel-attempted and completed runs, receipt history/view/export), history comparison, license/about verification, common bounds at six sizes (1600x900 to 800x600), vertical scroll, no horizontal scroll, no one-click cleanup control, and no Phase 7/8 control.' -ForegroundColor Green
 }
 finally {
     if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }

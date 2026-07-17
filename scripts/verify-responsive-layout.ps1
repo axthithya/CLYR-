@@ -58,12 +58,14 @@ foreach ($page in $reflowPages) {
 }
 Write-Host '  Responsive reflow handlers verified on all applicable pages.'
 
-# 7. Scan controls are isolated to ScanPage
+# 7. Scan controls are isolated to ScanPage. The primary action button's text is authoritatively driven by
+# SelectedScanMode/LifecycleState (ScanUiLifecycle.PrimaryActionText) rather than a fixed "Start Analysis" XAML
+# literal, so it is identified structurally (x:Name="StartButton") instead of by a static caption.
 $scanXaml = Get-Content -Raw -LiteralPath (Join-Path $pages 'ScanPage.xaml')
-if (-not $scanXaml.Contains('Start Analysis')) { throw 'ScanPage is missing Start Analysis.' }
+if (-not $scanXaml.Contains('x:Name="StartButton"')) { throw 'ScanPage is missing its primary scan action button.' }
 foreach ($page in @('Overview','Results','ReviewPlan','History','DeveloperMode','Privacy','Licenses','About','Settings')) {
     $content = Get-Content -Raw -LiteralPath (Join-Path $pages "$($page)Page.xaml")
-    if ($content.Contains('Start Analysis') -or $content.Contains('Cancel Analysis')) {
+    if ($content.Contains('x:Name="StartButton"') -or $content.Contains('Cancel Analysis')) {
         throw "$($page)Page incorrectly contains scan controls."
     }
 }

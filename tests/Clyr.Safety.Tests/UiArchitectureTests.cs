@@ -44,15 +44,43 @@ public sealed class UiArchitectureTests
         Assert.Contains("Local volume selector", scan, StringComparison.Ordinal);
         Assert.Contains("Quick Analysis mode card", scan, StringComparison.Ordinal);
         Assert.Contains("Deep Analysis mode card", scan, StringComparison.Ordinal);
-        Assert.Contains("Start Analysis", scan, StringComparison.Ordinal);
+        // The primary action button's text is authoritatively driven by SelectedScanMode/LifecycleState (see
+        // ScanUiLifecycle.PrimaryActionText) rather than a fixed "Start Analysis" XAML literal, so the button is
+        // identified structurally here instead of by a static caption.
+        Assert.Contains("x:Name=\"StartButton\"", scan, StringComparison.Ordinal);
         Assert.Contains("Cancel Analysis", scan, StringComparison.Ordinal);
         foreach (var name in new[] { "Overview", "Results", "ReviewPlan", "History", "DeveloperMode", "Privacy", "Licenses", "About", "Settings" })
         {
             var xaml = Read(Path.Combine(Pages, name + "Page.xaml"));
             Assert.DoesNotContain("Local volume selector", xaml, StringComparison.Ordinal);
             Assert.DoesNotContain("Cancel Analysis", xaml, StringComparison.Ordinal);
-            Assert.DoesNotContain("Start Analysis", xaml, StringComparison.Ordinal);
+            Assert.DoesNotContain("x:Name=\"StartButton\"", xaml, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void ScanPageHasNoCleanupDeletionOrMoveToDriveControlAndUsesOneAuthoritativeSelection()
+    {
+        var page = Read(Path.Combine(Pages, "ScanPage.xaml"));
+        var code = Read(Path.Combine(Pages, "ScanPage.xaml.cs"));
+        var combined = page + code;
+
+        // Exactly one authoritative selection value — no independent per-card boolean pair anywhere.
+        Assert.Contains("SelectedScanMode", combined, StringComparison.Ordinal);
+        Assert.DoesNotContain("QuickSelectedBool", combined, StringComparison.Ordinal);
+        Assert.DoesNotContain("DeepSelectedBool", combined, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsChecked=\"True\"", page, StringComparison.Ordinal);
+
+        // No cleanup, deletion, or Phase 8 move-to-drive vocabulary belongs on the Scan page.
+        foreach (var forbidden in new[]
+        {
+            "Delete", "Clean now", "Fix everything", "Optimize now", "Delete all", "One-click clean",
+            "Clean automatically", "Move to drive", "Select destination drive", "Run tool", "cleanup plan",
+            "Recycle Bin", "npm install", "docker rm", "Process.Start", "powershell.exe", "cmd.exe"
+        })
+            Assert.DoesNotContain(forbidden, combined, StringComparison.OrdinalIgnoreCase);
+        // "Remaining drive usage" and "developer-storage" legitimately contain "drive"/"storage" substrings;
+        // the check above targets exact dangerous phrases, not those words in isolation.
     }
 
     [Fact]

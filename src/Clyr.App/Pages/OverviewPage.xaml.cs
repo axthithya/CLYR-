@@ -33,8 +33,8 @@ public sealed partial class OverviewPage : Page
         Grid.SetRow(OverviewDeepCard, narrow ? 1 : 0);
         LatestActions.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal;
     }
-    private void RunQuick(object sender, RoutedEventArgs args) { ViewModel.Session.SelectedMode = Clyr.Contracts.ScanMode.Quick; ViewModel.Navigate("Scan"); }
-    private void RunDeep(object sender, RoutedEventArgs args) { ViewModel.Session.SelectedMode = Clyr.Contracts.ScanMode.Deep; ViewModel.Navigate("Scan"); }
+    private void RunQuick(object sender, RoutedEventArgs args) { ViewModel.Session.SelectedScanMode = Clyr.Contracts.ScanMode.Quick; ViewModel.Navigate("Scan"); }
+    private void RunDeep(object sender, RoutedEventArgs args) { ViewModel.Session.SelectedScanMode = Clyr.Contracts.ScanMode.Deep; ViewModel.Navigate("Scan"); }
     private void ViewResults(object sender, RoutedEventArgs args) => ViewModel.Navigate("Results");
     private void ViewHistory(object sender, RoutedEventArgs args) => ViewModel.Navigate("History");
     private void RunAgain(object sender, RoutedEventArgs args) => ViewModel.Navigate("Scan");

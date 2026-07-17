@@ -70,6 +70,26 @@ public sealed class PhaseTwoCliTests
         finally { if (File.Exists(destination)) File.Delete(destination); }
     }
 
+    [Fact]
+    public void NoPersistUsesTheDedicatedNonPersistingScannerNeverTheNormalOne()
+    {
+        var persisting = new FakeScanner();
+        var nonPersisting = new FakeScanner();
+        var environment = new FakeEnvironment();
+        var app = new CliApplication(environment, new DemoDataService(),
+            new RuleValidator(File.ReadAllText(Path.Combine(RepositoryRoot(), "rules", "schemas", "rule.schema.json"))),
+            new PrivacyRedactor(environment), "CLYR 0.2.0-phase2", new FakeDrives(), persisting, new ScanReportExporter())
+        { NonPersistingScanner = nonPersisting };
+
+        Assert.Equal(0, app.Run(["scan", "C:\\", "--quick", "--no-persist"], TextWriter.Null, TextWriter.Null));
+        Assert.Equal(1, nonPersisting.CallCount);
+        Assert.Equal(0, persisting.CallCount);
+
+        Assert.Equal(0, app.Run(["scan", "C:\\", "--quick"], TextWriter.Null, TextWriter.Null));
+        Assert.Equal(1, nonPersisting.CallCount);
+        Assert.Equal(1, persisting.CallCount);
+    }
+
     private static CliApplication CreateApplication()
     {
         var environment = new FakeEnvironment();
@@ -88,8 +108,11 @@ public sealed class PhaseTwoCliTests
 
     private sealed class FakeScanner : IScanService
     {
+        public int CallCount { get; private set; }
+
         public Task<ScanResult> ScanAsync(ScanRequest request, IProgress<ScanProgress>? progress, CancellationToken cancellationToken)
         {
+            CallCount++;
             progress?.Report(new(ScanStatus.Scanning, TimeSpan.FromSeconds(1), 1, 1, 100, 0, "C:\\<redacted>", "Fixture"));
             var now = DateTimeOffset.Parse("2026-07-13T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
             return Task.FromResult(new ScanResult(Guid.Empty, ScanStatus.Completed, request.Mode, request.Root, "NTFS", now, now,

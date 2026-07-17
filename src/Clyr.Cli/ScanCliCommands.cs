@@ -10,6 +10,7 @@ public sealed partial class CliApplication
 {
     private IDriveDiscovery? driveDiscovery;
     private IScanService? scanner;
+    private IScanService? nonPersistingScanner;
     private IScanReportExporter? exporter;
 
     public CliApplication(IEnvironmentInfo environment, IDemoDataService demo, RuleValidator rules,
@@ -18,9 +19,19 @@ public sealed partial class CliApplication
     {
         this.driveDiscovery = driveDiscovery;
         this.scanner = scanner;
+        this.nonPersistingScanner = scanner;
         this.exporter = exporter;
         this.rulePack = rulePack;
     }
+
+    /// <summary>
+    /// A scanner that never writes to CLYR's local aggregate history, distinct from the normal persisting
+    /// scanner passed to the constructor above — used only by <c>scan --no-persist</c>, e.g. for diagnostic or
+    /// real-machine verification runs that must not pollute a user's actual scan history. Defaults to the same
+    /// persisting scanner (so existing callers are unaffected); set this explicitly to enable true no-persist
+    /// behavior.
+    /// </summary>
+    public IScanService? NonPersistingScanner { set => nonPersistingScanner = value; }
 
     private int RunPhaseTwo(IReadOnlyList<string> arguments, TextWriter output, TextWriter error)
     {
@@ -62,9 +73,10 @@ public sealed partial class CliApplication
 
     private int Scan(IReadOnlyList<string> arguments, TextWriter output, TextWriter error)
     {
-        if (arguments.Count < 2) { error.WriteLine("Usage: clyr scan <root> [--quick|--deep] [--top N] [--json] [--output <file>]"); return 2; }
+        if (arguments.Count < 2) { error.WriteLine("Usage: clyr scan <root> [--quick|--deep] [--top N] [--json] [--output <file>] [--no-persist]"); return 2; }
         var mode = ScanMode.Quick;
         var json = false;
+        var noPersist = false;
         int? top = null;
         string? destination = null;
         for (var index = 2; index < arguments.Count; index++)
@@ -74,6 +86,7 @@ public sealed partial class CliApplication
                 case "--quick": mode = ScanMode.Quick; break;
                 case "--deep": mode = ScanMode.Deep; break;
                 case "--json": json = true; break;
+                case "--no-persist": noPersist = true; break;
                 case "--top" when index + 1 < arguments.Count && int.TryParse(arguments[++index], out var parsed) && parsed is >= 1 and <= 1000: top = parsed; break;
                 case "--output" when index + 1 < arguments.Count: destination = arguments[++index]; break;
                 default: error.WriteLine("Invalid scan option. Run clyr --help."); return 2;
@@ -89,7 +102,10 @@ public sealed partial class CliApplication
         {
             var progress = new InlineProgress<ScanProgress>(value =>
                 error.WriteLine($"{value.Status}: files={value.FilesObserved} directories={value.DirectoriesObserved} logical={FormatBytes(value.LogicalBytesObserved)} skipped={value.SkippedEntries}"));
-            var result = scanner!.ScanAsync(new(root, mode, top), progress, cancellation.Token).GetAwaiter().GetResult();
+            // --no-persist deliberately runs the unwrapped scanner (no SnapshotSavingScanService), so a
+            // diagnostic or real-machine verification run never writes to CLYR's real local history.
+            var activeScanner = noPersist ? nonPersistingScanner : scanner;
+            var result = activeScanner!.ScanAsync(new(root, mode, top), progress, cancellation.Token).GetAwaiter().GetResult();
             var serialized = exporter!.Serialize(result);
             if (destination is not null)
             {

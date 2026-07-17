@@ -14,30 +14,41 @@
                 <Grid x:Name="ModeCards" ColumnSpacing="20" RowSpacing="16">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <ToggleButton x:Name="QuickCard" IsChecked="True" Click="QuickSelected" Style="{StaticResource AnalysisModeCardStyle}" AutomationProperties.Name="Quick Analysis mode card" AutomationProperties.HelpText="Selected. Recommended faster depth-limited analysis">
-                        <StackPanel Spacing="8"><TextBlock Text="Quick Analysis" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="Recommended" Foreground="{ThemeResource WarmAccentBrush}" FontWeight="SemiBold"/><TextBlock Text="Faster and depth-limited. Best for a first look." Style="{StaticResource BodyMutedStyle}"/></StackPanel>
+                    <ToggleButton x:Name="QuickCard" Click="QuickSelected" Style="{StaticResource AnalysisModeCardStyle}" AutomationProperties.Name="Quick Analysis mode card">
+                        <StackPanel Spacing="8"><TextBlock Text="Quick Analysis" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="Recommended" Foreground="{ThemeResource WarmAccentBrush}" FontWeight="SemiBold"/><TextBlock Text="Faster and bounded by depth, time, and item limits. Best for a first look — not complete drive accounting." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/></StackPanel>
                     </ToggleButton>
-                    <ToggleButton x:Name="DeepCard" Grid.Column="1" Click="DeepSelected" Style="{StaticResource AnalysisModeCardStyle}" AutomationProperties.Name="Deep Analysis mode card" AutomationProperties.HelpText="Slower analysis of accessible directories">
-                        <StackPanel Spacing="8"><TextBlock Text="Deep Analysis" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="More detailed"/><TextBlock Text="Scans accessible directories more deeply and can take substantially longer." Style="{StaticResource BodyMutedStyle}"/></StackPanel>
+                    <ToggleButton x:Name="DeepCard" Grid.Column="1" Click="DeepSelected" Style="{StaticResource AnalysisModeCardStyle}" AutomationProperties.Name="Deep Analysis mode card">
+                        <StackPanel Spacing="8"><TextBlock Text="Deep Analysis" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="More detailed"/><TextBlock Text="Recursively accounts for every safely accessible entry, with no depth or item limit. Can take substantially longer." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/></StackPanel>
                     </ToggleButton>
                 </Grid>
+                <TextBlock x:Name="ModeHelperText" Text="Choose Quick or Deep Analysis." Style="{StaticResource BodyMutedStyle}" AutomationProperties.LiveSetting="Polite"/>
                 <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="Scan progress card">
                     <StackPanel Spacing="14">
                         <TextBlock x:Name="ScanState" Text="Ready to analyze" Style="{StaticResource SectionTitleStyle}" AutomationProperties.LiveSetting="Polite"/>
                         <ProgressBar x:Name="ActiveProgress" IsIndeterminate="True" Visibility="Collapsed" Height="5"/>
-                        <Grid x:Name="MetricsGrid" ColumnSpacing="16" RowSpacing="12">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                            <StackPanel><TextBlock Text="Files" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="FileCount" Text="—" FontSize="18"/></StackPanel>
-                            <StackPanel x:Name="DirectoryMetric" Grid.Column="1"><TextBlock Text="Directories" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="DirectoryCount" Text="—" FontSize="18"/></StackPanel>
-                            <StackPanel x:Name="ObservedMetric" Grid.Column="2"><TextBlock Text="Observed" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="ObservedSize" Text="—" FontSize="18"/></StackPanel>
+                        <Grid x:Name="MetricsGrid" ColumnSpacing="16" RowSpacing="12" Visibility="Collapsed">
+                            <StackPanel x:Name="FilesMetric"><TextBlock Text="Files" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="FileCount" Text="—" FontSize="18"/></StackPanel>
+                            <StackPanel x:Name="DirectoryMetric"><TextBlock Text="Directories" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="DirectoryCount" Text="—" FontSize="18"/></StackPanel>
+                            <StackPanel x:Name="ObservedMetric"><TextBlock Text="Observed" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="ObservedSize" Text="—" FontSize="18"/></StackPanel>
+                            <StackPanel x:Name="InaccessibleMetric"><TextBlock Text="Inaccessible" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="InaccessibleCount" Text="—" FontSize="18"/></StackPanel>
+                            <StackPanel x:Name="ReparseMetric"><TextBlock Text="Reparse points skipped" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="ReparseSkippedCount" Text="—" FontSize="18"/></StackPanel>
+                            <StackPanel x:Name="WarningMetric"><TextBlock Text="Warnings" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="WarningCountText" Text="—" FontSize="18"/></StackPanel>
+                            <StackPanel x:Name="ElapsedMetric"><TextBlock Text="Elapsed" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="ElapsedText" Text="—" FontSize="18"/></StackPanel>
                         </Grid>
                         <TextBlock x:Name="CurrentLocation" Text="Private location details appear redacted while analysis runs." Style="{StaticResource BodyMutedStyle}"/>
                         <StackPanel x:Name="ScanActions" Orientation="Horizontal" Spacing="12">
-                            <Button x:Name="StartButton" Content="Start Analysis" Style="{StaticResource PrimaryActionStyle}" Click="StartAnalysis" AutomationProperties.Name="Start Analysis"/>
+                            <Button x:Name="StartButton" Content="Choose Quick or Deep Analysis" Style="{StaticResource PrimaryActionStyle}" Click="StartAnalysis" IsEnabled="False"/>
                             <Button x:Name="CancelButton" Content="Cancel Analysis" Style="{StaticResource SecondaryActionStyle}" Click="CancelAnalysis" IsEnabled="False" AutomationProperties.Name="Cancel Analysis"/>
-                            <Button x:Name="ResultsButton" Content="View Results" Click="ViewResults" Visibility="Collapsed"/>
+                            <Button x:Name="ResultsButton" Content="View Results" Click="ViewResults" Visibility="Collapsed" AutomationProperties.Name="View Results"/>
                         </StackPanel>
+                    </StackPanel>
+                </Border>
+                <Border x:Name="AccountingCard" Style="{StaticResource CardStyle}" Visibility="Collapsed" AutomationProperties.Name="Scan accounting summary">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Last attempt" Style="{StaticResource CardTitleStyle}"/>
+                        <TextBlock x:Name="AttemptSummary" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="QualityBanner" TextWrapping="Wrap" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="AccountingDetail" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource CardStyle}" Background="{ThemeResource PrivacyBannerBrush}" AutomationProperties.Name="Private read-only analysis notice">

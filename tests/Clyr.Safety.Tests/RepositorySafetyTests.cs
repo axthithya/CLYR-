@@ -184,6 +184,48 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
+    public void ScanningProductionCodeContainsNoMutationPhase6OrShellInvocation()
+    {
+        // Scanning must remain strictly metadata-only: no scan code path may ever write, delete, move, rename,
+        // create, or otherwise mutate anything on the scanned drive, nor call into Phase 6 cleanup/execution,
+        // nor launch a shell or arbitrary process, nor reference Phase 8 movement behavior. Scoped to exactly
+        // the scan engine and its Windows-specific adapter — the one narrow surface a future elevated read-only
+        // scan helper would also need to satisfy.
+        var forbiddenMutationApis = new[]
+        {
+            "File.Delete", "Directory.Delete", "File.Move", "Directory.Move", "File.WriteAllText",
+            "File.WriteAllBytes", "File.AppendAllText", "File.Create(", "File.OpenWrite", "File.SetAttributes",
+            "File.Replace", "File.Encrypt", "File.Decrypt", "FileSecurity", "DirectorySecurity",
+            "SetAccessControl", "FileSystemAclExtensions", "TakeOwnership", "Ownership.Set",
+        };
+        var forbiddenExecutionApis = new[]
+        {
+            "Process.Start", "ProcessStartInfo", "System.Diagnostics.Process", "powershell.exe", "cmd.exe",
+            "cmd /c", "runas", "requireAdministrator",
+        };
+        var forbiddenPhaseReferences = new[]
+        {
+            "NonElevatedCleanupExecutor", "CleanupPlanBuilder", "ExecutionTokenService", "ElevatedHelperLauncher",
+            "CleanupCandidateFactory", "BuiltInExecutionActions", "MoveKnownFolder", "MoveToAnotherDrive",
+        };
+        var scanFiles = new[]
+        {
+            Path.Combine(Root, "src", "Clyr.Core", "Scanning.cs"),
+            Path.Combine(Root, "src", "Clyr.Core", "ScanUx.cs"),
+            Path.Combine(Root, "src", "Clyr.Core", "ScanAccounting.cs"),
+            Path.Combine(Root, "src", "Clyr.Windows", "WindowsScanning.cs"),
+        };
+        foreach (var file in scanFiles)
+        {
+            Assert.True(File.Exists(file), $"Expected scan file not found: {file}");
+            var text = File.ReadAllText(file);
+            foreach (var token in forbiddenMutationApis) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+            foreach (var token in forbiddenExecutionApis) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+            foreach (var token in forbiddenPhaseReferences) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void ManifestIsNonElevatedAndCapabilityFree()
     {
         var manifest = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "app.manifest"));

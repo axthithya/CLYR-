@@ -13,10 +13,12 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly IScanService scanService;
     private CancellationTokenSource? cancellation;
-    private ScanMode selectedMode = ScanMode.Quick;
+    private ScanMode? selectedScanMode;
+    private ScanMode? runningScanMode;
     private int selectedDriveIndex;
     private ScanProgress? progress;
     private ScanResult? result;
+    private ScanResult? latestAttempt;
     private readonly string applicationVersion;
 
     public AppSessionViewModel(IScanService scanService, IDriveDiscovery drives, RulePackLoadResult rules,
@@ -35,9 +37,32 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<DriveSummary> Drives { get; }
     public string DetectionStatus { get; }
     public ScanProgress? Progress { get => progress; private set => Set(ref progress, value); }
+
+    /// <summary>The most recent scan attempt that reached a genuinely successful terminal state (Completed or
+    /// CompletedWithWarnings) — this is what Overview, Results, and Review Plan consume. A cancelled or failed
+    /// rescan attempt never overwrites this: the previous successful result remains visible and usable while,
+    /// and after, a rescan that did not succeed. See <see cref="LatestAttempt"/> for the just-finished attempt
+    /// regardless of outcome.</summary>
     public ScanResult? Result { get => result; private set => Set(ref result, value); }
+
+    /// <summary>The most recently finished scan attempt, whatever its outcome — used by the Scan page itself to
+    /// report a truthful Cancelled/Failed/Completed status for what just happened, independent of whether that
+    /// attempt was successful enough to replace <see cref="Result"/>.</summary>
+    public ScanResult? LatestAttempt { get => latestAttempt; private set => Set(ref latestAttempt, value); }
+
     public bool IsScanning => cancellation is not null;
-    public ScanMode SelectedMode { get => selectedMode; set => Set(ref selectedMode, value); }
+
+    /// <summary>The single authoritative scan-mode selection. Null means no mode is chosen — there is
+    /// deliberately no independent "QuickSelected"/"DeepSelected" boolean pair anywhere; every selection-derived
+    /// fact (card checkmark, button text/enabled state, the mode actually sent to the scanner) reads this one
+    /// value.</summary>
+    public ScanMode? SelectedScanMode { get => selectedScanMode; set => Set(ref selectedScanMode, value); }
+
+    /// <summary>The lifecycle state driving the Scan page's display. Computed, never independently tracked, so
+    /// it can never drift from the underlying selection/progress/result facts it derives from.</summary>
+    public ScanUiLifecycleState LifecycleState =>
+        ScanUiLifecycle.Compute(runningScanMode ?? selectedScanMode, IsScanning, Progress?.Status, latestAttempt);
+
     public int SelectedDriveIndex { get => selectedDriveIndex; set => Set(ref selectedDriveIndex, value); }
     public DriveSummary? SelectedDrive => selectedDriveIndex >= 0 && selectedDriveIndex < Drives.Count ? Drives[selectedDriveIndex] : null;
     public string ApplicationVersion => applicationVersion;
@@ -46,22 +71,35 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
     /// an already-saved plan instead of building a new one from the current in-memory scan result.</summary>
     public CleanupPlanId? PendingReviewPlanId { get; set; }
 
+    /// <summary>
+    /// Starts exactly one scan attempt for <see cref="SelectedScanMode"/>. Refuses to start with no mode chosen
+    /// (defect: "a scan must never start without a clear authoritative mode"), while already scanning, or with
+    /// no supported drive selected. The mode is captured into <c>runningScanMode</c> for the duration of the
+    /// attempt so the lifecycle display stays correct even if the user changes <see cref="SelectedScanMode"/>
+    /// again immediately after this attempt finishes. Every attempt gets a fresh, independent
+    /// <see cref="ScanResult"/> (never a mutated reuse of the previous one — see <c>ScanResult.ScanId</c>);
+    /// <see cref="Result"/> is only replaced on a genuinely successful terminal state, so a cancelled or failed
+    /// rescan can never erase a previous success.
+    /// </summary>
     public async Task<ScanResult?> StartAsync()
     {
         var drive = SelectedDrive;
-        if (drive is null || !drive.IsSupported || IsScanning) return null;
+        if (drive is null || !drive.IsSupported || IsScanning || SelectedScanMode is not { } mode) return null;
+        runningScanMode = mode;
         cancellation = new CancellationTokenSource();
         Progress = new(ScanStatus.Preparing, TimeSpan.Zero, 0, 0, 0, 0, drive.Root, "Preparing private analysis.");
         Changed();
         try
         {
             var reporter = new Progress<ScanProgress>(value => { Progress = value; Changed(); });
-            Result = await scanService.ScanAsync(new(drive.Root, SelectedMode), reporter, cancellation.Token);
-            return Result;
+            var outcome = await scanService.ScanAsync(new(drive.Root, mode), reporter, cancellation.Token);
+            LatestAttempt = outcome;
+            if (outcome.Status is ScanStatus.Completed or ScanStatus.CompletedWithWarnings) Result = outcome;
+            return outcome;
         }
         finally
         {
-            cancellation.Dispose(); cancellation = null; Changed();
+            cancellation.Dispose(); cancellation = null; runningScanMode = null; Changed();
         }
     }
 
@@ -73,7 +111,7 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
     }
 
     public void Dispose() => cancellation?.Dispose();
-    private void Changed() { OnPropertyChanged(nameof(IsScanning)); OnPropertyChanged(nameof(SelectedDrive)); StateChanged?.Invoke(this, EventArgs.Empty); }
+    private void Changed() { OnPropertyChanged(nameof(IsScanning)); OnPropertyChanged(nameof(SelectedDrive)); OnPropertyChanged(nameof(LifecycleState)); StateChanged?.Invoke(this, EventArgs.Empty); }
     private void Set<T>(ref T field, T value, [CallerMemberName] string? name = null) { if (EqualityComparer<T>.Default.Equals(field, value)) return; field = value; OnPropertyChanged(name); Changed(); }
     private void OnPropertyChanged(string? name) => PropertyChanged?.Invoke(this, new(name));
 }

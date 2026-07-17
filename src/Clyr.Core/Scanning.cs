@@ -70,8 +70,24 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                 if (cancellationToken.IsCancellationRequested)
                 {
                     progress?.Report(new(ScanStatus.Cancelling, clock.UtcNow - started, files, directories, bytes,
-                        inaccessible + reparse + changed + skipped, RedactPath(stack.Peek().Path), "Cancellation acknowledged."));
+                        inaccessible + reparse + changed + skipped, RedactPath(stack.Peek().Path), "Cancellation acknowledged.",
+                        inaccessible, reparse, WarningCount()));
                     return Finish(ScanStatus.Cancelled);
+                }
+
+                // Quick Analysis carries an explicit, documented time and item budget in addition to its depth
+                // limit (see ScanPolicy.For) so a first look never runs unboundedly long even against a huge,
+                // deeply nested tree. Deep Analysis has neither bound and runs until every safely accessible
+                // entry has been processed, the caller cancels, or a fatal error occurs.
+                if (policy.TimeBudget is { } timeBudget && clock.UtcNow - started >= timeBudget)
+                {
+                    AddIssue(ScanIssueKind.ResourceLimit, "scan.quick-time-budget", "Quick Analysis time budget reached; remaining areas were not examined.");
+                    return Finish(ScanStatus.CompletedWithWarnings);
+                }
+                if (policy.ItemBudget is { } itemBudget && files + directories >= itemBudget)
+                {
+                    AddIssue(ScanIssueKind.ResourceLimit, "scan.quick-item-budget", "Quick Analysis item budget reached; remaining areas were not examined.");
+                    return Finish(ScanStatus.CompletedWithWarnings);
                 }
 
                 var frame = stack.Peek();
@@ -115,7 +131,8 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                 {
                     lastProgress = now;
                     progress?.Report(new(ScanStatus.Scanning, now - started, files, directories, bytes,
-                        inaccessible + reparse + changed + skipped, RedactPath(entry.FullPath), "Observing filesystem metadata."));
+                        inaccessible + reparse + changed + skipped, RedactPath(entry.FullPath), "Observing filesystem metadata.",
+                        inaccessible, reparse, WarningCount()));
                 }
             }
             return Finish(issues.Count == 0 ? ScanStatus.Completed : ScanStatus.CompletedWithWarnings);
@@ -154,6 +171,7 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
             if (issues.TryGetValue(kind, out var issue)) { issue.Count++; return; }
             if (issues.Count < MaximumIssues) issues[kind] = new(kind, code, detail);
         }
+        long WarningCount() => issues.Values.Sum(x => x.Count);
         ScanResult Finish(ScanStatus status, string? failureCode = null, string? failureMessage = null)
         {
             var ended = clock.UtcNow;
@@ -171,7 +189,7 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                 issues.Values.Select(x => new ScanIssueSummary(x.Kind, x.Code, x.Count, x.Detail)).ToArray(), failureCode, failureMessage,
                 classified);
             progress?.Report(new(status, ended - started, files, directories, bytes, inaccessible + reparse + changed + skipped,
-                RedactPath(root), TerminalMessage(status)));
+                RedactPath(root), TerminalMessage(status), inaccessible, reparse, WarningCount()));
             return result;
         }
     }
@@ -198,13 +216,33 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
     private sealed class ScanOpenException(Exception inner) : IOException("Directory enumeration could not start.", inner);
 }
 
-internal sealed record ScanPolicy(int MaximumDepth, int TopCount, int TopLevelCount)
+/// <summary>
+/// The exact, documented bounds each mode runs under. Quick Analysis is deliberately bounded on three
+/// independent axes — depth, elapsed time, and item count — so a "fast first look" stays fast even against a
+/// pathologically large or deep subtree; hitting any one of them ends the scan honestly as
+/// <see cref="ScanStatus.CompletedWithWarnings"/> with a diagnostic identifying which bound was hit, never a
+/// silent truncation. Deep Analysis has no depth, time, or item bound: it runs until every safely accessible
+/// entry has been processed, the caller cancels, or a fatal error occurs.
+/// </summary>
+internal sealed record ScanPolicy(int MaximumDepth, int TopCount, int TopLevelCount, TimeSpan? TimeBudget, long? ItemBudget)
 {
+    /// <summary>Quick Analysis depth bound: root-level entries plus two further levels — enough to reach the
+    /// top-level contents of well-known high-value roots (Windows, ProgramData, Program Files, Users) and one
+    /// level into each, without an unbounded recursive walk.</summary>
+    private const int QuickMaximumDepth = 3;
+    /// <summary>Quick Analysis stops examining new entries after this much wall-clock time has elapsed, even if
+    /// the traversal is not otherwise complete.</summary>
+    private static readonly TimeSpan QuickTimeBudget = TimeSpan.FromSeconds(8);
+    /// <summary>Quick Analysis stops after this many files-plus-directories have been examined.</summary>
+    private const long QuickItemBudget = 250_000;
+
     public static ScanPolicy For(ScanRequest request)
     {
         var defaultTop = request.Mode == ScanMode.Quick ? 25 : 100;
         var top = Math.Clamp(request.TopCount ?? defaultTop, 1, 1000);
-        return request.Mode == ScanMode.Quick ? new(3, top, 256) : new(512, top, 1000);
+        return request.Mode == ScanMode.Quick
+            ? new(QuickMaximumDepth, top, 256, QuickTimeBudget, QuickItemBudget)
+            : new(512, top, 1000, null, null);
     }
 }
 
