@@ -11,6 +11,8 @@ public sealed partial class CliApplication
     private IDriveDiscovery? driveDiscovery;
     private IScanService? scanner;
     private IScanService? nonPersistingScanner;
+    private IScanService? noCheckpointScanner;
+    private IScanService? noCheckpointNoHistoryScanner;
     private IScanReportExporter? exporter;
 
     public CliApplication(IEnvironmentInfo environment, IDemoDataService demo, RuleValidator rules,
@@ -20,18 +22,29 @@ public sealed partial class CliApplication
         this.driveDiscovery = driveDiscovery;
         this.scanner = scanner;
         this.nonPersistingScanner = scanner;
+        this.noCheckpointScanner = scanner;
+        this.noCheckpointNoHistoryScanner = scanner;
         this.exporter = exporter;
         this.rulePack = rulePack;
     }
 
     /// <summary>
-    /// A scanner that never writes to CLYR's local aggregate history, distinct from the normal persisting
-    /// scanner passed to the constructor above — used only by <c>scan --no-persist</c>, e.g. for diagnostic or
-    /// real-machine verification runs that must not pollute a user's actual scan history. Defaults to the same
-    /// persisting scanner (so existing callers are unaffected); set this explicitly to enable true no-persist
-    /// behavior.
+    /// The four persistence combinations <c>scan</c> can select between, named by exactly what each one skips.
+    /// "History" means CLYR's local aggregate scan-history database; "checkpoint" means the CLYR-owned Quick
+    /// Analysis continuation checkpoint (see <see cref="Clyr.Core.IScanCheckpointStore"/>). A flag that claims
+    /// something will not be persisted must actually select a scanner instance that cannot write it — never a
+    /// scanner that happens to skip history while silently still writing a checkpoint, or vice versa. All four
+    /// properties default to the constructor's persisting <c>scanner</c> (so existing callers that never touch
+    /// these flags see no behavior change); set the ones your host application can actually honor.
     /// </summary>
     public IScanService? NonPersistingScanner { set => nonPersistingScanner = value; }
+
+    /// <summary>History is saved (<c>--no-checkpoint</c> alone); the Quick Analysis checkpoint is never written.</summary>
+    public IScanService? NoCheckpointScanner { set => noCheckpointScanner = value; }
+
+    /// <summary>Nothing is persisted at all: neither history nor a checkpoint (<c>--no-persist</c>, or
+    /// <c>--no-history --no-checkpoint</c> together).</summary>
+    public IScanService? NoCheckpointNoHistoryScanner { set => noCheckpointNoHistoryScanner = value; }
 
     private int RunPhaseTwo(IReadOnlyList<string> arguments, TextWriter output, TextWriter error)
     {
@@ -73,10 +86,15 @@ public sealed partial class CliApplication
 
     private int Scan(IReadOnlyList<string> arguments, TextWriter output, TextWriter error)
     {
-        if (arguments.Count < 2) { error.WriteLine("Usage: clyr scan <root> [--quick|--deep] [--top N] [--json] [--output <file>] [--no-persist] [--continue]"); return 2; }
+        if (arguments.Count < 2)
+        {
+            error.WriteLine("Usage: clyr scan <root> [--quick|--deep] [--top N] [--json] [--output <file>] [--no-persist] [--no-history] [--no-checkpoint] [--continue]");
+            return 2;
+        }
         var mode = ScanMode.Quick;
         var json = false;
-        var noPersist = false;
+        var noHistory = false;
+        var noCheckpoint = false;
         var continueFromCheckpoint = false;
         int? top = null;
         string? destination = null;
@@ -87,7 +105,14 @@ public sealed partial class CliApplication
                 case "--quick": mode = ScanMode.Quick; break;
                 case "--deep": mode = ScanMode.Deep; break;
                 case "--json": json = true; break;
-                case "--no-persist": noPersist = true; break;
+                // Persists nothing at all: neither scan history nor a Quick Analysis checkpoint. Exactly
+                // equivalent to --no-history --no-checkpoint together, spelled out below.
+                case "--no-persist": noHistory = true; noCheckpoint = true; break;
+                // Skips only CLYR's local aggregate scan-history database; the Quick Analysis checkpoint may
+                // still be written, so a bounded Quick run stays resumable even in a diagnostic/no-history run.
+                case "--no-history": noHistory = true; break;
+                // Skips only the Quick Analysis checkpoint; scan history is still saved normally.
+                case "--no-checkpoint": noCheckpoint = true; break;
                 // Resumes Quick Analysis from its own last CLYR-owned checkpoint instead of restarting at the
                 // drive root; ignored (with no error) for Deep, which has no checkpoint concept.
                 case "--continue": continueFromCheckpoint = true; break;
@@ -106,9 +131,17 @@ public sealed partial class CliApplication
         {
             var progress = new InlineProgress<ScanProgress>(value =>
                 error.WriteLine($"{value.Status}: files={value.FilesObserved} directories={value.DirectoriesObserved} logical={FormatBytes(value.LogicalBytesObserved)} skipped={value.SkippedEntries}"));
-            // --no-persist deliberately runs the unwrapped scanner (no SnapshotSavingScanService), so a
-            // diagnostic or real-machine verification run never writes to CLYR's real local history.
-            var activeScanner = noPersist ? nonPersistingScanner : scanner;
+            // Each of the four (history, checkpoint) combinations below is backed by a genuinely distinct
+            // IScanService instance (see Program.cs) — never a single scanner with a flag inside it — so a run
+            // that claims "no history" or "no checkpoint" is structurally incapable of writing the thing it
+            // claims not to write, rather than relying on every code path to remember to check a bool.
+            IScanService? activeScanner = (noHistory, noCheckpoint) switch
+            {
+                (false, false) => scanner,
+                (true, false) => nonPersistingScanner,
+                (false, true) => noCheckpointScanner,
+                (true, true) => noCheckpointNoHistoryScanner,
+            };
             var result = activeScanner!.ScanAsync(new(root, mode, top, continueFromCheckpoint), progress, cancellation.Token).GetAwaiter().GetResult();
             var serialized = exporter!.Serialize(result);
             if (destination is not null)
@@ -133,6 +166,16 @@ public sealed partial class CliApplication
         writer.WriteLine($"Observed logical size: {FormatBytes(result.LogicalBytesObserved)} ({result.Precision})");
         writer.WriteLine($"Coverage: {result.Coverage.FilesObserved} files, {result.Coverage.DirectoriesObserved} directories, {result.Issues.Sum(x => x.Count)} warnings");
         writer.WriteLine(result.AccountingNote);
+        if (result.UnaccountedBytes is < 0)
+            writer.WriteLine($"Note: observed logical bytes exceeded the drive's reported used-bytes basis by {FormatBytes(-result.UnaccountedBytes.Value)} (hard links, sparse files, or a basis/timing difference — not a reportable coverage percentage).");
+        else if (result.UnaccountedBytes is { } unaccounted) writer.WriteLine($"Not observed by this scan: {FormatBytes(unaccounted)}");
+        if (result.Allocation is { } allocation)
+        {
+            writer.WriteLine($"Allocated (on-disk): {FormatBytes(allocation.AllocatedBytesObserved)}; unique after hard-link de-duplication: {FormatBytes(allocation.UniqueAllocatedBytesObserved)}.");
+            if (allocation.VisibleHardLinkEntries > 0) writer.WriteLine($"Hard-linked entries excluded from unique allocation: {allocation.VisibleHardLinkEntries} (across {allocation.UniqueFileIdentities} unique file identities).");
+            if (allocation.FilesWithUnavailableAllocatedSize > 0) writer.WriteLine($"Allocated size unavailable for {allocation.FilesWithUnavailableAllocatedSize} file(s).");
+            if (allocation.SparseFileCount > 0 || allocation.CompressedFileCount > 0) writer.WriteLine($"Sparse files: {allocation.SparseFileCount}; compressed files: {allocation.CompressedFileCount}.");
+        }
         if (result.Classification is not null)
         {
             writer.WriteLine(result.Classification.Summary);

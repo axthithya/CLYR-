@@ -3,8 +3,17 @@ using Clyr.Contracts;
 namespace Clyr.Core;
 
 [Flags]
-public enum EntryTraits { None = 0, Directory = 1, ReparsePoint = 2, CloudPlaceholder = 4 }
-public sealed record FileSystemEntry(string FullPath, long LogicalBytes, EntryTraits Traits);
+public enum EntryTraits { None = 0, Directory = 1, ReparsePoint = 2, CloudPlaceholder = 4, Sparse = 8, Compressed = 16 }
+
+/// <summary>
+/// <paramref name="AllocatedBytes"/> is the real on-disk allocation reported by the filesystem (accounts for
+/// sparse/compressed storage) — null when it could not be read, never invented. <paramref name="FileIdentity"/>
+/// is a stable, volume-scoped file identity (NTFS file index) used to detect hard links so the same physical
+/// content is never counted twice in unique-allocation totals — null when identity could not be read. Both are
+/// read through read-only Windows metadata APIs; neither ever opens or reads file content.
+/// </summary>
+public sealed record FileSystemEntry(string FullPath, long LogicalBytes, EntryTraits Traits,
+    long? AllocatedBytes = null, ulong? FileIdentity = null, int? HardLinkCount = null);
 public interface IDriveDiscovery { IReadOnlyList<DriveSummary> Discover(); }
 public interface IFileSystemEnumerator { IEnumerable<FileSystemEntry> Enumerate(string directory); }
 public interface IScanService
@@ -79,6 +88,12 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
         var issues = new Dictionary<ScanIssueKind, MutableIssue>();
         long files = checkpoint?.FilesObserved ?? 0, directories = checkpoint?.DirectoriesObserved ?? 0,
             bytes = checkpoint?.LogicalBytesObserved ?? 0, inaccessible = 0, reparse = 0, cloud = 0, changed = 0, skipped = 0;
+        long allocatedBytes = 0, uniqueAllocatedBytes = 0, filesWithUnavailableAllocatedSize = 0,
+            sparseFiles = 0, compressedFiles = 0, visibleHardLinkEntries = 0;
+        // Volume-scoped NTFS file indices already seen this scan, used only to de-duplicate hard-linked
+        // content out of the unique-allocation total. Bounded by "one entry per file this scan observes" —
+        // the same order of magnitude as the scan itself, not an independent unbounded growth.
+        var seenFileIdentities = new HashSet<ulong>();
         var lastProgress = DateTimeOffset.MinValue;
         var policyBoundaryHit = false;
 
@@ -254,7 +269,29 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
             topFiles.Add(new(entry.FullPath, size, 1, MeasurementPrecision.Estimated));
             var family = ExtensionClassifier.Classify(Path.GetExtension(entry.FullPath));
             extensions[family].Bytes += size; extensions[family].Count++;
+            ObserveAllocation(entry);
             return true;
+        }
+
+        // Phase 7.2.2/7.2.3: allocated-size and hard-link-aware accounting. Never invented — a file whose
+        // allocated size could not be read through the read-only Windows API contributes to
+        // FilesWithUnavailableAllocatedSize instead of a guessed number. A file whose NTFS identity could not
+        // be read is still counted in AllocatedBytesObserved (raw sum) but cannot be de-duplicated, so it is
+        // conservatively also added to UniqueAllocatedBytesObserved — undercounting hard-link savings is safer
+        // than overstating them.
+        void ObserveAllocation(FileSystemEntry entry)
+        {
+            var allocated = entry.AllocatedBytes;
+            if (allocated is { } value) allocatedBytes += Math.Max(0, value);
+            else filesWithUnavailableAllocatedSize++;
+            if ((entry.Traits & EntryTraits.Sparse) != 0) sparseFiles++;
+            if ((entry.Traits & EntryTraits.Compressed) != 0) compressedFiles++;
+            if (entry.FileIdentity is { } identity)
+            {
+                if (seenFileIdentities.Add(identity)) { if (allocated is { } unique) uniqueAllocatedBytes += Math.Max(0, unique); }
+                else visibleHardLinkEntries++;
+            }
+            else if (allocated is { } fallback) uniqueAllocatedBytes += Math.Max(0, fallback);
         }
 
         void ReportProgress(string currentPath)
@@ -308,7 +345,11 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
         {
             var ended = clock.UtcNow;
             var observed = Math.Max(0, bytes);
-            long? unaccounted = drive.UsedBytes.HasValue ? Math.Max(0, drive.UsedBytes.Value - observed) : null;
+            // Never silently clamped to zero (Phase 7.2.5): observed logical bytes can legitimately exceed the
+            // drive's reported used-bytes basis (hard links, sparse files, or the two figures being measured at
+            // slightly different instants). A negative value here is a real, meaningful signal — surfaced via
+            // AccountingConsistency.LogicalExceedsDriveUsed below — not an error to be hidden by flooring it.
+            long? unaccounted = drive.UsedBytes.HasValue ? drive.UsedBytes.Value - observed : null;
             var coverage = new ScanCoverage(files, directories, inaccessible, reparse, cloud, changed, skipped, false, false, false);
             var classified = classification?.Complete(coverage, unaccounted);
             // A checkpoint is only worth keeping when a policy boundary actually left work pending (saved just
@@ -316,15 +357,25 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
             // nothing meaningful left for "Continue Quick Analysis" to resume, so the checkpoint is cleared.
             if (request.Mode == ScanMode.Quick && !policyBoundaryHit) checkpoints?.Clear(root, ScanMode.Quick);
             if (request.Mode == ScanMode.Deep) checkpoints?.Clear(root, ScanMode.Quick);
+
+            var allocationConsistency = AccountingConsistency.Consistent;
+            if (filesWithUnavailableAllocatedSize > 0) allocationConsistency |= AccountingConsistency.AllocatedDataIncomplete;
+            if (visibleHardLinkEntries > 0) allocationConsistency |= AccountingConsistency.HardLinkAdjusted;
+            if (changed > 0) allocationConsistency |= AccountingConsistency.ChangedDuringScan;
+            if (unaccounted is < 0) allocationConsistency |= AccountingConsistency.LogicalExceedsDriveUsed;
+            var allocation = new AllocationAccounting(allocatedBytes, uniqueAllocatedBytes, filesWithUnavailableAllocatedSize,
+                sparseFiles, compressedFiles, visibleHardLinkEntries, seenFileIdentities.Count, allocationConsistency);
+
             var result = new ScanResult(Guid.NewGuid(), status, request.Mode, root, drive.FileSystem, started, ended, observed,
                 drive.UsedBytes, unaccounted, MeasurementPrecision.Estimated,
-                "Logical metadata bytes; hard-linked content may be counted more than once. Allocated size is not measured in Phase 2.",
+                "Logical metadata bytes (namespace size); see Allocation for real on-disk consumption. Hard-linked " +
+                "content is de-duplicated in unique allocated bytes but still counted once per visible path in logical bytes.",
                 coverage,
                 topLevel.Items, topDirectories.Items, topFiles.Items,
                 extensions.Where(x => x.Value.Count > 0).OrderByDescending(x => x.Value.Bytes)
                     .Select(x => new ExtensionSummary(x.Key, x.Value.Bytes, x.Value.Count)).ToArray(),
                 issues.Values.Select(x => new ScanIssueSummary(x.Kind, x.Code, x.Count, x.Detail, x.Severity)).ToArray(), failureCode, failureMessage,
-                classified);
+                classified, allocation);
             progress?.Report(new(status, ended - started, files, directories, bytes, inaccessible + reparse + changed + skipped,
                 RedactPath(root), TerminalMessage(status), inaccessible, reparse, WarningCount()));
             return result;
@@ -399,7 +450,9 @@ internal sealed record ScanPolicy(int MaximumDepth, int TopCount, int TopLevelCo
     {
         var defaultTop = request.Mode == ScanMode.Quick ? 25 : 100;
         var top = Math.Clamp(request.TopCount ?? defaultTop, 1, 1000);
-        if (request.Mode != ScanMode.Quick) return new(512, top, 1000, null, null);
+        // Deep Analysis has no configured depth ceiling at all — int.MaxValue, not a large-but-finite number —
+        // per Phase 7.2.1. It stops only on cancellation, exhaustion, or a fatal error.
+        if (request.Mode != ScanMode.Quick) return new(int.MaxValue, top, 1000, null, null);
         var effective = quickPolicy ?? QuickAnalysisPolicy.Default;
         return new(QuickMaximumDepth, top, 256, effective.TargetDuration, effective.ItemBudget);
     }

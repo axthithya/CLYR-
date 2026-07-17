@@ -23,13 +23,21 @@ public sealed class FileScanCheckpointStore : IScanCheckpointStore
     public static readonly TimeSpan MaximumAge = TimeSpan.FromHours(24);
 
     private readonly string directory;
+    private readonly string confinedDirectory;
     private readonly IClock clock;
+
+    /// <summary>The real, fully-resolved checkpoints directory every checkpoint file is confined to. Exposed so
+    /// tests can independently prove containment rather than trusting <see cref="PathFor"/>'s own arithmetic.</summary>
+    public string ConfinedDirectory => confinedDirectory;
 
     public FileScanCheckpointStore(string directory, IClock clock)
     {
         this.directory = directory;
         this.clock = clock;
         Directory.CreateDirectory(directory);
+        // Resolved once, after creation, so it reflects the real filesystem path (fully qualified, no "..",
+        // trailing separator normalized) that every derived checkpoint path is checked against below.
+        confinedDirectory = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
     }
 
     public ScanCheckpoint? TryLoad(string root, ScanMode mode)
@@ -66,7 +74,22 @@ public sealed class FileScanCheckpointStore : IScanCheckpointStore
         if (File.Exists(path)) File.Delete(path);
     }
 
-    private string PathFor(string root, ScanMode mode) => Path.Combine(directory, $"{Fingerprint(root)}-{mode}.json");
+    /// <summary>
+    /// Builds a checkpoint file path for an arbitrary, untrusted <paramref name="root"/> string. The path is
+    /// never built from <paramref name="root"/>'s own characters — only from a fixed-length SHA-256 hex digest
+    /// of it — so no drive label, traversal sequence ("..\"), reparse-point target, malformed drive identity,
+    /// or unicode/control-character content in <paramref name="root"/> can ever influence the resulting file
+    /// name's shape, let alone escape <see cref="confinedDirectory"/>. The containment check below is a
+    /// defense-in-depth belt-and-braces assertion, not the actual safety mechanism (the hash is) — it exists so
+    /// a future change to this method that broke containment would fail loudly instead of silently.
+    /// </summary>
+    private string PathFor(string root, ScanMode mode)
+    {
+        var path = Path.GetFullPath(Path.Combine(directory, $"{Fingerprint(root)}-{mode}.json"));
+        if (!path.StartsWith(confinedDirectory, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("A checkpoint path resolved outside CLYR's checkpoints directory; refusing to touch it.");
+        return path;
+    }
 
     private static string Fingerprint(string root)
     {

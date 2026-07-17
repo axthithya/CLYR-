@@ -18,7 +18,8 @@ public enum ScanQuality { Excellent, Good, Partial, Insufficient }
 /// </summary>
 public sealed record ScanAccountingSummary(
     double? AccountedPercentage, double? ClassificationPercentage, ScanQuality Quality,
-    long ClassifiedObservedBytes, long UnclassifiedObservedBytes, long? UnaccountedDriveBytes);
+    long ClassifiedObservedBytes, long UnclassifiedObservedBytes, long? UnaccountedDriveBytes,
+    AccountingConsistency Consistency = AccountingConsistency.Consistent);
 
 public static class ScanAccounting
 {
@@ -32,12 +33,18 @@ public static class ScanAccounting
     public static ScanAccountingSummary Summarize(ScanResult result)
     {
         var driveUsed = result.DriveUsedBytes;
-        // Never an impossible percentage: logical observed bytes can exceed drive-used bytes (hard links,
-        // sparse files, or a basis difference between the two measurements), so the numerator is clamped to
-        // the drive-used basis rather than allowed to produce more than 100%.
-        double? accountedPercentage = driveUsed is > 0
-            ? Math.Clamp(Math.Min(result.LogicalBytesObserved, driveUsed.Value) * 100d / driveUsed.Value, 0, 100)
-            : null;
+        var consistency = result.Allocation?.Consistency ?? AccountingConsistency.Consistent;
+        // Phase 7.2.5: no silent clamping. When logical observed bytes exceed the drive-used basis (hard
+        // links, sparse files, or a basis difference between the two measurements), a percentage above 100%
+        // is not a meaningful "coverage" figure, so it is suppressed (null) rather than floored to a
+        // reassuring-looking 100% — the caller must read AccountedPercentage's absence together with
+        // Consistency.LogicalExceedsDriveUsed, never assume "null means unavailable for some boring reason."
+        double? accountedPercentage = null;
+        if (driveUsed is > 0)
+        {
+            if (result.LogicalBytesObserved > driveUsed.Value) consistency |= AccountingConsistency.LogicalExceedsDriveUsed;
+            else accountedPercentage = result.LogicalBytesObserved * 100d / driveUsed.Value;
+        }
 
         var classifiedBytes = result.Classification?.Coverage.ClassifiedBytes ?? 0;
         var unclassifiedBytes = result.Classification?.Coverage.UnknownBytes ?? Math.Max(0, result.LogicalBytesObserved - classifiedBytes);
@@ -45,7 +52,7 @@ public static class ScanAccounting
         double? classificationPercentage = observedForClassification > 0 ? classifiedBytes * 100d / observedForClassification : null;
 
         return new(accountedPercentage, classificationPercentage, QualityFor(accountedPercentage),
-            classifiedBytes, unclassifiedBytes, result.UnaccountedBytes);
+            classifiedBytes, unclassifiedBytes, result.UnaccountedBytes, consistency);
     }
 
     public static ScanQuality QualityFor(double? accountedPercentage) => accountedPercentage switch

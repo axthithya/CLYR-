@@ -52,14 +52,18 @@ public sealed class ScanAccountingTests
     }
 
     [Fact]
-    public void UnaccountedBytesIsNeverNegativeEvenWhenObservedExceedsDriveUsed()
+    public void ObservedExceedingDriveUsedSuppressesThePercentageRatherThanSilentlyClampingTo100()
     {
-        // Hard links, sparse files, or a basis difference can make logical observed bytes exceed drive-used
-        // bytes; the accounted percentage must clamp at 100%, never overflow past it or go negative.
+        // Phase 7.2.5: hard links, sparse files, or a basis difference can make logical observed bytes exceed
+        // drive-used bytes. This must never be papered over as a reassuring "100% accounted" — the percentage
+        // is suppressed (null), the raw (negative) difference is preserved rather than floored to zero, and the
+        // LogicalExceedsDriveUsed flag names exactly what happened so the UI can qualify it honestly.
         var result = ScanFixtures.Result(ScanMode.Deep, ScanStatus.Completed, observed: 5000, driveUsed: 3000);
         var summary = ScanAccounting.Summarize(result);
-        Assert.Equal(100, summary.AccountedPercentage);
-        Assert.True(summary.UnaccountedDriveBytes is null or >= 0);
+        Assert.Null(summary.AccountedPercentage);
+        Assert.Equal(ScanQuality.Insufficient, summary.Quality);
+        Assert.Equal(-2000, summary.UnaccountedDriveBytes);
+        Assert.True(summary.Consistency.HasFlag(AccountingConsistency.LogicalExceedsDriveUsed));
     }
 
     [Fact]

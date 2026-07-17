@@ -71,23 +71,38 @@ public sealed class PhaseTwoCliTests
     }
 
     [Fact]
-    public void NoPersistUsesTheDedicatedNonPersistingScannerNeverTheNormalOne()
+    public void EachPersistenceFlagCombinationRoutesToItsOwnDedicatedScannerInstance()
     {
-        var persisting = new FakeScanner();
-        var nonPersisting = new FakeScanner();
+        // Four genuinely distinct scanner instances, one per (history, checkpoint) combination. A flag that
+        // claims something will not be persisted must select an instance that structurally cannot write it —
+        // proven here by checking each flag combination calls exactly its own dedicated fake and no other.
+        var full = new FakeScanner();
+        var noHistoryScanner = new FakeScanner();
+        var noCheckpointScanner = new FakeScanner();
+        var nothingScanner = new FakeScanner();
         var environment = new FakeEnvironment();
         var app = new CliApplication(environment, new DemoDataService(),
             new RuleValidator(File.ReadAllText(Path.Combine(RepositoryRoot(), "rules", "schemas", "rule.schema.json"))),
-            new PrivacyRedactor(environment), "CLYR 0.2.0-phase2", new FakeDrives(), persisting, new ScanReportExporter())
-        { NonPersistingScanner = nonPersisting };
+            new PrivacyRedactor(environment), "CLYR 0.2.0-phase2", new FakeDrives(), full, new ScanReportExporter())
+        {
+            NonPersistingScanner = noHistoryScanner,
+            NoCheckpointScanner = noCheckpointScanner,
+            NoCheckpointNoHistoryScanner = nothingScanner
+        };
+        Assert.Equal(0, app.Run(["scan", "C:\\", "--quick"], TextWriter.Null, TextWriter.Null));
+        Assert.Equal((1, 0, 0, 0), (full.CallCount, noHistoryScanner.CallCount, noCheckpointScanner.CallCount, nothingScanner.CallCount));
+
+        Assert.Equal(0, app.Run(["scan", "C:\\", "--quick", "--no-history"], TextWriter.Null, TextWriter.Null));
+        Assert.Equal((1, 1, 0, 0), (full.CallCount, noHistoryScanner.CallCount, noCheckpointScanner.CallCount, nothingScanner.CallCount));
+
+        Assert.Equal(0, app.Run(["scan", "C:\\", "--quick", "--no-checkpoint"], TextWriter.Null, TextWriter.Null));
+        Assert.Equal((1, 1, 1, 0), (full.CallCount, noHistoryScanner.CallCount, noCheckpointScanner.CallCount, nothingScanner.CallCount));
 
         Assert.Equal(0, app.Run(["scan", "C:\\", "--quick", "--no-persist"], TextWriter.Null, TextWriter.Null));
-        Assert.Equal(1, nonPersisting.CallCount);
-        Assert.Equal(0, persisting.CallCount);
+        Assert.Equal((1, 1, 1, 1), (full.CallCount, noHistoryScanner.CallCount, noCheckpointScanner.CallCount, nothingScanner.CallCount));
 
-        Assert.Equal(0, app.Run(["scan", "C:\\", "--quick"], TextWriter.Null, TextWriter.Null));
-        Assert.Equal(1, nonPersisting.CallCount);
-        Assert.Equal(1, persisting.CallCount);
+        Assert.Equal(0, app.Run(["scan", "C:\\", "--quick", "--no-history", "--no-checkpoint"], TextWriter.Null, TextWriter.Null));
+        Assert.Equal((1, 1, 1, 2), (full.CallCount, noHistoryScanner.CallCount, noCheckpointScanner.CallCount, nothingScanner.CallCount));
     }
 
     private static CliApplication CreateApplication()

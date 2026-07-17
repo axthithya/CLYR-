@@ -42,7 +42,7 @@ public sealed partial class CliApplication
     private static int Help(TextWriter output)
     {
         output.WriteLine("CLYR - trustworthy Windows storage understanding");
-        output.WriteLine("Commands: --help, --version, doctor, demo, drives [--json], scan <root> [--quick|--deep] [--top N] [--json] [--output <file>] [--no-persist], rules list|verify|describe <id>|validate <path>, explain <report.json>, snapshots list|show|compare|delete|clear|settings, plan candidates|create|show|validate|export|discard|execute, execution status|receipt|list|export|discard-receipt, developer tools|scan|show|findings|plan|capabilities|doctor");
+        output.WriteLine("Commands: --help, --version, doctor, demo, drives [--json], scan <root> [--quick|--deep] [--top N] [--json] [--output <file>] [--no-persist] [--no-history] [--no-checkpoint] [--continue], rules list|verify|describe <id>|validate <path>, explain <report.json>, snapshots list|show|compare|delete|clear|settings, plan candidates|create|show|validate|export|discard|execute, execution status|receipt|list|export|discard-receipt, developer tools|scan|show|findings|plan|capabilities|doctor");
         return 0;
     }
 

@@ -156,8 +156,10 @@ internal static class ScanFixtures
         var started = DateTimeOffset.UtcNow.AddSeconds(-5);
         var ended = DateTimeOffset.UtcNow;
         var coverage = new ScanCoverage(10, 2, inaccessible, 0, 0, 0, 0, false, false, false);
+        // Not clamped: observed can legitimately exceed driveUsed (hard links, sparse files, basis
+        // differences) — see AccountingConsistency.LogicalExceedsDriveUsed and Phase 7.2.5.
         return new(Guid.NewGuid(), status, mode, "C:\\", "NTFS", started, ended, observed, driveUsed,
-            driveUsed.HasValue ? Math.Max(0, driveUsed.Value - observed) : null, MeasurementPrecision.Estimated,
+            driveUsed.HasValue ? driveUsed.Value - observed : null, MeasurementPrecision.Estimated,
             "Logical metadata bytes only.", coverage, [], [], [], [], [],
             status == ScanStatus.Failed ? "scan.failed" : null, status == ScanStatus.Failed ? "Simulated failure." : null,
             classification);

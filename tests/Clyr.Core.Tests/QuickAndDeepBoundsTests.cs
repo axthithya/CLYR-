@@ -44,6 +44,19 @@ public sealed class QuickAndDeepBoundsTests
     }
 
     [Fact]
+    public async Task DeepHasNoConfiguredDepthCeilingAndReachesWellPastTheFormerFiniteLimit()
+    {
+        // Phase 7.2.1: Deep's depth bound is int.MaxValue, not a large-but-finite constant. 600 levels is well
+        // past the old 512-level ceiling that existed before this change — proof there is no configured ceiling
+        // left to hit, not just a generous one.
+        var fs = new VeryDeepFileSystem(600);
+        var result = await new ScanCoordinator(fs, new FakeDrives(), new SystemClock()).ScanAsync(new("C:\\", ScanMode.Deep), null, default);
+        Assert.Equal(ScanStatus.Completed, result.Status);
+        Assert.Equal(VeryDeepFileSystem.FileBytes, result.LogicalBytesObserved);
+        Assert.DoesNotContain(result.Issues, item => item.Code == "scan.depth-limit");
+    }
+
+    [Fact]
     public async Task DeepReachesNestedDataThatQuicksDepthLimitIntentionallySkips()
     {
         // Six levels deep — one level past Quick's documented depth-3 limit — a developer-cache-style file that
@@ -70,6 +83,19 @@ public sealed class QuickAndDeepBoundsTests
 
     /// <summary>C:\ -> a -> b -> c -> d -> e (depth 5) contains one file; Quick's depth-3 bound never opens
     /// past depth 3, so it can never see this file, while Deep (bound 512) reaches it easily.</summary>
+    private sealed class VeryDeepFileSystem(int levels) : IFileSystemEnumerator
+    {
+        public const long FileBytes = 777;
+        public IEnumerable<FileSystemEntry> Enumerate(string directory)
+        {
+            var depth = directory.Split('\\', StringSplitOptions.RemoveEmptyEntries).Length - 1;
+            var child = directory.EndsWith('\\') ? directory : directory + "\\";
+            if (depth < levels) return [new(child + "d" + depth, 0, EntryTraits.Directory)];
+            if (depth == levels) return [new(child + "deep.bin", FileBytes, EntryTraits.None)];
+            return [];
+        }
+    }
+
     private sealed class NestedFileSystem : IFileSystemEnumerator
     {
         public const long DeepFileBytes = 4096;

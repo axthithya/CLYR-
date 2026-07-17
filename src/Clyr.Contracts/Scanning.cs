@@ -13,6 +13,47 @@ public enum ExtensionFamily { Documents, Images, Video, Audio, Archives, Executa
 /// scan look like it failed. The remaining values describe real coverage gaps worth surfacing as warnings.</summary>
 public enum ScanIssueSeverity { Information, PolicyBoundary, AccessWarning, DataChanged, PermissionLimited, Fatal }
 
+/// <summary>
+/// Why a scan's accounting numbers may not be directly comparable, or may not add up the way a naive reading
+/// would expect. Multiple flags can apply to the same result at once — this is a bitset, not a single verdict —
+/// because these conditions are independent of each other. <see cref="Consistent"/> (zero) means none applied:
+/// the numbers can be compared and displayed at face value.
+/// </summary>
+[Flags]
+public enum AccountingConsistency
+{
+    Consistent = 0,
+    /// <summary>Observed logical bytes exceeded the drive's reported used-bytes basis (possible with hard
+    /// links, sparse files, or simply two different measurements taken at different basis). The accounted
+    /// percentage is suppressed (not silently clamped to 100%) whenever this is set.</summary>
+    LogicalExceedsDriveUsed = 1,
+    /// <summary>One or more files' allocated size could not be read, so allocated-byte totals are a lower
+    /// bound, not a complete figure.</summary>
+    AllocatedDataIncomplete = 2,
+    /// <summary>Unique-allocation totals were adjusted downward because hard-linked files sharing the same
+    /// physical content were detected and de-duplicated.</summary>
+    HardLinkAdjusted = 4,
+    /// <summary>The filesystem changed while the scan was running (entries appeared, disappeared, or were
+    /// renamed), so the final totals reflect a moving target rather than one frozen instant.</summary>
+    ChangedDuringScan = 8,
+    /// <summary>Two figures being compared were measured on different bases (e.g., logical vs. allocated, or a
+    /// volume-level figure vs. a file-tree figure) and are not safe to subtract or divide against each other
+    /// without qualification.</summary>
+    AccountingBasisMismatch = 16
+}
+
+/// <summary>
+/// Read-only, real-Windows-API-derived allocation and hard-link accounting for a finished scan. Logical bytes
+/// (namespace size) and allocated bytes (real on-disk consumption, accounting for sparse/compressed storage)
+/// are kept strictly separate and never mixed into one number — see <see cref="ScanResult.LogicalBytesObserved"/>
+/// for the logical total. <see cref="UniqueAllocatedBytesObserved"/> excludes duplicate hard-link references so
+/// it is never presented as though every visible path were independently reclaimable.
+/// </summary>
+public sealed record AllocationAccounting(
+    long AllocatedBytesObserved, long UniqueAllocatedBytesObserved, long FilesWithUnavailableAllocatedSize,
+    long SparseFileCount, long CompressedFileCount, long VisibleHardLinkEntries, long UniqueFileIdentities,
+    AccountingConsistency Consistency);
+
 public sealed record DriveSummary(string Root, string Label, string FileSystem, DriveKind Kind, bool IsReady,
     bool IsSystemVolume, bool IsSupported, string SupportReason, long? CapacityBytes, long? UsedBytes, long? FreeBytes);
 public sealed record ScanRequest(string Root, ScanMode Mode, int? TopCount = null, bool ContinueFromCheckpoint = false);
@@ -40,7 +81,7 @@ public sealed record ScanResult(Guid ScanId, ScanStatus Status, ScanMode Mode, s
     IReadOnlyList<RankedPath> TopLevelDirectories, IReadOnlyList<RankedPath> LargestDirectories,
     IReadOnlyList<RankedPath> LargestFiles, IReadOnlyList<ExtensionSummary> ExtensionFamilies,
     IReadOnlyList<ScanIssueSummary> Issues, string? FailureCode, string? FailureMessage,
-    ClassificationResult? Classification = null)
+    ClassificationResult? Classification = null, AllocationAccounting? Allocation = null)
 {
     public bool IsPartial => Status is ScanStatus.Cancelled or ScanStatus.CompletedWithWarnings;
 }

@@ -62,8 +62,24 @@ public sealed class WindowsFileSystemEnumerator : IFileSystemEnumerator
             if ((attributes & FileAttributes.Directory) != 0) traits |= EntryTraits.Directory;
             if ((attributes & FileAttributes.ReparsePoint) != 0) traits |= EntryTraits.ReparsePoint;
             if ((attributes & (FileAttributes.Offline | RecallOnOpen | RecallOnDataAccess)) != 0) traits |= EntryTraits.CloudPlaceholder;
+            if ((attributes & FileAttributes.SparseFile) != 0) traits |= EntryTraits.Sparse;
+            if ((attributes & FileAttributes.Compressed) != 0) traits |= EntryTraits.Compressed;
+
+            // Allocated size and hard-link identity are read only for plain files that are not reparse points
+            // and not cloud placeholders — a cloud placeholder's "allocated size" would misleadingly report
+            // near-zero local disk usage for content that mostly isn't materialized locally, and a reparse
+            // point is never traversed or queried for real content metadata in the first place.
+            var isPlainFile = (traits & (EntryTraits.Directory | EntryTraits.ReparsePoint | EntryTraits.CloudPlaceholder)) == EntryTraits.None;
             var logicalBytes = (traits & EntryTraits.Directory) != 0 ? 0 : new FileInfo(path).Length;
-            yield return new(path, logicalBytes, traits);
+            long? allocatedBytes = null;
+            ulong? identity = null;
+            int? linkCount = null;
+            if (isPlainFile)
+            {
+                allocatedBytes = WindowsFileIdentity.TryGetAllocatedBytes(path);
+                (identity, linkCount) = WindowsFileIdentity.TryGetIdentity(path);
+            }
+            yield return new(path, logicalBytes, traits, allocatedBytes, identity, linkCount);
         }
     }
 }
