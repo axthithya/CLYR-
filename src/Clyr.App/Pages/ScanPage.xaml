@@ -15,7 +15,17 @@
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <ToggleButton x:Name="QuickCard" Click="QuickSelected" Style="{StaticResource AnalysisModeCardStyle}" AutomationProperties.Name="Quick Analysis mode card">
-                        <StackPanel Spacing="8"><TextBlock Text="Quick Analysis" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="Recommended" Foreground="{ThemeResource WarmAccentBrush}" FontWeight="SemiBold"/><TextBlock Text="Faster and bounded by depth, time, and item limits. Best for a first look — not complete drive accounting." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/></StackPanel>
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Quick Analysis" Style="{StaticResource CardTitleStyle}"/>
+                            <!-- A plain informational badge, deliberately never touching card Background/BorderBrush/
+                                 SelectionMark/ToggleState — "Recommended" describes the mode, it does not mean selected. -->
+                            <Border Background="{ThemeResource TrustBadgeBackgroundBrush}" BorderBrush="{ThemeResource TrustBadgeBorderBrush}"
+                                    BorderThickness="1" CornerRadius="10" Padding="8,2" HorizontalAlignment="Left"
+                                    AutomationProperties.Name="Recommended badge, not a selection indicator">
+                                <TextBlock Text="Recommended" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource MutedTextBrush}"/>
+                            </Border>
+                            <TextBlock Text="Faster and bounded by depth, time, and item limits. Best for a first look — not complete drive accounting." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
+                        </StackPanel>
                     </ToggleButton>
                     <ToggleButton x:Name="DeepCard" Grid.Column="1" Click="DeepSelected" Style="{StaticResource AnalysisModeCardStyle}" AutomationProperties.Name="Deep Analysis mode card">
                         <StackPanel Spacing="8"><TextBlock Text="Deep Analysis" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="More detailed"/><TextBlock Text="Recursively accounts for every safely accessible entry, with no depth or item limit. Can take substantially longer." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/></StackPanel>

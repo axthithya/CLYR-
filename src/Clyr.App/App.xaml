@@ -106,33 +106,106 @@
             <Setter Property="CornerRadius" Value="12" />
             <Setter Property="Padding" Value="20" />
             <Setter Property="MinHeight" Value="142" />
+            <!--
+                Every state below is fully self-contained (Background, BorderBrush, BorderThickness, Opacity, and
+                SelectionMark.Visibility are all set explicitly in every single state, including the unchecked
+                ones). This is deliberate: WinUI's VisualState.Setters do NOT revert a property to its prior
+                value when a state is left — a property stays at whatever a Setter last assigned until another
+                active state's Setter overwrites it. The previous template left "Unchecked"/"Disabled" empty
+                (relying on the base Background/BorderBrush/BorderThickness setters above plus implicit
+                reversion), so leaving "Checked" for "Unchecked" never cleared the accent background, border, or
+                checkmark that "Checked" had set — both cards could visibly appear selected at once. Using one
+                merged VisualStateGroup with the standard compound ToggleButton state names (Normal,
+                PointerOver, Pressed, Disabled, Checked, CheckedPointerOver, CheckedPressed, CheckedDisabled)
+                guarantees every reachable combination of IsChecked/IsEnabled/pointer state has an explicit,
+                complete visual definition — there is no state left to "inherit" a stale value from another.
+            -->
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
                         <Grid>
-                            <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" />
+                            <Border x:Name="Surface" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource CardBorderBrush}"
+                                    BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}" />
                             <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalContentAlignment="Stretch" />
                             <Border x:Name="SelectionMark" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                    Margin="12" Width="28" Height="28" CornerRadius="14" Background="{ThemeResource WarmAccentBrush}">
+                                    Margin="12" Width="28" Height="28" CornerRadius="14" Background="{ThemeResource WarmAccentBrush}"
+                                    AutomationProperties.Name="Selected indicator" AutomationProperties.AccessibilityView="Content">
                                 <FontIcon Glyph="&#xE73E;" FontSize="13" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
                             </Border>
                             <VisualStateManager.VisualStateGroups>
                                 <VisualStateGroup x:Name="CommonStates">
-                                    <VisualState x:Name="Normal" />
-                                    <VisualState x:Name="PointerOver">
-                                        <VisualState.Setters><Setter Target="Surface.BorderBrush" Value="{ThemeResource SelectedCardBorderBrush}" /></VisualState.Setters>
+                                    <VisualState x:Name="Normal">
+                                        <VisualState.Setters>
+                                            <Setter Target="Surface.Background" Value="{ThemeResource CardBackgroundBrush}" />
+                                            <Setter Target="Surface.BorderBrush" Value="{ThemeResource CardBorderBrush}" />
+                                            <Setter Target="Surface.BorderThickness" Value="1" />
+                                            <Setter Target="Surface.Opacity" Value="1" />
+                                            <Setter Target="SelectionMark.Visibility" Value="Collapsed" />
+                                        </VisualState.Setters>
                                     </VisualState>
-                                    <VisualState x:Name="Pressed"><VisualState.Setters><Setter Target="Surface.Opacity" Value="0.86" /></VisualState.Setters></VisualState>
-                                    <VisualState x:Name="Disabled"><VisualState.Setters><Setter Target="Surface.Opacity" Value="0.68" /></VisualState.Setters></VisualState>
-                                </VisualStateGroup>
-                                <VisualStateGroup x:Name="CheckStates">
-                                    <VisualState x:Name="Unchecked" />
+                                    <VisualState x:Name="PointerOver">
+                                        <VisualState.Setters>
+                                            <Setter Target="Surface.Background" Value="{ThemeResource CardBackgroundBrush}" />
+                                            <Setter Target="Surface.BorderBrush" Value="{ThemeResource SelectedCardBorderBrush}" />
+                                            <Setter Target="Surface.BorderThickness" Value="1" />
+                                            <Setter Target="Surface.Opacity" Value="1" />
+                                            <Setter Target="SelectionMark.Visibility" Value="Collapsed" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <VisualState.Setters>
+                                            <Setter Target="Surface.Background" Value="{ThemeResource CardBackgroundBrush}" />
+                                            <Setter Target="Surface.BorderBrush" Value="{ThemeResource CardBorderBrush}" />
+                                            <Setter Target="Surface.BorderThickness" Value="1" />
+                                            <Setter Target="Surface.Opacity" Value="0.86" />
+                                            <Setter Target="SelectionMark.Visibility" Value="Collapsed" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <VisualState.Setters>
+                                            <Setter Target="Surface.Background" Value="{ThemeResource CardBackgroundBrush}" />
+                                            <Setter Target="Surface.BorderBrush" Value="{ThemeResource CardBorderBrush}" />
+                                            <Setter Target="Surface.BorderThickness" Value="1" />
+                                            <Setter Target="Surface.Opacity" Value="0.68" />
+                                            <Setter Target="SelectionMark.Visibility" Value="Collapsed" />
+                                        </VisualState.Setters>
+                                    </VisualState>
                                     <VisualState x:Name="Checked">
                                         <VisualState.Setters>
                                             <Setter Target="Surface.Background" Value="{ThemeResource SubtleAccentBrush}" />
                                             <Setter Target="Surface.BorderBrush" Value="{ThemeResource SelectedCardBorderBrush}" />
                                             <Setter Target="Surface.BorderThickness" Value="2" />
+                                            <Setter Target="Surface.Opacity" Value="1" />
+                                            <Setter Target="SelectionMark.Visibility" Value="Visible" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="CheckedPointerOver">
+                                        <VisualState.Setters>
+                                            <Setter Target="Surface.Background" Value="{ThemeResource SubtleAccentBrush}" />
+                                            <Setter Target="Surface.BorderBrush" Value="{ThemeResource SelectedCardBorderBrush}" />
+                                            <Setter Target="Surface.BorderThickness" Value="2" />
+                                            <Setter Target="Surface.Opacity" Value="1" />
+                                            <Setter Target="SelectionMark.Visibility" Value="Visible" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="CheckedPressed">
+                                        <VisualState.Setters>
+                                            <Setter Target="Surface.Background" Value="{ThemeResource SubtleAccentBrush}" />
+                                            <Setter Target="Surface.BorderBrush" Value="{ThemeResource SelectedCardBorderBrush}" />
+                                            <Setter Target="Surface.BorderThickness" Value="2" />
+                                            <Setter Target="Surface.Opacity" Value="0.86" />
+                                            <Setter Target="SelectionMark.Visibility" Value="Visible" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <!-- The running mode's card is disabled (no mode change mid-scan) but must remain visibly
+                                         selected, so CheckedDisabled deliberately keeps full Checked styling rather than
+                                         dimming to the plain Disabled look, which would make it look neutral/unselected. -->
+                                    <VisualState x:Name="CheckedDisabled">
+                                        <VisualState.Setters>
+                                            <Setter Target="Surface.Background" Value="{ThemeResource SubtleAccentBrush}" />
+                                            <Setter Target="Surface.BorderBrush" Value="{ThemeResource SelectedCardBorderBrush}" />
+                                            <Setter Target="Surface.BorderThickness" Value="2" />
+                                            <Setter Target="Surface.Opacity" Value="1" />
                                             <Setter Target="SelectionMark.Visibility" Value="Visible" />
                                         </VisualState.Setters>
                                     </VisualState>

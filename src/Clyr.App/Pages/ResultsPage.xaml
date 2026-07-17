@@ -19,10 +19,16 @@
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                         <Border x:Name="DriveUsedCard" Style="{StaticResource CardStyle}" AutomationProperties.Name="Drive used metric card"><StackPanel><TextBlock Text="Drive used" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="DriveUsedMetric" FontSize="22" FontWeight="SemiBold"/></StackPanel></Border>
-                        <Border x:Name="ObservedCard" Grid.Column="1" Style="{StaticResource CardStyle}" AutomationProperties.Name="Observed logical size metric card"><StackPanel><TextBlock Text="Observed logical size" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="ObservedMetric" FontSize="22" FontWeight="SemiBold"/></StackPanel></Border>
-                        <Border x:Name="CoverageCard" Grid.Column="2" Style="{StaticResource CardStyle}" AutomationProperties.Name="Classification coverage metric card"><StackPanel><TextBlock Text="Classification coverage" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="CoverageMetric" FontSize="22" FontWeight="SemiBold"/></StackPanel></Border>
-                        <Border x:Name="UnknownCard" Grid.Column="3" Style="{StaticResource CardStyle}" AutomationProperties.Name="Unknown storage metric card"><StackPanel><TextBlock Text="Unknown storage" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="UnknownMetric" FontSize="22" FontWeight="SemiBold"/></StackPanel></Border>
+                        <Border x:Name="AccountedCard" Grid.Column="1" Style="{StaticResource CardStyle}" AutomationProperties.Name="Accounted by this scan metric card"><StackPanel><TextBlock Text="Accounted by this scan" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="AccountedMetric" FontSize="22" FontWeight="SemiBold"/><TextBlock x:Name="AccountedPercentText" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+                        <Border x:Name="NotObservedCard" Grid.Column="2" Style="{StaticResource CardStyle}" AutomationProperties.Name="Not observed by this scan metric card"><StackPanel><TextBlock Text="Not observed by this scan" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="NotObservedMetric" FontSize="22" FontWeight="SemiBold"/></StackPanel></Border>
+                        <Border x:Name="ClassifiedCard" Grid.Column="3" Style="{StaticResource CardStyle}" AutomationProperties.Name="Classified of observed metric card"><StackPanel><TextBlock Text="Classified (of observed)" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="ClassifiedMetric" FontSize="22" FontWeight="SemiBold"/><TextBlock x:Name="UnclassifiedText" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
                     </Grid>
+                    <Border x:Name="QualityBannerCard" Style="{StaticResource CardStyle}" AutomationProperties.Name="Results scan quality banner">
+                        <StackPanel Spacing="6">
+                            <TextBlock x:Name="QualityBannerText" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="QualityRecommendationText" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
                     <Grid x:Name="ContentGrid" ColumnSpacing="20" RowSpacing="16">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>

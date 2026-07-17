@@ -79,6 +79,30 @@ try {
         $element.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
         Start-Sleep -Milliseconds 150
     }
+    # The rendered checkmark ("Selected indicator") is a plain templated Border with no inherent interactivity,
+    # so it is only visible in the automation tree when actually laid out on screen — Visibility="Collapsed"
+    # elements report an empty (zero-size) BoundingRectangle and IsOffscreen=true. Counting real, on-screen
+    # instances (rather than trusting ToggleState alone) is what actually proves the *rendered* checkmark, not
+    # just the underlying IsChecked value — this is exactly the gap the visual-state bug exploited.
+    function Get-VisibleSelectionMarks([System.Windows.Automation.AutomationElement]$scope) {
+        $marks = $scope.FindAll([System.Windows.Automation.TreeScope]::Descendants,
+            [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, 'Selected indicator'))
+        $visible = New-Object System.Collections.Generic.List[System.Windows.Automation.AutomationElement]
+        for ($i = 0; $i -lt $marks.Count; $i++) {
+            $mark = $marks.Item($i)
+            $rect = $mark.Current.BoundingRectangle
+            if (-not $mark.Current.IsOffscreen -and $rect.Width -gt 0 -and $rect.Height -gt 0) { $visible.Add($mark) }
+        }
+        # The comma operator prevents PowerShell's pipeline from unrolling a single-item (or empty) collection
+        # into a bare element/$null on return, which would otherwise make ".Count" fail unpredictably depending
+        # on how many checkmarks happened to be visible at the moment of the call.
+        return ,$visible
+    }
+    function Assert-VisibleCheckmarkCount([System.Windows.Automation.AutomationElement]$window, [int]$expected, [string]$context) {
+        $count = (Get-VisibleSelectionMarks $window).Count
+        Write-Host "  [$context] visible checkmark count = $count"
+        if ($count -ne $expected) { throw "$context`: expected $expected visible checkmark(s), found $count." }
+    }
 
     Select-Page $window 'Scan' | Out-Null
     Require-Named $window 'Quick Analysis mode card' | Out-Null
@@ -86,42 +110,83 @@ try {
 
     # Scan-mode selection: one authoritative ScanMode? SelectedScanMode drives both cards' checkmarks and the
     # primary button's text — verified end to end against the real rendered controls, not merely the ViewModel.
+    # "Border state" is not independently queryable through the standard UI Automation API (there is no
+    # AutomationProperty for BorderBrush color), so it is verified indirectly: the same VisualState.Setters
+    # block that shows/hides the checkmark also sets Surface.Background/BorderBrush/BorderThickness atomically
+    # (see AnalysisModeCardStyle in App.xaml) — proving the checkmark's rendered visibility therefore also
+    # proves the border/background, since no code path can set one without the other.
     $quickCard = Require-Named $window 'Quick Analysis mode card'
     $deepCard = Require-Named $window 'Deep Analysis mode card'
     $off = [System.Windows.Automation.ToggleState]::Off
     $on = [System.Windows.Automation.ToggleState]::On
 
+    # 1. Initial state: no selection, zero visible checkmarks.
     if ((Get-ToggleState $quickCard) -ne $off -or (Get-ToggleState $deepCard) -ne $off) { throw 'A mode card appeared selected on initial load; SelectedScanMode must start at None.' }
+    Assert-VisibleCheckmarkCount $window 0 'Initial state'
     $startButton = Require-Named $window 'Choose Quick or Deep Analysis'
     if ($startButton.Current.IsEnabled) { throw 'The primary action must be disabled while SelectedScanMode is None.' }
+    Write-Host "  [Initial state] Quick ToggleState=$(Get-ToggleState $quickCard) Deep ToggleState=$(Get-ToggleState $deepCard) primaryButtonText='$($startButton.Current.Name)'"
 
+    # 2. Quick selected: Quick On, Deep Off, exactly one visible checkmark.
     Toggle-Card $quickCard
     if ((Get-ToggleState $quickCard) -ne $on -or (Get-ToggleState $deepCard) -ne $off) { throw 'Selecting Quick did not select only Quick.' }
-    Require-Named $window 'Run Quick Analysis' | Out-Null
+    Assert-VisibleCheckmarkCount $window 1 'Quick selected'
+    $visibleAfterQuick = Get-VisibleSelectionMarks $quickCard
+    if ($visibleAfterQuick.Count -ne 1) { throw 'Quick selected: the visible checkmark is not inside the Quick card.' }
+    $runQuickButton = Require-Named $window 'Run Quick Analysis'
+    Write-Host "  [Quick selected] Quick ToggleState=$(Get-ToggleState $quickCard) Deep ToggleState=$(Get-ToggleState $deepCard) primaryButtonText='$($runQuickButton.Current.Name)'"
 
+    # 4. Quick deselected: clicking the already-selected card clears it — both Off, zero checkmarks.
     Toggle-Card $quickCard
     if ((Get-ToggleState $quickCard) -ne $off -or (Get-ToggleState $deepCard) -ne $off) { throw 'Clicking the already-selected Quick card did not deselect it.' }
+    Assert-VisibleCheckmarkCount $window 0 'Quick deselected'
     Require-Named $window 'Choose Quick or Deep Analysis' | Out-Null
 
+    # 3. Deep selected: Deep On, Quick Off, exactly one visible checkmark, and it belongs to Deep, not Quick.
     Toggle-Card $deepCard
     if ((Get-ToggleState $deepCard) -ne $on -or (Get-ToggleState $quickCard) -ne $off) { throw 'Selecting Deep did not select only Deep.' }
-    Require-Named $window 'Run Deep Analysis' | Out-Null
+    Assert-VisibleCheckmarkCount $window 1 'Deep selected'
+    $visibleAfterDeep = Get-VisibleSelectionMarks $deepCard
+    if ($visibleAfterDeep.Count -ne 1) { throw 'Deep selected: the visible checkmark is not inside the Deep card.' }
+    if ((Get-VisibleSelectionMarks $quickCard).Count -ne 0) { throw 'Deep selected: Quick still shows a visible checkmark.' }
+    $runDeepButton = Require-Named $window 'Run Deep Analysis'
+    Write-Host "  [Deep selected] Quick ToggleState=$(Get-ToggleState $quickCard) Deep ToggleState=$(Get-ToggleState $deepCard) primaryButtonText='$($runDeepButton.Current.Name)'"
 
+    # 5. Deep deselected: both Off, zero visible checkmarks.
     Toggle-Card $deepCard
     if ((Get-ToggleState $deepCard) -ne $off -or (Get-ToggleState $quickCard) -ne $off) { throw 'Clicking the already-selected Deep card did not deselect it.' }
+    Assert-VisibleCheckmarkCount $window 0 'Deep deselected'
 
+    # Switching both directions must never show two checkmarks at once.
     Toggle-Card $quickCard
     Toggle-Card $deepCard
     if ((Get-ToggleState $quickCard) -ne $off -or (Get-ToggleState $deepCard) -ne $on) { throw 'Switching from Quick to Deep left Quick selected (both appeared selected simultaneously).' }
+    Assert-VisibleCheckmarkCount $window 1 'Switched Quick to Deep'
     Toggle-Card $quickCard
     if ((Get-ToggleState $deepCard) -ne $off -or (Get-ToggleState $quickCard) -ne $on) { throw 'Switching from Deep to Quick left Deep selected (both appeared selected simultaneously).' }
+    Assert-VisibleCheckmarkCount $window 1 'Switched Deep to Quick'
 
-    # Run Quick, cancel it, then run Quick again — proving lifecycle, cancellation, and "Run Again" wording.
+    # 8. "Recommended" is a plain informational badge and must never itself carry ToggleState or a checkmark.
+    $recommendedBadge = Require-Named $window 'Recommended badge, not a selection indicator'
+    $badgeSupportsToggle = $null
+    if ($recommendedBadge.TryGetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern, [ref]$badgeSupportsToggle)) {
+        throw '"Recommended" badge must not expose a TogglePattern (it must never imply selection state).'
+    }
+    Write-Host '  [Recommended badge] confirmed not a ToggleButton / has no ToggleState.' -ForegroundColor DarkGreen
+
+    # 6. During a Quick scan: Quick remains selected and locked, Deep is disabled and visually neutral, exactly
+    # one checkmark visible throughout — run Quick, cancel it, then run Quick again (also proving lifecycle and
+    # "Run Again" wording).
     Invoke-Named $window 'Run Quick Analysis'
     Start-Sleep -Milliseconds 300
     $cancel = Require-Named $window 'Cancel Analysis'
     if (-not $cancel.Current.IsEnabled) { throw 'Cancellation was not enabled during fixture analysis.' }
     if ($quickCard.Current.IsEnabled -or $deepCard.Current.IsEnabled) { throw 'Mode cards must be disabled while a scan is running.' }
+    if ((Get-ToggleState $quickCard) -ne $on) { throw 'During a Quick scan, the Quick card must remain visibly selected (ToggleState On).' }
+    if ((Get-ToggleState $deepCard) -ne $off) { throw 'During a Quick scan, the Deep card must remain visually neutral (ToggleState Off).' }
+    Assert-VisibleCheckmarkCount $window 1 'During Quick scan'
+    if ((Get-VisibleSelectionMarks $quickCard).Count -ne 1) { throw 'During Quick scan: the running Quick card lost its visible checkmark while locked/disabled.' }
+    Write-Host "  [During Quick scan] Quick ToggleState=$(Get-ToggleState $quickCard) (locked, IsEnabled=$($quickCard.Current.IsEnabled)) Deep ToggleState=$(Get-ToggleState $deepCard) (IsEnabled=$($deepCard.Current.IsEnabled))"
     $cancel.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     Start-Sleep -Seconds 2
     Require-Named $window 'Run Quick Analysis Again' | Out-Null
@@ -133,19 +198,42 @@ try {
     # Selecting Deep after a Quick attempt must read "Run Deep Analysis" (a fresh first run), never "...Again".
     Toggle-Card $deepCard
     Require-Named $window 'Run Deep Analysis' | Out-Null
+    Assert-VisibleCheckmarkCount $window 1 'Deep selected after Quick attempt'
+
+    # 7. During a Deep scan: Deep remains selected/locked, Quick is disabled and visually neutral, exactly one
+    # checkmark visible.
     Invoke-Named $window 'Run Deep Analysis'
+    Start-Sleep -Milliseconds 300
+    if ((Get-ToggleState $deepCard) -ne $on) { throw 'During a Deep scan, the Deep card must remain visibly selected (ToggleState On).' }
+    if ((Get-ToggleState $quickCard) -ne $off) { throw 'During a Deep scan, the Quick card must remain visually neutral (ToggleState Off).' }
+    if ($quickCard.Current.IsEnabled -or $deepCard.Current.IsEnabled) { throw 'Mode cards must be disabled while a Deep scan is running.' }
+    Assert-VisibleCheckmarkCount $window 1 'During Deep scan'
+    if ((Get-VisibleSelectionMarks $deepCard).Count -ne 1) { throw 'During Deep scan: the running Deep card lost its visible checkmark while locked/disabled.' }
+    Write-Host "  [During Deep scan] Quick ToggleState=$(Get-ToggleState $quickCard) (IsEnabled=$($quickCard.Current.IsEnabled)) Deep ToggleState=$(Get-ToggleState $deepCard) (locked, IsEnabled=$($deepCard.Current.IsEnabled))"
     Start-Sleep -Seconds 2
     if ($null -ne (Find-Named $window 'Run tool')) { throw 'A disallowed control appeared on the Scan page.' }
     foreach ($forbidden in @('Delete', 'Clean now', 'Remove', 'Run PowerShell', 'Run Command')) {
         if ($null -ne (Find-Named $window $forbidden)) { throw "A disallowed cleanup/deletion control appeared on the Scan page: $forbidden" }
     }
-    Write-Host '  Deep Analysis run and no-cleanup-control-on-Scan verified.' -ForegroundColor DarkGreen
+    Write-Host '  Deep Analysis run, visual selection state, and no-cleanup-control-on-Scan verified.' -ForegroundColor DarkGreen
 
     Select-Page $window 'Results' | Out-Null
     Require-Named $window 'Results page' | Out-Null
     Require-Named $window 'Contributor visualization' | Out-Null
     Require-Named $window 'Contributor text alternatives' | Out-Null
     if ($null -ne (Find-Named $window 'Quick Analysis mode card')) { throw 'Results incorrectly exposes scan controls.' }
+
+    # 9. Results page uses the new ScanAccounting model — accounted coverage and unaccounted drive bytes, not
+    # the old "Classification coverage"/"Unknown storage" cards.
+    $accountedCard = Require-Named $window 'Accounted by this scan metric card'
+    $notObservedCard = Require-Named $window 'Not observed by this scan metric card'
+    $classifiedCard = Require-Named $window 'Classified of observed metric card'
+    $qualityBanner = Require-Named $window 'Results scan quality banner'
+    Write-Host "  [Results] accountedCard.Name='$($accountedCard.Current.Name)' notObservedCard.Name='$($notObservedCard.Current.Name)' classifiedCard.Name='$($classifiedCard.Current.Name)'"
+    Write-Host "  [Results] quality banner text region present: $($null -ne $qualityBanner)"
+    if ($null -ne (Find-Named $window 'Classification coverage metric card')) { throw 'Results still exposes the old "Classification coverage" card.' }
+    if ($null -ne (Find-Named $window 'Unknown storage metric card')) { throw 'Results still exposes the old "Unknown storage" card.' }
+    Write-Host '  Results page accounting cards (Drive used / Accounted by this scan / Not observed / Classified of observed / quality banner) verified.' -ForegroundColor DarkGreen
 
     Select-Page $window 'Review Plan' | Out-Null
     Require-Named $window 'Review Plan page' | Out-Null
