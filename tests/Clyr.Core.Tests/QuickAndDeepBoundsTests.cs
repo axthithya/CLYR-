@@ -3,6 +3,13 @@ using Clyr.Core;
 
 namespace Clyr.Core.Tests;
 
+/// <summary>Scopes non-parallelization to only the deep-traversal fixtures below (which allocate real,
+/// if modestly sized, per-level frames) so they never run concurrently with each other — not an assembly-wide
+/// parallelization disable, which would slow down every other unrelated test in the project.</summary>
+[CollectionDefinition("QuickAndDeepBoundsSequential", DisableParallelization = true)]
+public sealed class QuickAndDeepBoundsSequentialMarker;
+
+[Collection("QuickAndDeepBoundsSequential")]
 public sealed class QuickAndDeepBoundsTests
 {
     [Fact]
@@ -46,14 +53,56 @@ public sealed class QuickAndDeepBoundsTests
     [Fact]
     public async Task DeepHasNoConfiguredDepthCeilingAndReachesWellPastTheFormerFiniteLimit()
     {
-        // Phase 7.2.1: Deep's depth bound is int.MaxValue, not a large-but-finite constant. 600 levels is well
-        // past the old 512-level ceiling that existed before this change — proof there is no configured ceiling
-        // left to hit, not just a generous one.
-        var fs = new VeryDeepFileSystem(600);
+        // Old-limit regression: exactly 600 synthetic levels — one level past the former 512-deep constant —
+        // is sufficient to prove that constant is gone. Deep's depth bound is genuinely absent (ScanPolicy.
+        // MaximumDepth is null for Deep, and RunDeep never reads that field at all — see Scanning.cs), not a
+        // large sentinel standing in for "unlimited".
+        var fs = new CompactDeepFileSystem(600);
         var result = await new ScanCoordinator(fs, new FakeDrives(), new SystemClock()).ScanAsync(new("C:\\", ScanMode.Deep), null, default);
         Assert.Equal(ScanStatus.Completed, result.Status);
-        Assert.Equal(VeryDeepFileSystem.FileBytes, result.LogicalBytesObserved);
+        Assert.Equal(CompactDeepFileSystem.FileBytes, result.LogicalBytesObserved);
         Assert.DoesNotContain(result.Issues, item => item.Code == "scan.depth-limit");
+        Assert.Equal(600, result.Coverage.DirectoriesObserved);
+    }
+
+    [Fact]
+    public async Task DeepTraversalIsStackSafeAcrossTwoThousandFortyEightLevelsBecauseItIsHeapAllocatedNotRecursive()
+    {
+        // A recursive implementation would risk overflowing the real call stack well before 2,048 levels;
+        // Deep's traversal uses a heap-allocated Stack<T> (see RunDeep in Scanning.cs), so this must complete
+        // normally with no StackOverflowException — proof of genuine iterative stack safety at a scale that
+        // still keeps the fixture's own memory footprint small (each synthetic path is a short, fixed-shape
+        // string like "C:\lvl2048\deep.bin", never a duplicated per-level path chain).
+        var fs = new CompactDeepFileSystem(2048);
+        var result = await new ScanCoordinator(fs, new FakeDrives(), new SystemClock()).ScanAsync(new("C:\\", ScanMode.Deep), null, default);
+        Assert.Equal(ScanStatus.Completed, result.Status);
+        Assert.Equal(2048, result.Coverage.DirectoriesObserved);
+    }
+
+    [Fact]
+    public async Task CancellationAfterAHundredDirectoryEnumerationsStopsTraversalWithPartialResults()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var fs = new CompactDeepFileSystem(1024, observedDirectory: count => { if (count == 100) cancellation.Cancel(); });
+        var result = await new ScanCoordinator(fs, new FakeDrives(), new SystemClock()).ScanAsync(new("C:\\", ScanMode.Deep), null, cancellation.Token);
+        Assert.Equal(ScanStatus.Cancelled, result.Status);
+        // Cancellation is checked once per loop iteration, before opening the next frame, so the traversal must
+        // stop close to the 100th enumeration — not create the remaining ~900 directory frames first.
+        Assert.True(result.Coverage.DirectoriesObserved is > 0 and <= 105,
+            $"Expected cancellation to stop within a few directories of the 100th enumeration; observed {result.Coverage.DirectoriesObserved} directories.");
+    }
+
+    [Fact]
+    public async Task DeepNeverFollowsAReparsePointEvenWhenItWouldCreateAnInfiniteLoop()
+    {
+        // C:\loop is a reparse point whose target (if ever followed) points back to C:\ itself — an immediate
+        // infinite loop. Deep must count it as a skipped reparse point and move on, never opening it, so the
+        // scan terminates normally instead of hanging.
+        var fs = new SelfReferencingReparseFileSystem();
+        var result = await new ScanCoordinator(fs, new FakeDrives(), new SystemClock()).ScanAsync(new("C:\\", ScanMode.Deep), null, default);
+        Assert.Equal(ScanStatus.Completed, result.Status);
+        Assert.Equal(1, result.Coverage.ReparsePointsSkipped);
+        Assert.DoesNotContain("C:\\loop", fs.EnumeratedDirectories);
     }
 
     [Fact]
@@ -81,17 +130,44 @@ public sealed class QuickAndDeepBoundsTests
         }
     }
 
-    /// <summary>C:\ -> a -> b -> c -> d -> e (depth 5) contains one file; Quick's depth-3 bound never opens
-    /// past depth 3, so it can never see this file, while Deep (bound 512) reaches it easily.</summary>
-    private sealed class VeryDeepFileSystem(int levels) : IFileSystemEnumerator
+    /// <summary>
+    /// A synthetic, arbitrarily-deep single-chain directory tree (depth 0 = root, depth <paramref name="levels"/>
+    /// = the directory holding one file) that deliberately never accumulates a growing path string per level.
+    /// Each directory identity is just "C:\lvl{depth}" — a short, fixed-shape string derived directly from the
+    /// numeric depth, not built by repeatedly appending onto the parent's already-long path — so the fixture's
+    /// own memory footprint stays flat regardless of how many levels are requested, and no duplicated path
+    /// chain is retained anywhere. <paramref name="observedDirectory"/>, if given, is invoked with a running
+    /// 1-based count immediately as each directory is opened (i.e., once per <see cref="Enumerate"/> call).
+    /// </summary>
+    private sealed class CompactDeepFileSystem(int levels, Action<int>? observedDirectory = null) : IFileSystemEnumerator
     {
         public const long FileBytes = 777;
+        private int enumerateCount;
+
         public IEnumerable<FileSystemEntry> Enumerate(string directory)
         {
-            var depth = directory.Split('\\', StringSplitOptions.RemoveEmptyEntries).Length - 1;
-            var child = directory.EndsWith('\\') ? directory : directory + "\\";
-            if (depth < levels) return [new(child + "d" + depth, 0, EntryTraits.Directory)];
-            if (depth == levels) return [new(child + "deep.bin", FileBytes, EntryTraits.None)];
+            observedDirectory?.Invoke(++enumerateCount);
+            var depth = DepthOf(directory);
+            if (depth < levels) return [new(PathFor(depth + 1), 0, EntryTraits.Directory)];
+            if (depth == levels) return [new(PathFor(depth) + "\\deep.bin", FileBytes, EntryTraits.None)];
+            return [];
+        }
+
+        private static string PathFor(int depth) => "C:\\lvl" + depth;
+        private static int DepthOf(string directory) => directory == "C:\\" ? 0 : int.Parse(directory["C:\\lvl".Length..], System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>C:\loop is a reparse point. If the scan engine ever followed it, Enumerate("C:\loop") would
+    /// yield C:\ itself again, looping forever. The engine must never call Enumerate for a reparse-point path
+    /// at all — proven here by tracking every directory actually opened.</summary>
+    private sealed class SelfReferencingReparseFileSystem : IFileSystemEnumerator
+    {
+        public List<string> EnumeratedDirectories { get; } = [];
+        public IEnumerable<FileSystemEntry> Enumerate(string directory)
+        {
+            EnumeratedDirectories.Add(directory);
+            if (directory == "C:\\loop") throw new InvalidOperationException("A reparse-point target must never be enumerated.");
+            if (directory == "C:\\") return [new("C:\\loop", 0, EntryTraits.Directory | EntryTraits.ReparsePoint)];
             return [];
         }
     }

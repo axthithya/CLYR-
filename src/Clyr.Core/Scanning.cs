@@ -211,7 +211,9 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
 
                     if (ObserveEntry(entry, frame, out var isDirectory) && isDirectory)
                     {
-                        if (frame.Depth >= policy.MaximumDepth)
+                        // policy.MaximumDepth is only ever null for Deep, which never calls RunQuick — so this
+                        // is always a real bound here, never treated as "no limit" by accident.
+                        if (policy.MaximumDepth is { } maxDepth && frame.Depth >= maxDepth)
                         {
                             skipped++;
                             AddIssue(ScanIssueKind.ResourceLimit, "scan.depth-limit", "Quick Analysis depth policy reached; a subdirectory was not examined this run.", ScanIssueSeverity.PolicyBoundary);
@@ -439,7 +441,7 @@ public sealed record QuickAnalysisPolicy(TimeSpan TargetDuration, long ItemBudge
 /// Analysis has no depth, time, or item bound: it runs until every safely accessible entry has been processed,
 /// the caller cancels, or a fatal error occurs.
 /// </summary>
-internal sealed record ScanPolicy(int MaximumDepth, int TopCount, int TopLevelCount, TimeSpan? TimeBudget, long? ItemBudget)
+internal sealed record ScanPolicy(int? MaximumDepth, int TopCount, int TopLevelCount, TimeSpan? TimeBudget, long? ItemBudget)
 {
     /// <summary>Quick Analysis depth bound: root-level entries plus two further levels — enough to reach the
     /// top-level contents of well-known high-value roots (Windows, ProgramData, Program Files, Users) and one
@@ -450,9 +452,11 @@ internal sealed record ScanPolicy(int MaximumDepth, int TopCount, int TopLevelCo
     {
         var defaultTop = request.Mode == ScanMode.Quick ? 25 : 100;
         var top = Math.Clamp(request.TopCount ?? defaultTop, 1, 1000);
-        // Deep Analysis has no configured depth ceiling at all — int.MaxValue, not a large-but-finite number —
-        // per Phase 7.2.1. It stops only on cancellation, exhaustion, or a fatal error.
-        if (request.Mode != ScanMode.Quick) return new(int.MaxValue, top, 1000, null, null);
+        // Phase 7.2.1: Deep Analysis has no depth-ceiling concept at all — MaximumDepth is null, not a large
+        // sentinel value standing in for "unlimited". RunDeep (see ScanCoordinator) never reads this field;
+        // only Quick's traversal does. There is nothing left in Deep's execution path that could be tightened
+        // into a limit by accident.
+        if (request.Mode != ScanMode.Quick) return new(null, top, 1000, null, null);
         var effective = quickPolicy ?? QuickAnalysisPolicy.Default;
         return new(QuickMaximumDepth, top, 256, effective.TargetDuration, effective.ItemBudget);
     }
