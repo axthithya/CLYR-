@@ -41,6 +41,26 @@ public interface IApplicationVersion
 public sealed class ApplicationVersion(string value) : IApplicationVersion
 {
     public string Value { get; } = value;
+
+    /// <summary>
+    /// Reads the single authoritative development version (set once, in Directory.Build.props, as
+    /// <c>&lt;Version&gt;</c>) back from assembly metadata. Deliberately reads it from <em>this</em> assembly
+    /// (Clyr.Core), not <see cref="System.Reflection.Assembly.GetEntryAssembly"/> — every project in the
+    /// repository shares the same central &lt;Version&gt;, and the entry assembly is unreliable across hosts
+    /// (it resolves to the test platform's own assembly, with its own unrelated version, when called from a
+    /// test run). Every CLYR entry point (CLI, WinUI) should construct its <see cref="IApplicationVersion"/>
+    /// through this rather than duplicating the version string as a literal.
+    /// </summary>
+    public static ApplicationVersion Current
+    {
+        get
+        {
+            var assembly = typeof(ApplicationVersion).Assembly;
+            var informational = System.Reflection.CustomAttributeExtensions
+                .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(assembly)?.InformationalVersion;
+            return new ApplicationVersion(informational ?? "0.0.0-dev");
+        }
+    }
 }
 
 public sealed record ApplicationConfiguration(string Phase, bool DemoDataOnly)

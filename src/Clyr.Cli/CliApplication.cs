@@ -49,8 +49,12 @@ public sealed partial class CliApplication
     {
         output.WriteLine("OS: " + environment.OperatingSystem);
         output.WriteLine("Architecture: " + environment.Architecture);
-        var packStatus = rulePack?.IsValid == true ? "built-in Phase 3 rules verified" : "classification unavailable; structural scanning remains available";
-        output.WriteLine("Status: read-only scanner available; " + packStatus + "; no drives have been scanned by this command.");
+        var packStatus = rulePack?.IsValid == true ? "built-in rules verified" : "classification unavailable; structural scanning remains available";
+        output.WriteLine("Status: read-only scanning and classification available; " + packStatus +
+            "; guarded low-risk execution is enabled only for approved CLYR-owned temporary artifacts.");
+        output.WriteLine("Cleanup requires a validated active-session plan; arbitrary paths and general cleanup are unavailable.");
+        output.WriteLine("Developer Mode is not implemented yet.");
+        output.WriteLine("No drives have been scanned by this command.");
         return 0;
     }
 

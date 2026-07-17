@@ -195,5 +195,5 @@ public sealed class LicensesViewModel(AppSessionViewModel session) : PageViewMod
 public sealed class AboutViewModel(AppSessionViewModel session, IApplicationVersion version, RulePackLoadResult rules) : PageViewModel(session)
 {
     public string Version { get; } = version.Value;
-    public string TechnicalDetails { get; } = $"Build channel: preview · implementation: 4.1 · rules: {rules.Pack?.Summary.Version ?? "unavailable"} · database schema: 2";
+    public string TechnicalDetails { get; } = $"Build channel: preview · implementation: 6 · rules: {rules.Pack?.Summary.Version ?? "unavailable"} · database schema: 3";
 }

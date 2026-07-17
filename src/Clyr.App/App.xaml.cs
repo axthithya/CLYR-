@@ -44,7 +44,7 @@ public partial class App : Application
             ? configuredDemoDataOnly
             : false;
         var applicationConfiguration = new ApplicationConfiguration(
-            configurationRoot["Application:Phase"] ?? "Phase 5",
+            configurationRoot["Application:Phase"] ?? "Phase 6",
             demoDataOnly);
 
         var services = new ServiceCollection();
@@ -70,7 +70,7 @@ public partial class App : Application
             services.AddSingleton<IDriveIdentityProvider, HmacDriveIdentityProvider>();
             services.AddSingleton<IFileSystemEnumerator, WindowsFileSystemEnumerator>();
         }
-        services.AddSingleton<IApplicationVersion>(_ => new ApplicationVersion("0.5.0-phase5"));
+        services.AddSingleton<IApplicationVersion>(_ => ApplicationVersion.Current);
         services.AddSingleton<ICleanupPlanStore, InMemoryCleanupPlanStore>();
         services.AddSingleton<ICleanupExecutor, PhaseFiveDisabledCleanupExecutor>();
         services.AddSingleton<IExecutionTokenService, ExecutionTokenService>();

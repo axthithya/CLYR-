@@ -21,6 +21,45 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
+    public void ApplicationVersionHasExactlyOneAuthoritativeSource()
+    {
+        var centralProps = XDocument.Load(Path.Combine(Root, "Directory.Build.props"));
+        var version = centralProps.Descendants("Version").Select(item => item.Value).SingleOrDefault();
+        Assert.Equal("0.6.0-phase6", version);
+
+        // No individual project may declare its own Version/AssemblyVersion/FileVersion/InformationalVersion —
+        // Directory.Build.props is the only place this is ever set.
+        foreach (var project in Directory.EnumerateFiles(Root, "*.csproj", SearchOption.AllDirectories))
+        {
+            if (project.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.Ordinal)) continue;
+            var document = XDocument.Load(project);
+            foreach (var tag in new[] { "Version", "AssemblyVersion", "FileVersion", "InformationalVersion" })
+                Assert.Empty(document.Descendants(tag));
+        }
+
+        // Program.cs (CLI) and App.xaml.cs (WinUI) must read the shared ApplicationVersion.Current rather than
+        // duplicating the literal version string themselves.
+        var cliProgram = File.ReadAllText(Path.Combine(Root, "src", "Clyr.Cli", "Program.cs"));
+        var appXamlCs = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "App.xaml.cs"));
+        foreach (var source in new[] { cliProgram, appXamlCs })
+        {
+            Assert.Contains("ApplicationVersion.Current", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("0.5.0", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"0.6.0", source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void DoctorCommandDescribesOnlyTheApprovedBoundaryWithNoPhase7Claim()
+    {
+        var cliApplication = File.ReadAllText(Path.Combine(Root, "src", "Clyr.Cli", "CliApplication.cs"));
+        Assert.Contains("guarded low-risk execution is enabled only for approved CLYR-owned temporary artifacts", cliApplication, StringComparison.Ordinal);
+        Assert.Contains("Developer Mode is not implemented yet", cliApplication, StringComparison.Ordinal);
+        foreach (var overclaim in new[] { "read-only scanner available", "general cleanup available", "general cleanup support", "cleanup any file", "tool adapter", "npm install", "docker run" })
+            Assert.DoesNotContain(overclaim, cliApplication, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void CentralPackageManagementIsEnabledOnceWithoutOverridesOrAdvisorySuppression()
     {
         var central = XDocument.Load(Path.Combine(Root, "Directory.Packages.props"));
