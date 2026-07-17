@@ -123,10 +123,13 @@ public sealed record ElevatedScanRetryValidationResult(ElevatedScanRetryValidati
 /// <summary>How an <see cref="ElevatedScanRetryRequest"/> was resolved. <see cref="ValidationRejected"/> and
 /// <see cref="ProtocolRejected"/> are distinct: the former means the request parsed but
 /// <c>ElevatedScanRetryValidator</c> rejected its contents; the latter means the frame itself could not be
-/// interpreted as a well-formed request at all (malformed JSON, wrong protocol version at the transport level).</summary>
+/// interpreted as a well-formed request at all (malformed JSON, wrong protocol version at the transport level).
+/// <see cref="PartiallyCompleted"/> (added for <c>ElevatedMetadataRetryEngine</c>, Phase 7.2.6C) means every
+/// validated root was attempted and enumeration otherwise ran to completion, but one or more roots remained
+/// inaccessible even under retry — an ordinary, expected outcome, never <see cref="Failed"/>.</summary>
 public enum ElevatedScanRetryOutcome
 {
-    Completed, ValidationRejected, Cancelled, TimedOut, ProtocolRejected, Failed
+    Completed, ValidationRejected, Cancelled, TimedOut, ProtocolRejected, Failed, PartiallyCompleted
 }
 
 /// <summary>
