@@ -39,7 +39,10 @@ public enum AccountingConsistency
     /// <summary>Two figures being compared were measured on different bases (e.g., logical vs. allocated, or a
     /// volume-level figure vs. a file-tree figure) and are not safe to subtract or divide against each other
     /// without qualification.</summary>
-    AccountingBasisMismatch = 16
+    AccountingBasisMismatch = 16,
+    /// <summary>One or more roots were inaccessible to this scan (permission denied), so any remainder figure
+    /// may include storage this scan simply could not see, not storage that is somehow unaccounted-for junk.</summary>
+    PermissionLimited = 32
 }
 
 /// <summary>

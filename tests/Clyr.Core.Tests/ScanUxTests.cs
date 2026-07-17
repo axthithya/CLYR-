@@ -151,7 +151,8 @@ public sealed class ScanUiLifecycleTests
 internal static class ScanFixtures
 {
     public static ScanResult Result(ScanMode mode, ScanStatus status, long observed = 1000, long? driveUsed = 2000,
-        long classified = 600, long unknown = 400, long inaccessible = 0, ClassificationResult? classification = null)
+        long classified = 600, long unknown = 400, long inaccessible = 0, ClassificationResult? classification = null,
+        AllocationAccounting? allocation = null)
     {
         var started = DateTimeOffset.UtcNow.AddSeconds(-5);
         var ended = DateTimeOffset.UtcNow;
@@ -162,6 +163,6 @@ internal static class ScanFixtures
             driveUsed.HasValue ? driveUsed.Value - observed : null, MeasurementPrecision.Estimated,
             "Logical metadata bytes only.", coverage, [], [], [], [], [],
             status == ScanStatus.Failed ? "scan.failed" : null, status == ScanStatus.Failed ? "Simulated failure." : null,
-            classification);
+            classification, allocation);
     }
 }

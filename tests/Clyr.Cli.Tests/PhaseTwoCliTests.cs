@@ -47,6 +47,45 @@ public sealed class PhaseTwoCliTests
     }
 
     [Fact]
+    public void ScanSummaryUsesHonestRemainderWordingAndNeverImpliesReclaimability()
+    {
+        // Phase 7.2.4: the CLI's human summary must use the documented honest-remainder vocabulary and must
+        // never fall back to the old, misleading blanket terms for whatever a scan didn't observe.
+        var output = new StringWriter();
+        var code = CreateApplication().Run(["scan", "C:\\", "--quick"], output, TextWriter.Null);
+        Assert.Equal(0, code);
+        var text = output.ToString();
+
+        Assert.Contains("Elapsed:", text, StringComparison.Ordinal);
+        Assert.Contains("Inaccessible roots:", text, StringComparison.Ordinal);
+        Assert.Contains("Accounted coverage:", text, StringComparison.Ordinal);
+        Assert.Contains("Accounting consistency:", text, StringComparison.Ordinal);
+        Assert.Contains("Unresolved remainder:", text, StringComparison.Ordinal);
+
+        foreach (var forbidden in new[] { "Unknown files", "Missing files", "Hidden junk", "Recoverable storage" })
+            Assert.DoesNotContain(forbidden, text, StringComparison.Ordinal);
+        Assert.DoesNotContain("safe to delete", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("reclaim", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TechnicalJsonIsOnlyAddedWhenExplicitlyRequested()
+    {
+        var plain = new StringWriter();
+        Assert.Equal(0, CreateApplication().Run(["scan", "C:\\", "--json"], plain, TextWriter.Null));
+        Assert.DoesNotContain("volumeRemainder", plain.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("clyr-scan-technical", plain.ToString(), StringComparison.Ordinal);
+
+        var technical = new StringWriter();
+        Assert.Equal(0, CreateApplication().Run(["scan", "C:\\", "--json", "--technical"], technical, TextWriter.Null));
+        var json = technical.ToString();
+        Assert.Contains("clyr-scan-technical", json, StringComparison.Ordinal);
+        Assert.Contains("volumeRemainder", json, StringComparison.Ordinal);
+        Assert.Contains("accounting", json, StringComparison.Ordinal);
+        System.Text.Json.JsonDocument.Parse(json).Dispose();
+    }
+
+    [Fact]
     public void JsonOutputIsPrivacySafeAndParseable()
     {
         var output = new StringWriter();

@@ -88,11 +88,12 @@ public sealed partial class CliApplication
     {
         if (arguments.Count < 2)
         {
-            error.WriteLine("Usage: clyr scan <root> [--quick|--deep] [--top N] [--json] [--output <file>] [--no-persist] [--no-history] [--no-checkpoint] [--continue]");
+            error.WriteLine("Usage: clyr scan <root> [--quick|--deep] [--top N] [--json] [--technical] [--output <file>] [--no-persist] [--no-history] [--no-checkpoint] [--continue]");
             return 2;
         }
         var mode = ScanMode.Quick;
         var json = false;
+        var technical = false;
         var noHistory = false;
         var noCheckpoint = false;
         var continueFromCheckpoint = false;
@@ -105,6 +106,10 @@ public sealed partial class CliApplication
                 case "--quick": mode = ScanMode.Quick; break;
                 case "--deep": mode = ScanMode.Deep; break;
                 case "--json": json = true; break;
+                // Adds the derived accounting/volume-remainder summaries to --json output. No effect without
+                // --json. Never exposed by default — nothing beyond what --json already includes is shown
+                // unless this is explicitly requested.
+                case "--technical": technical = true; break;
                 // Persists nothing at all: neither scan history nor a Quick Analysis checkpoint. Exactly
                 // equivalent to --no-history --no-checkpoint together, spelled out below.
                 case "--no-persist": noHistory = true; noCheckpoint = true; break;
@@ -143,6 +148,7 @@ public sealed partial class CliApplication
                 (true, true) => noCheckpointNoHistoryScanner,
             };
             var result = activeScanner!.ScanAsync(new(root, mode, top, continueFromCheckpoint), progress, cancellation.Token).GetAwaiter().GetResult();
+            var drive = driveDiscovery?.Discover().FirstOrDefault(item => string.Equals(item.Root, root, StringComparison.OrdinalIgnoreCase));
             var serialized = exporter!.Serialize(result);
             if (destination is not null)
             {
@@ -150,8 +156,8 @@ public sealed partial class CliApplication
                 File.WriteAllText(fullDestination, serialized);
                 if (!json) output.WriteLine("Privacy-safe summary written to: " + fullDestination);
             }
-            if (json) output.WriteLine(serialized);
-            else WriteHumanResult(result, output, error);
+            if (json) output.WriteLine(technical ? SerializeTechnical(result, drive, serialized) : serialized);
+            else WriteHumanResult(result, drive, output, error);
             return result.Status switch { ScanStatus.Completed => 0, ScanStatus.CompletedWithWarnings or ScanStatus.Cancelled => 1, _ => 3 };
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -159,16 +165,29 @@ public sealed partial class CliApplication
         finally { Console.CancelKeyPress -= handler; }
     }
 
-    private static void WriteHumanResult(ScanResult result, TextWriter output, TextWriter error)
+    private static void WriteHumanResult(ScanResult result, DriveSummary? drive, TextWriter output, TextWriter error)
     {
         var writer = result.Status == ScanStatus.Failed ? error : output;
+        var accounting = ScanAccounting.Summarize(result);
+        var remainder = VolumeRemainderAccounting.Summarize(result, drive);
+
         writer.WriteLine($"Status: {result.Status}");
+        writer.WriteLine($"Elapsed: {FormatElapsed(result.EndedAt - result.StartedAt)}");
         writer.WriteLine($"Observed logical size: {FormatBytes(result.LogicalBytesObserved)} ({result.Precision})");
         writer.WriteLine($"Coverage: {result.Coverage.FilesObserved} files, {result.Coverage.DirectoriesObserved} directories, {result.Issues.Sum(x => x.Count)} warnings");
+        writer.WriteLine($"Inaccessible roots: {result.Coverage.InaccessibleEntries}; reparse points skipped: {result.Coverage.ReparsePointsSkipped}.");
         writer.WriteLine(result.AccountingNote);
-        if (result.UnaccountedBytes is < 0)
-            writer.WriteLine($"Note: observed logical bytes exceeded the drive's reported used-bytes basis by {FormatBytes(-result.UnaccountedBytes.Value)} (hard links, sparse files, or a basis/timing difference — not a reportable coverage percentage).");
-        else if (result.UnaccountedBytes is { } unaccounted) writer.WriteLine($"Not observed by this scan: {FormatBytes(unaccounted)}");
+
+        // Accounted coverage: never an invalid percentage. Suppressed (rather than shown as a misleading
+        // number) whenever the underlying bases don't reconcile — see ScanAccounting.Summarize.
+        writer.WriteLine(accounting.AccountedPercentage is { } accountedPercentage
+            ? $"Accounted coverage: {accountedPercentage:F1}% of drive used ({accounting.Quality})."
+            : $"Accounted coverage: unavailable ({DescribeConsistency(accounting.Consistency)}).");
+        if (result.Classification is not null)
+            writer.WriteLine(accounting.ClassificationPercentage is { } classificationPercentage
+                ? $"Classification coverage: {classificationPercentage:F1}% of observed bytes."
+                : "Classification coverage: unavailable.");
+
         if (result.Allocation is { } allocation)
         {
             writer.WriteLine($"Allocated (on-disk): {FormatBytes(allocation.AllocatedBytesObserved)}; unique after hard-link de-duplication: {FormatBytes(allocation.UniqueAllocatedBytesObserved)}.");
@@ -176,6 +195,14 @@ public sealed partial class CliApplication
             if (allocation.FilesWithUnavailableAllocatedSize > 0) writer.WriteLine($"Allocated size unavailable for {allocation.FilesWithUnavailableAllocatedSize} file(s).");
             if (allocation.SparseFileCount > 0 || allocation.CompressedFileCount > 0) writer.WriteLine($"Sparse files: {allocation.SparseFileCount}; compressed files: {allocation.CompressedFileCount}.");
         }
+
+        // The honest remainder: an accounting gap, not a claim about what it contains or whether it can be
+        // freed. Phase 7.2.4 — see VolumeRemainderAccounting.
+        writer.WriteLine(remainder.UnresolvedRemainderBytes is { } gap
+            ? $"Unresolved remainder: {FormatBytes(gap)} ({string.Join("; ", remainder.Explanations)}). This is an accounting gap, not necessarily reclaimable space."
+            : $"Unresolved remainder: unavailable ({DescribeConsistency(remainder.Consistency)}).");
+        writer.WriteLine($"Accounting consistency: {DescribeConsistency(remainder.Consistency)}.");
+
         if (result.Classification is not null)
         {
             writer.WriteLine(result.Classification.Summary);
@@ -186,6 +213,30 @@ public sealed partial class CliApplication
         foreach (var item in result.TopLevelDirectories) writer.WriteLine($"- {item.DisplayPath}: {FormatBytes(item.LogicalBytes)}");
         if (result.FailureCode is not null) writer.WriteLine(result.FailureCode + ": " + result.FailureMessage);
     }
+
+    private static string SerializeTechnical(ScanResult result, DriveSummary? drive, string serialized)
+    {
+        var accounting = ScanAccounting.Summarize(result);
+        var remainder = VolumeRemainderAccounting.Summarize(result, drive);
+        using var scanDocument = JsonDocument.Parse(serialized);
+        var report = new
+        {
+            schemaVersion = 1,
+            reportType = "clyr-scan-technical",
+            scan = scanDocument.RootElement,
+            accounting,
+            volumeRemainder = remainder
+        };
+        return JsonSerializer.Serialize(report, JsonOptions);
+    }
+
+    private static string DescribeConsistency(AccountingConsistency consistency) =>
+        consistency == AccountingConsistency.Consistent ? "Consistent" : string.Join(", ", Enum.GetValues<AccountingConsistency>()
+            .Where(flag => flag != AccountingConsistency.Consistent && consistency.HasFlag(flag)));
+
+    private static string FormatElapsed(TimeSpan elapsed) => elapsed.TotalMinutes >= 1
+        ? $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s"
+        : $"{elapsed.TotalSeconds:F1}s";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
