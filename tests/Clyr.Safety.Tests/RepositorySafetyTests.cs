@@ -133,6 +133,10 @@ public sealed class RepositorySafetyTests
         // Phase 7 adds exactly one more reviewed process-launch surface: the narrow, non-elevated, read-only
         // developer-tool status probe. It never mutates anything and never accepts a caller-supplied command.
         var developerProbeFile = Path.Combine(Root, "src", "Clyr.Core", "DeveloperMode", "DeveloperToolProbeRunner.cs");
+        // Phase 7.2.6F2 adds exactly one more reviewed process-launch surface: the elevated scanner's own
+        // controlled UAC launch, mirroring the Phase 6 launcher's shape but for a different, independently
+        // validated executable and request type.
+        var elevatedScannerStarterFile = Path.Combine(Root, "src", "Clyr.Windows", "ElevatedScannerProcessStarter.cs");
         // requireAdministrator may exist only in the elevated helper's own application manifest, scanned separately below.
         var helperManifestGuard = Path.Combine(Root, "src", "Clyr.ElevatedHelper", "app.manifest");
         Assert.Contains("requireAdministrator", File.ReadAllText(helperManifestGuard), StringComparison.Ordinal);
@@ -147,7 +151,8 @@ public sealed class RepositorySafetyTests
                 !string.Equals(source, checkpointStoreFile, StringComparison.OrdinalIgnoreCase))
                 foreach (var token in mutationBoundaryOnly) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
             if (!string.Equals(source, launcherFile, StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(source, developerProbeFile, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(source, developerProbeFile, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(source, elevatedScannerStarterFile, StringComparison.OrdinalIgnoreCase))
                 foreach (var token in processLaunchBoundaryOnly) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
         }
     }
@@ -496,6 +501,51 @@ public sealed class RepositorySafetyTests
         Assert.True(File.Exists(file), $"Expected file not found: {file}");
         var text = File.ReadAllText(file);
         foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ElevatedScannerProcessStarterIsTheOnlyLaunchSurfaceForThisFeatureAndLaunchesOnlyTheTrustedHelper()
+    {
+        var starterFile = Path.Combine(Root, "src", "Clyr.Windows", "ElevatedScannerProcessStarter.cs");
+        Assert.True(File.Exists(starterFile), $"Expected file not found: {starterFile}");
+        var starterText = File.ReadAllText(starterFile);
+
+        // Exactly one Process.Start call for this feature — a single, literal, reviewed call site.
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Count(starterText, "process\\.Start\\(", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
+        // It launches only the plan's own ExecutablePath (already resolved and revalidated against the fixed
+        // Clyr.ElevatedScanner.exe filename) — never a literal path, never a caller-supplied string.
+        Assert.Contains("FileName = plan.ExecutablePath", starterText, StringComparison.Ordinal);
+        Assert.Contains("ElevatedScannerExecutableResolver.HelperFileName", starterText, StringComparison.Ordinal);
+        // Exactly one argument — the plan's own generated --pipe bootstrap argument — is ever passed.
+        Assert.Contains("ArgumentList = { plan.BootstrapArgument }", starterText, StringComparison.Ordinal);
+        // No looping construct of any kind around the launch attempt — a structural guarantee against a retry
+        // loop, independent of what any comment happens to say.
+        foreach (var token in new[] { "while (", "while(", "for (", "for(", "do\n", "do{" })
+            Assert.DoesNotContain(token, starterText, StringComparison.Ordinal);
+
+        // No new production file outside the one reviewed starter may accept a caller-supplied executable path
+        // or argument list for this feature — the launcher's public method takes only a typed request and a
+        // cancellation token (also proven directly by a dedicated Core.Tests reflection test).
+        var launcherFile = Path.Combine(Root, "src", "Clyr.Core", "ElevatedScannerLauncher.cs");
+        var launcherText = File.ReadAllText(launcherFile);
+        foreach (var token in new[] { "Process.Start", "ProcessStartInfo", "Verb", "runas", "UseShellExecute" })
+            Assert.DoesNotContain(token, launcherText, StringComparison.Ordinal);
+
+        // No mutation or cleanup capability anywhere in either new file.
+        var mutationAndCleanupForbidden = new[]
+        {
+            "File.Delete", "File.Move", "File.WriteAllText", "File.WriteAllBytes", "File.AppendAllText",
+            "File.Create(", "File.OpenWrite", "File.Replace", "File.SetAttributes",
+            "Directory.Delete", "Directory.Move", "Directory.CreateDirectory",
+            "FileSecurity", "DirectorySecurity", "SetAccessControl", "FileSystemAclExtensions",
+            "TakeOwnership", "Ownership.Set",
+            "Clyr.ElevatedHelper", "ElevatedHelperLauncher", "ElevatedHelperRequestHandler",
+            "NonElevatedCleanupExecutor", "CleanupPlanBuilder", "ExecutionTokenService", "CleanupCandidateFactory",
+            "BuiltInExecutionActions", "MoveKnownFolder", "MoveToAnotherDrive",
+            "System.Net.Sockets", "TcpClient", "TcpListener", "UdpClient", "HttpClient", "WebRequest",
+        };
+        foreach (var text in new[] { starterText, launcherText })
+            foreach (var token in mutationAndCleanupForbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
     }
 
     private static XDocument Project(string name) => XDocument.Load(Path.Combine(Root, "src", name, name + ".csproj"));
