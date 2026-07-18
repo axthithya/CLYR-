@@ -3,67 +3,309 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Clyr.App.Controls"
-    Background="{ThemeResource AppBackgroundBrush}"
+    Background="{ThemeResource AppBackground}"
     AutomationProperties.Name="Scan page">
-    <controls:ResponsivePageHost x:Name="PageHost" Title="Analyze a drive"
-        Subtitle="Choose a local drive and analysis depth. CLYR reads metadata only and never changes your files."
+    <controls:ResponsivePageHost
+        x:Name="PageHost"
+        Title="Analyze a drive"
+        Subtitle="See what is using storage without changing your files."
         AutomationProperties.Name="Scan responsive page host">
         <controls:ResponsivePageHost.PageContent>
-            <StackPanel Spacing="24">
-                <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="10"><TextBlock Text="Local drive" Style="{StaticResource CardTitleStyle}"/><ComboBox x:Name="DriveSelector" HorizontalAlignment="Stretch" SelectionChanged="DriveChanged" AutomationProperties.Name="Local volume selector"/><TextBlock x:Name="DriveDetails" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                <Grid x:Name="ModeCards" ColumnSpacing="20" RowSpacing="16">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <ToggleButton x:Name="QuickCard" Click="QuickSelected" Style="{StaticResource AnalysisModeCardStyle}" AutomationProperties.Name="Quick Analysis mode card">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="Quick Analysis" Style="{StaticResource CardTitleStyle}"/>
-                            <!-- A plain informational badge, deliberately never touching card Background/BorderBrush/
-                                 SelectionMark/ToggleState — "Recommended" describes the mode, it does not mean selected. -->
-                            <Border Background="{ThemeResource TrustBadgeBackgroundBrush}" BorderBrush="{ThemeResource TrustBadgeBorderBrush}"
-                                    BorderThickness="1" CornerRadius="10" Padding="8,2" HorizontalAlignment="Left"
-                                    AutomationProperties.Name="Recommended badge, not a selection indicator">
-                                <TextBlock Text="Recommended" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource MutedTextBrush}"/>
-                            </Border>
-                            <TextBlock Text="Faster and bounded by depth, time, and item limits. Best for a first look — not complete drive accounting." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
+            <StackPanel x:Name="ScanContent" Spacing="20">
+                <StackPanel x:Name="SetupPanel" Spacing="18">
+                    <Border x:Name="DrivePanel" Padding="20" Background="{ThemeResource SurfacePrimary}"
+                            BorderBrush="{ThemeResource BorderSubtle}" BorderThickness="1"
+                            CornerRadius="{StaticResource CornerRadiusLargeSurface}"
+                            AutomationProperties.Name="Selected local drive">
+                        <StackPanel Spacing="14">
+                            <Grid x:Name="DriveHeader" ColumnSpacing="20" RowSpacing="10">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <StackPanel MinWidth="0" Spacing="3">
+                                    <TextBlock x:Name="DriveIdentity" Style="{StaticResource SectionTitleStyle}"
+                                               TextTrimming="CharacterEllipsis" AutomationProperties.HeadingLevel="Level2" />
+                                    <TextBlock x:Name="DriveTechnicalSummary" Style="{StaticResource CaptionStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                    <TextBlock x:Name="DriveUsedPercentage" Style="{StaticResource MetricValueStyle}" HorizontalAlignment="Right" />
+                                    <TextBlock Text="used" Style="{StaticResource MetricLabelStyle}" HorizontalAlignment="Right" />
+                                </StackPanel>
+                                <ComboBox x:Name="DriveSelector" Grid.Row="1" Grid.ColumnSpan="2"
+                                          HorizontalAlignment="Stretch" SelectionChanged="DriveChanged"
+                                          AutomationProperties.Name="Local volume selector"
+                                          AutomationProperties.HelpText="Choose the local drive to analyze." />
+                            </Grid>
+                            <Grid x:Name="DriveStorageBar" Height="16" Background="{ThemeResource SurfaceSecondary}"
+                                  CornerRadius="8" AutomationProperties.Name="Selected drive storage usage">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition x:Name="DriveUsedColumn" Width="0*" />
+                                    <ColumnDefinition x:Name="DriveFreeColumn" Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border x:Name="DriveUsedSegment" Background="{ThemeResource AccentPrimary}" CornerRadius="8,0,0,8" />
+                            </Grid>
+                            <Grid x:Name="DriveMetrics" ColumnSpacing="24" RowSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <StackPanel x:Name="DriveUsedMetric" Spacing="2">
+                                    <TextBlock Text="Used storage" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="DriveUsedValue" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                                <StackPanel x:Name="DriveFreeMetric" Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Free storage" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="DriveFreeValue" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                                <StackPanel x:Name="DriveTotalMetric" Grid.Column="2" Spacing="2">
+                                    <TextBlock Text="Total capacity" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="DriveTotalValue" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                                <StackPanel x:Name="DriveReadyMetric" Grid.Column="3" Spacing="2">
+                                    <TextBlock Text="Metadata scan" Style="{StaticResource MetricLabelStyle}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon x:Name="DriveReadyIcon" Glyph="&#xE73E;" FontSize="14" Foreground="{ThemeResource Success}" />
+                                        <TextBlock x:Name="DriveReadyValue" Style="{StaticResource StatusTextStyle}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
                         </StackPanel>
-                    </ToggleButton>
-                    <ToggleButton x:Name="DeepCard" Grid.Column="1" Click="DeepSelected" Style="{StaticResource AnalysisModeCardStyle}" AutomationProperties.Name="Deep Analysis mode card">
-                        <StackPanel Spacing="8"><TextBlock Text="Deep Analysis" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="More detailed"/><TextBlock Text="Recursively accounts for every safely accessible entry, with no depth or item limit. Can take substantially longer." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/></StackPanel>
-                    </ToggleButton>
-                </Grid>
-                <TextBlock x:Name="ModeHelperText" Text="Choose Quick or Deep Analysis." Style="{StaticResource BodyMutedStyle}" AutomationProperties.LiveSetting="Polite"/>
-                <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="Scan progress card">
-                    <StackPanel Spacing="14">
-                        <TextBlock x:Name="ScanState" Text="Ready to analyze" Style="{StaticResource SectionTitleStyle}" AutomationProperties.LiveSetting="Polite"/>
-                        <ProgressBar x:Name="ActiveProgress" IsIndeterminate="True" Visibility="Collapsed" Height="5"/>
-                        <Grid x:Name="MetricsGrid" ColumnSpacing="16" RowSpacing="12" Visibility="Collapsed">
-                            <StackPanel x:Name="FilesMetric"><TextBlock Text="Files" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="FileCount" Text="—" FontSize="18"/></StackPanel>
-                            <StackPanel x:Name="DirectoryMetric"><TextBlock Text="Directories" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="DirectoryCount" Text="—" FontSize="18"/></StackPanel>
-                            <StackPanel x:Name="ObservedMetric"><TextBlock Text="Observed" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="ObservedSize" Text="—" FontSize="18"/></StackPanel>
-                            <StackPanel x:Name="InaccessibleMetric"><TextBlock Text="Inaccessible" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="InaccessibleCount" Text="—" FontSize="18"/></StackPanel>
-                            <StackPanel x:Name="ReparseMetric"><TextBlock Text="Reparse points skipped" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="ReparseSkippedCount" Text="—" FontSize="18"/></StackPanel>
-                            <StackPanel x:Name="WarningMetric"><TextBlock Text="Warnings" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="WarningCountText" Text="—" FontSize="18"/></StackPanel>
-                            <StackPanel x:Name="ElapsedMetric"><TextBlock Text="Elapsed" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="ElapsedText" Text="—" FontSize="18"/></StackPanel>
+                    </Border>
+                    <StackPanel x:Name="ModeSection" Spacing="10">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="Choose analysis depth" Style="{StaticResource SectionTitleStyle}"
+                                       AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock Text="Compare the two read-only approaches, then choose the one that fits this run."
+                                       Style="{StaticResource BodyMutedStyle}" />
+                        </StackPanel>
+                        <Grid x:Name="ModeCards" ColumnSpacing="20" RowSpacing="12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <ToggleButton x:Name="QuickCard" Click="QuickSelected" Style="{StaticResource AnalysisModeCardStyle}"
+                                          AutomationProperties.Name="Quick Analysis mode card"
+                                          AutomationProperties.AutomationId="QuickAnalysisMode">
+                                <StackPanel Spacing="9">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE945;" FontSize="22" Foreground="{ThemeResource AccentPrimary}" />
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <TextBlock Text="Quick Analysis" Style="{StaticResource CardTitleStyle}" />
+                                            <Border Style="{StaticResource PrivacyBadgeStyle}" HorizontalAlignment="Left">
+                                                <TextBlock Text="Recommended" Style="{StaticResource CaptionStyle}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="A fast first look at the largest and most useful storage areas."
+                                               Style="{StaticResource BodySecondaryStyle}" />
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="Bounded scan that usually finishes quickly" Style="{StaticResource CaptionStyle}" />
+                                        <TextBlock Text="Resumable when a supported checkpoint remains" Style="{StaticResource CaptionStyle}" />
+                                        <TextBlock Text="May not account for the entire drive" Style="{StaticResource CaptionStyle}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </ToggleButton>
+                            <ToggleButton x:Name="DeepCard" Grid.Column="1" Click="DeepSelected"
+                                          Style="{StaticResource AnalysisModeCardStyle}"
+                                          AutomationProperties.Name="Deep Analysis mode card"
+                                          AutomationProperties.AutomationId="DeepAnalysisMode">
+                                <StackPanel Spacing="9">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE8B1;" FontSize="22" Foreground="{ThemeResource Information}" />
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <TextBlock Text="Deep Analysis" Style="{StaticResource CardTitleStyle}" />
+                                            <Border Style="{StaticResource StatusBadgeStyle}" HorizontalAlignment="Left">
+                                                <TextBlock Text="Most complete" Style="{StaticResource CaptionStyle}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="Examines every folder CLYR can safely access for a more complete result."
+                                               Style="{StaticResource BodySecondaryStyle}" />
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="Recursively scans accessible folders" Style="{StaticResource CaptionStyle}" />
+                                        <TextBlock Text="Can take several minutes" Style="{StaticResource CaptionStyle}" />
+                                        <TextBlock Text="Restricted areas may remain unobserved" Style="{StaticResource CaptionStyle}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </ToggleButton>
                         </Grid>
-                        <TextBlock x:Name="CurrentLocation" Text="Private location details appear redacted while analysis runs." Style="{StaticResource BodyMutedStyle}"/>
-                        <StackPanel x:Name="ScanActions" Orientation="Horizontal" Spacing="12">
-                            <Button x:Name="StartButton" Content="Choose Quick or Deep Analysis" Style="{StaticResource PrimaryActionStyle}" Click="StartAnalysis" IsEnabled="False"/>
-                            <Button x:Name="CancelButton" Content="Cancel Analysis" Style="{StaticResource SecondaryActionStyle}" Click="CancelAnalysis" IsEnabled="False" AutomationProperties.Name="Cancel Analysis"/>
-                            <Button x:Name="ResultsButton" Content="View Results" Click="ViewResults" Visibility="Collapsed" AutomationProperties.Name="View Results"/>
+                    </StackPanel>
+                    <StackPanel x:Name="IdleActionPanel" Spacing="8">
+                        <TextBlock x:Name="ModeHelperText" Text="Choose Quick or Deep Analysis to continue."
+                                   Style="{StaticResource BodyMutedStyle}" AutomationProperties.LiveSetting="Polite" />
+                        <Button x:Name="StartButton" Content="Run Quick Analysis" Style="{StaticResource PrimaryActionStyle}"
+                                Click="StartAnalysis" HorizontalAlignment="Left" Visibility="Collapsed"
+                                AutomationProperties.HelpText="Starts the selected private read-only analysis." />
+                        <StackPanel x:Name="SafetyNote" Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE72E;" FontSize="14" Foreground="{ThemeResource PrivacySafe}" />
+                            <TextBlock Text="Reads file and folder metadata only. No files are changed."
+                                       Style="{StaticResource CaptionStyle}" />
                         </StackPanel>
                     </StackPanel>
-                </Border>
-                <Border x:Name="AccountingCard" Style="{StaticResource CardStyle}" Visibility="Collapsed" AutomationProperties.Name="Scan accounting summary">
-                    <StackPanel Spacing="10">
-                        <TextBlock Text="Last attempt" Style="{StaticResource CardTitleStyle}"/>
-                        <TextBlock x:Name="AttemptSummary" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
-                        <TextBlock x:Name="QualityBanner" TextWrapping="Wrap" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="AccountingDetail" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
+                </StackPanel>
+                <Border x:Name="RunningPanel" Padding="24" Background="{ThemeResource SurfacePrimary}"
+                        BorderBrush="{ThemeResource BorderSubtle}" BorderThickness="1"
+                        CornerRadius="{StaticResource CornerRadiusLargeSurface}" Visibility="Collapsed"
+                        AutomationProperties.Name="Active analysis progress">
+                    <Border.Transitions>
+                        <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
+                    </Border.Transitions>
+                    <StackPanel Spacing="20">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Border Width="44" Height="44" Background="{ThemeResource SurfaceSelected}" CornerRadius="22">
+                                <FontIcon Glyph="&#xE895;" FontSize="20" Foreground="{ThemeResource AccentPrimary}" />
+                            </Border>
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <TextBlock x:Name="RunningTitle" Style="{StaticResource SectionTitleStyle}"
+                                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.LiveSetting="Polite" />
+                                <TextBlock x:Name="RunningStatus" Style="{StaticResource BodySecondaryStyle}" />
+                                <TextBlock x:Name="RunningGuidance" Style="{StaticResource CaptionStyle}" />
+                            </StackPanel>
+                        </Grid>
+                        <ProgressBar x:Name="ActiveProgress" IsIndeterminate="True" Height="5"
+                                     AutomationProperties.Name="Analysis in progress" />
+                        <Grid x:Name="RunningMetrics" ColumnSpacing="20" RowSpacing="16">
+                            <StackPanel x:Name="ElapsedMetric" Spacing="2">
+                                <TextBlock Text="Elapsed" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="ElapsedText" Text="--" Style="{StaticResource CardTitleStyle}" />
+                            </StackPanel>
+                            <StackPanel x:Name="FilesMetric" Spacing="2">
+                                <TextBlock Text="Files examined" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="FileCount" Text="--" Style="{StaticResource CardTitleStyle}" />
+                            </StackPanel>
+                            <StackPanel x:Name="DirectoryMetric" Spacing="2">
+                                <TextBlock Text="Folders examined" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="DirectoryCount" Text="--" Style="{StaticResource CardTitleStyle}" />
+                            </StackPanel>
+                            <StackPanel x:Name="ObservedMetric" Spacing="2">
+                                <TextBlock Text="Bytes observed" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="ObservedSize" Text="--" Style="{StaticResource CardTitleStyle}" />
+                            </StackPanel>
+                            <StackPanel x:Name="InaccessibleMetric" Spacing="2">
+                                <TextBlock Text="Inaccessible" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="InaccessibleCount" Text="--" Style="{StaticResource CardTitleStyle}" />
+                            </StackPanel>
+                            <StackPanel x:Name="WarningMetric" Spacing="2">
+                                <TextBlock Text="Warnings" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="WarningCountText" Text="--" Style="{StaticResource CardTitleStyle}" />
+                            </StackPanel>
+                        </Grid>
+                        <Border Padding="14,10" Background="{ThemeResource SurfaceSecondary}"
+                                CornerRadius="{StaticResource CornerRadiusControl}">
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <FontIcon Glyph="&#xE81D;" FontSize="15" Foreground="{ThemeResource TextMuted}" />
+                                <TextBlock x:Name="CurrentLocation" Grid.Column="1" Text="Preparing a privacy-safe location..."
+                                           Style="{StaticResource CaptionStyle}" TextTrimming="CharacterEllipsis"
+                                           AutomationProperties.Name="Privacy-safe current scan location" />
+                            </Grid>
+                        </Border>
+                        <Button x:Name="CancelButton" Content="Cancel Analysis" Click="CancelAnalysis"
+                                Style="{StaticResource SecondaryActionStyle}" HorizontalAlignment="Left"
+                                AutomationProperties.Name="Cancel Analysis"
+                                AutomationProperties.HelpText="Stops the active analysis safely after the current metadata operation." />
                     </StackPanel>
                 </Border>
-                <Border Style="{StaticResource CardStyle}" Background="{ThemeResource PrivacyBannerBrush}" AutomationProperties.Name="Private read-only analysis notice">
-                    <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE72E;"/><TextBlock Grid.Column="1" Text="Private and read-only. No file contents are read, no cloud-only files are downloaded, and no files are changed." TextWrapping="Wrap"/></Grid>
-                </Border>
+                <StackPanel x:Name="TerminalPanel" Spacing="20" Visibility="Collapsed"
+                            AutomationProperties.Name="Analysis outcome">
+                    <StackPanel.Transitions>
+                        <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
+                    </StackPanel.Transitions>
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Border x:Name="TerminalIconSurface" Width="44" Height="44"
+                                Background="{ThemeResource SuccessSurface}" CornerRadius="22">
+                            <FontIcon x:Name="TerminalIcon" Glyph="&#xE73E;" FontSize="20" Foreground="{ThemeResource Success}" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <TextBlock x:Name="TerminalTitle" Style="{StaticResource SectionTitleStyle}"
+                                       AutomationProperties.HeadingLevel="Level2" AutomationProperties.LiveSetting="Polite" />
+                            <TextBlock x:Name="TerminalMessage" Style="{StaticResource BodySecondaryStyle}" />
+                        </StackPanel>
+                    </Grid>
+                    <StackPanel x:Name="TerminalSummary" Spacing="16">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <TextBlock Text="Coverage summary" Style="{StaticResource CardTitleStyle}" />
+                            <Border Grid.Column="1" Style="{StaticResource StatusBadgeStyle}">
+                                <TextBlock x:Name="QualityText" Style="{StaticResource StatusTextStyle}"
+                                           AutomationProperties.Name="Scan coverage quality" AutomationProperties.LiveSetting="Polite" />
+                            </Border>
+                        </Grid>
+                        <Grid x:Name="TerminalCoverage" ColumnSpacing="28" RowSpacing="18">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="4*" /><ColumnDefinition Width="3*" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <StackPanel Spacing="4">
+                                <TextBlock x:Name="AccountedValue" FontSize="36" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextPrimary}" />
+                                <TextBlock Text="of used storage accounted for" Style="{StaticResource BodySecondaryStyle}" />
+                            </StackPanel>
+                            <Grid x:Name="TerminalStorageMetrics" Grid.Column="1" ColumnSpacing="20" RowSpacing="14">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Observed" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="TerminalObserved" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Not observed" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="TerminalUnobserved" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Spacing="2">
+                                    <TextBlock Text="Classified of observed" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="TerminalClassified" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                        <Border Style="{StaticResource DividerStyle}" />
+                        <Grid x:Name="TerminalDetails" ColumnSpacing="24" RowSpacing="14">
+                            <StackPanel x:Name="TerminalDurationMetric" Spacing="2">
+                                <TextBlock Text="Duration" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="TerminalDuration" Style="{StaticResource StatusTextStyle}" />
+                            </StackPanel>
+                            <StackPanel x:Name="TerminalFilesMetric" Spacing="2">
+                                <TextBlock Text="Files examined" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="TerminalFiles" Style="{StaticResource StatusTextStyle}" />
+                            </StackPanel>
+                            <StackPanel x:Name="TerminalFoldersMetric" Spacing="2">
+                                <TextBlock Text="Folders examined" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="TerminalFolders" Style="{StaticResource StatusTextStyle}" />
+                            </StackPanel>
+                            <StackPanel x:Name="TerminalCompletedMetric" Spacing="2">
+                                <TextBlock Text="Completed" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="TerminalCompleted" Style="{StaticResource StatusTextStyle}" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                    <Grid x:Name="TerminalWarnings" ColumnSpacing="12" Visibility="Collapsed"
+                          AutomationProperties.Name="Analysis warnings" AutomationProperties.LiveSetting="Polite">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE7BA;" FontSize="17" Foreground="{ThemeResource Warning}" />
+                        <StackPanel Grid.Column="1" Spacing="2">
+                            <TextBlock x:Name="TerminalWarningTitle" Style="{StaticResource StatusTextStyle}" />
+                            <TextBlock Text="Some Windows-managed or permission-restricted areas could not be fully inspected."
+                                       Style="{StaticResource BodyMutedStyle}" />
+                        </StackPanel>
+                    </Grid>
+                    <Border x:Name="ContinuationPanel" Style="{StaticResource InfoBannerStyle}" Visibility="Collapsed"
+                            AutomationProperties.Name="Quick Analysis continuation available">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Quick Analysis completed its current pass." Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock x:Name="ContinuationReason" Style="{StaticResource BodySecondaryStyle}" />
+                        </StackPanel>
+                    </Border>
+                    <StackPanel x:Name="TerminalActions" Orientation="Horizontal" Spacing="12">
+                        <Button x:Name="ResultsButton" Content="View Results" Click="ViewResults"
+                                Style="{StaticResource PrimaryActionStyle}" AutomationProperties.Name="View Results" />
+                        <Button x:Name="ContinueQuickButton" Content="Continue Quick Analysis" Click="ContinueQuickAnalysis"
+                                Style="{StaticResource SecondaryActionStyle}" Visibility="Collapsed" />
+                        <Button x:Name="RunAgainButton" Content="Run Again" Click="RunAgain"
+                                Style="{StaticResource SecondaryActionStyle}" />
+                        <Button x:Name="ChangeSetupButton" Content="Change drive or mode" Click="ChangeSetup"
+                                Style="{StaticResource QuietButtonStyle}" />
+                    </StackPanel>
+                </StackPanel>
             </StackPanel>
         </controls:ResponsivePageHost.PageContent>
     </controls:ResponsivePageHost>

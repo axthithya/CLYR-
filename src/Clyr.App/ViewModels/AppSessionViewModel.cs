@@ -81,7 +81,7 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
     /// <see cref="Result"/> is only replaced on a genuinely successful terminal state, so a cancelled or failed
     /// rescan can never erase a previous success.
     /// </summary>
-    public async Task<ScanResult?> StartAsync()
+    public async Task<ScanResult?> StartAsync(bool continueQuick = false)
     {
         var drive = SelectedDrive;
         if (drive is null || !drive.IsSupported || IsScanning || SelectedScanMode is not { } mode) return null;
@@ -92,7 +92,8 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             var reporter = new Progress<ScanProgress>(value => { Progress = value; Changed(); });
-            var outcome = await scanService.ScanAsync(new(drive.Root, mode), reporter, cancellation.Token);
+            var outcome = await scanService.ScanAsync(new(drive.Root, mode,
+                ContinueFromCheckpoint: continueQuick && mode == ScanMode.Quick), reporter, cancellation.Token);
             LatestAttempt = outcome;
             if (outcome.Status is ScanStatus.Completed or ScanStatus.CompletedWithWarnings) Result = outcome;
             return outcome;
