@@ -214,6 +214,170 @@ public sealed class AdministratorRetryUxTests
         Assert.Equal(0, controller.State.RootsStillInaccessible);
     }
 
+    [Fact]
+    public async Task FakeRetryCompletionRaisedFromAWorkerThreadDoesNotRequireUiThreadAccessFromCore()
+    {
+        // Proves Core has no thread-affinity of its own: the fake forces a real thread-pool hop before
+        // completing, exactly like the real IElevatedScanRetryService.RetryAsync (awaited with
+        // ConfigureAwait(false) inside AdministratorRetryController.RunAsync) does in production.
+        var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        service.NextResult = AppliedResult();
+        service.CompleteOnThreadPool = true;
+        var controller = new AdministratorRetryController(service);
+        var original = OriginalResult();
+        controller.Evaluate(original);
+        var raisedThreadIds = new List<int>();
+        controller.StateChanged += (_, _) => raisedThreadIds.Add(Environment.CurrentManagedThreadId);
+
+        await controller.RunAsync(original);
+
+        Assert.Equal(AdministratorRetryPhase.Applied, controller.State.Phase);
+        Assert.NotEmpty(raisedThreadIds);
+    }
+
+    [Fact]
+    public async Task ControllerConvertsAnUnexpectedNonFatalServiceExceptionIntoFailed()
+    {
+        var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        service.ExceptionToThrow = new InvalidOperationException("unexpected");
+        var controller = new AdministratorRetryController(service);
+        var original = OriginalResult();
+        controller.Evaluate(original);
+
+        await controller.RunAsync(original);
+
+        Assert.Equal(AdministratorRetryPhase.Failed, controller.State.Phase);
+        Assert.Equal(AdministratorRetryUx.FailedStatusText, controller.State.AdministratorRetryStatusText);
+        Assert.False(controller.State.IsAdministratorRetryRunning);
+        Assert.DoesNotContain("unexpected", controller.State.AdministratorRetryStatusText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OperationCanceledExceptionProducesCancelled()
+    {
+        var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        service.ExceptionToThrow = new OperationCanceledException();
+        var controller = new AdministratorRetryController(service);
+        var original = OriginalResult();
+        controller.Evaluate(original);
+
+        await controller.RunAsync(original);
+
+        Assert.Equal(AdministratorRetryPhase.Cancelled, controller.State.Phase);
+        Assert.False(controller.State.IsAdministratorRetryRunning);
+    }
+
+    [Fact]
+    public async Task TimeoutProducesTheExistingTimedOutState()
+    {
+        var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        service.ExceptionToThrow = new TimeoutException();
+        var controller = new AdministratorRetryController(service);
+        var original = OriginalResult();
+        controller.Evaluate(original);
+
+        await controller.RunAsync(original);
+
+        Assert.Equal(AdministratorRetryPhase.TimedOut, controller.State.Phase);
+        Assert.False(controller.State.IsAdministratorRetryRunning);
+    }
+
+    [Fact]
+    public async Task PipeIoFailureProducesTheBoundedFailureState()
+    {
+        var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        service.ExceptionToThrow = new EndOfStreamException("pipe closed unexpectedly");
+        var controller = new AdministratorRetryController(service);
+        var original = OriginalResult();
+        controller.Evaluate(original);
+
+        await controller.RunAsync(original);
+
+        Assert.Equal(AdministratorRetryPhase.Failed, controller.State.Phase);
+        Assert.Equal(AdministratorRetryUx.FailedStatusText, controller.State.AdministratorRetryStatusText);
+        Assert.DoesNotContain("pipe closed", controller.State.AdministratorRetryStatusText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BusyStateIsClearedAfterEveryFailure()
+    {
+        var original = OriginalResult();
+        foreach (Exception exception in new Exception[]
+        {
+            new InvalidOperationException(), new OperationCanceledException(), new TimeoutException(), new IOException(),
+        })
+        {
+            var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+            service.ExceptionToThrow = exception;
+            var controller = new AdministratorRetryController(service);
+            controller.Evaluate(original);
+
+            await controller.RunAsync(original);
+
+            Assert.False(controller.State.IsAdministratorRetryRunning);
+            Assert.True(controller.CanStart(original));
+        }
+    }
+
+    [Fact]
+    public async Task DuplicateClickStillCausesOneServiceCallEvenWhenTheFirstAttemptFails()
+    {
+        var gate = new TaskCompletionSource();
+        var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        service.Gate = gate.Task;
+        service.ExceptionToThrow = new IOException("transport failure");
+        var controller = new AdministratorRetryController(service);
+        var original = OriginalResult();
+        controller.Evaluate(original);
+
+        var first = controller.RunAsync(original);
+        var second = controller.RunAsync(original); // no-op: a retry is already in flight
+
+        gate.SetResult();
+        await first;
+        await second;
+
+        Assert.Equal(1, service.RetryCallCount);
+        Assert.Equal(AdministratorRetryPhase.Failed, controller.State.Phase);
+    }
+
+    [Fact]
+    public async Task DisposeRacingWithCompletionDoesNotRaiseAPostDisposalStateEvent()
+    {
+        var gate = new TaskCompletionSource();
+        var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        service.Gate = gate.Task;
+        service.NextResult = AppliedResult();
+        var controller = new AdministratorRetryController(service);
+        var original = OriginalResult();
+        controller.Evaluate(original);
+        var run = controller.RunAsync(original);
+        var eventsAfterDispose = 0;
+
+        controller.Dispose();
+        controller.StateChanged += (_, _) => eventsAfterDispose++;
+        gate.SetResult();
+        await run;
+
+        Assert.Equal(0, eventsAfterDispose);
+    }
+
+    [Fact]
+    public async Task OriginalScanResultRemainsTheSameReferenceAfterFailure()
+    {
+        var original = OriginalResult();
+        var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        service.ExceptionToThrow = new InvalidOperationException("boom");
+        var controller = new AdministratorRetryController(service);
+        controller.Evaluate(original);
+
+        await controller.RunAsync(original);
+
+        Assert.Same(original, service.LastRetryArgument);
+        Assert.Equal(ScanStatus.Completed, original.Status);
+        Assert.Equal(ScanMode.Deep, original.Mode);
+    }
+
     private static ScanResult OriginalResult() =>
         ScanFixtures.Result(ScanMode.Deep, ScanStatus.Completed) with { ScanId = ScanId };
 
@@ -238,6 +402,8 @@ public sealed class AdministratorRetryUxTests
     {
         public Task? Gate { get; set; }
         public ElevatedScanRetryWorkflowResult? NextResult { get; set; }
+        public Exception? ExceptionToThrow { get; set; }
+        public bool CompleteOnThreadPool { get; set; }
         public int RetryCallCount { get; private set; }
         public ScanResult? LastRetryArgument { get; private set; }
 
@@ -250,6 +416,11 @@ public sealed class AdministratorRetryUxTests
             RetryCallCount++;
             LastRetryArgument = originalResult;
             if (Gate is { } gate) await gate.ConfigureAwait(false);
+            // Mirrors the real ElevatedScannerLauncher/coordinator path, which always completes its IPC exchange
+            // on a thread-pool continuation (see AdministratorRetryController.RunAsync's ConfigureAwait(false)) —
+            // never on whatever thread originally called RunAsync.
+            if (CompleteOnThreadPool) await Task.Run(() => { }, CancellationToken.None).ConfigureAwait(false);
+            if (ExceptionToThrow is { } exception) throw exception;
             return NextResult!;
         }
     }

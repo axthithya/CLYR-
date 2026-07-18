@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Text.Json;
 using Clyr.Contracts;
 
 namespace Clyr.Core;
@@ -76,6 +78,22 @@ public static class AdministratorRetryUx
             result.RootsCompleted, result.RootsStillInaccessible, combined);
     }
 
+    /// <summary>Builds a calm terminal state directly from a phase, for the rare case where an unexpected
+    /// operational exception escaped <see cref="IElevatedScanRetryService.RetryAsync"/> and there is no
+    /// <see cref="ElevatedScanRetryWorkflowResult"/> to project from — see
+    /// <see cref="AdministratorRetryController.RunAsync"/>. Never carries any count or combined-result data that
+    /// would otherwise have come from a real response.</summary>
+    public static AdministratorRetryUiState Terminal(AdministratorRetryPhase phase) =>
+        new(true, false, phase, "elevated-retry." + phase.ToString().ToLowerInvariant(), TextFor(phase), 0, null, null, 0, 0, null);
+
+    /// <summary>Every exception kind this action's retry boundary is expected to see and safely contain —
+    /// cancellation, timeout, and ordinary IPC/transport/serialization failures — mapped to <see langword="true"/>.
+    /// <see cref="OutOfMemoryException"/> (the only one of the fatal triad a managed <c>catch</c> clause could
+    /// otherwise intercept — <see cref="StackOverflowException"/> and <c>AccessViolationException</c> already
+    /// terminate the process before any handler runs) is deliberately excluded so it is never silently caught and
+    /// reported as a calm UI message.</summary>
+    public static bool IsRecoverable(Exception exception) => exception is not OutOfMemoryException;
+
     private static AdministratorRetryPhase PhaseFor(ElevatedScanRetryWorkflowOutcome outcome) => outcome switch
     {
         ElevatedScanRetryWorkflowOutcome.Applied => AdministratorRetryPhase.Applied,
@@ -114,8 +132,16 @@ public sealed class AdministratorRetryController(IElevatedScanRetryService servi
 {
     private CancellationTokenSource? cancellation;
     private ScanResult? evaluatedFor;
+    private bool disposed;
 
     public AdministratorRetryUiState State { get; private set; } = AdministratorRetryUiState.Hidden;
+
+    /// <summary>Raised only while this controller is not yet disposed — see <see cref="Dispose"/> and
+    /// <see cref="SetState"/>. A caller (such as <c>ResultsPage</c>) may run on any thread by the time this
+    /// fires — <see cref="IElevatedScanRetryService.RetryAsync"/> is awaited with <c>ConfigureAwait(false)</c>
+    /// below, so its continuation (and the <see cref="SetState"/> call that follows it) resumes on whatever
+    /// thread-pool thread completed the underlying operation, never necessarily the original caller's thread.
+    /// This type stays WinUI-free on purpose; marshaling back to a UI thread is the subscriber's job.</summary>
     public event EventHandler? StateChanged;
 
     /// <summary>Re-evaluates visibility for the given result (or hides the action entirely for
@@ -134,32 +160,85 @@ public sealed class AdministratorRetryController(IElevatedScanRetryService servi
     /// <paramref name="originalResult"/> is the exact same result this controller most recently evaluated
     /// availability for.</summary>
     public bool CanStart(ScanResult originalResult) =>
-        cancellation is null && State.IsAdministratorRetryAvailable && !State.IsAdministratorRetryRunning && ReferenceEquals(originalResult, evaluatedFor);
+        !disposed && cancellation is null && State.IsAdministratorRetryAvailable && !State.IsAdministratorRetryRunning && ReferenceEquals(originalResult, evaluatedFor);
 
+    /// <summary>
+    /// Runs exactly one retry attempt. Every operational exception this narrow boundary is expected to see —
+    /// cancellation, a raw <see cref="TimeoutException"/>, transport/serialization failures
+    /// (<see cref="IOException"/>, its <see cref="EndOfStreamException"/> subclass,
+    /// <see cref="JsonException"/>, <see cref="Win32Exception"/>), and an
+    /// <see cref="ObjectDisposedException"/> caused by this controller's own lifecycle cancellation racing this
+    /// call — is contained here and mapped to one of the existing calm terminal states, never left to escape into
+    /// an awaiting <c>async void</c> UI handler. <see cref="OutOfMemoryException"/> is deliberately never caught
+    /// (see <see cref="AdministratorRetryUx.IsRecoverable"/>) — a fatal runtime failure is preserved, not hidden
+    /// behind a reassuring message.
+    /// </summary>
     public async Task RunAsync(ScanResult originalResult)
     {
         if (!CanStart(originalResult)) return;
-        cancellation = new CancellationTokenSource();
+        var ownCancellation = new CancellationTokenSource();
+        cancellation = ownCancellation;
         SetState(AdministratorRetryUx.Running(State));
         try
         {
-            var result = await service.RetryAsync(originalResult, cancellation.Token).ConfigureAwait(false);
+            var result = await service.RetryAsync(originalResult, ownCancellation.Token).ConfigureAwait(false);
             SetState(AdministratorRetryUx.FromWorkflowResult(result));
+        }
+        catch (OperationCanceledException)
+        {
+            SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.Cancelled));
+        }
+        catch (ObjectDisposedException)
+        {
+            // Only reachable if Dispose() raced this call and cancelled/disposed the token source it was
+            // holding out from under it — that is itself a form of cancellation, never an app-visible failure.
+            SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.Cancelled));
+        }
+        catch (TimeoutException)
+        {
+            SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.TimedOut));
+        }
+        catch (Exception exception) when (AdministratorRetryUx.IsRecoverable(exception))
+        {
+            // IOException (and its EndOfStreamException subclass), JsonException, Win32Exception, and any other
+            // non-fatal operational failure this boundary was not specifically expecting all land here — one
+            // calm, bounded message, never the exception's own message or stack trace.
+            SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.Failed));
         }
         finally
         {
-            cancellation.Dispose();
-            cancellation = null;
+            SafeDispose(ownCancellation);
+            if (ReferenceEquals(cancellation, ownCancellation)) cancellation = null;
         }
     }
 
     /// <summary>Cancels the in-flight attempt, if any — never a generic process-kill, never an automatic restart.</summary>
-    public void Cancel() => cancellation?.Cancel();
+    public void Cancel() => SafeCancel(cancellation);
 
-    public void Dispose() => cancellation?.Cancel();
+    /// <summary>Cancels any in-flight attempt and permanently stops <see cref="StateChanged"/> from firing again —
+    /// safe to call even if <see cref="RunAsync"/>'s own <c>finally</c> is disposing the same token source
+    /// concurrently (see <see cref="SafeCancel"/>/<see cref="SafeDispose"/>).</summary>
+    public void Dispose()
+    {
+        disposed = true;
+        SafeCancel(cancellation);
+    }
+
+    private static void SafeCancel(CancellationTokenSource? source)
+    {
+        try { source?.Cancel(); }
+        catch (ObjectDisposedException) { /* Already disposed by a concurrent RunAsync completion — nothing to cancel. */ }
+    }
+
+    private static void SafeDispose(CancellationTokenSource source)
+    {
+        try { source.Dispose(); }
+        catch (ObjectDisposedException) { /* CancellationTokenSource.Dispose() is normally idempotent; guarded defensively regardless. */ }
+    }
 
     private void SetState(AdministratorRetryUiState state)
     {
+        if (disposed) return;
         State = state;
         StateChanged?.Invoke(this, EventArgs.Empty);
     }

@@ -530,6 +530,28 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
+    public void ResultsPageDispatchesAdministratorRetryStateChangedThroughTheDispatcherQueue()
+    {
+        // Phase 7.2.6H2D: AdministratorRetryController.StateChanged can fire from a thread-pool continuation
+        // (the controller awaits IElevatedScanRetryService.RetryAsync with ConfigureAwait(false), and stays
+        // WinUI-free on purpose — see AdministratorRetryUx.cs). A real UAC smoke test crashed the app because an
+        // earlier build touched WinUI controls directly from that handler without first marshaling onto the
+        // page's own UI thread. This checks the page's own event-subscription/handler source for the required
+        // DispatcherQueue guard, rather than exercising WinUI directly (no automated WinUI test harness exists
+        // in this repository).
+        var text = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml.cs"));
+
+        // The StateChanged subscription must route through a named handler (not an inline lambda that touches
+        // controls directly), and that handler must check DispatcherQueue.HasThreadAccess before falling back to
+        // DispatcherQueue.TryEnqueue — never a synchronous wait, and never touching a control unconditionally.
+        Assert.Contains("AdministratorRetry.StateChanged += OnAdministratorRetryStateChanged", text, StringComparison.Ordinal);
+        Assert.Contains("DispatcherQueue.HasThreadAccess", text, StringComparison.Ordinal);
+        Assert.Contains("DispatcherQueue.TryEnqueue", text, StringComparison.Ordinal);
+        foreach (var blockingWait in new[] { ".Wait(", ".GetAwaiter().GetResult()" })
+            Assert.DoesNotContain(blockingWait, text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ElevatedScannerHasItsOwnRequireAdministratorManifestDistinctFromEverythingElse()
     {
         var scannerManifest = File.ReadAllText(Path.Combine(Root, "src", "Clyr.ElevatedScanner", "app.manifest"));
