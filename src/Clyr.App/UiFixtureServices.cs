@@ -69,6 +69,21 @@ internal sealed class UiFixtureDriveDiscovery : IDriveDiscovery
     public IReadOnlyList<DriveSummary> Discover() => [new("C:\\", "Fixture system drive", "NTFS", DriveKind.Fixed, true, true, true, "Ready for private analysis.", 512L * 1024 * 1024 * 1024, 320L * 1024 * 1024 * 1024, 192L * 1024 * 1024 * 1024)];
 }
 
+/// <summary>Truthful UI-fixture stand-in for <see cref="IElevatedScanRetryService"/>: <see cref="UiFixtureScanService"/>'s
+/// synthetic results never populate <see cref="ScanResult.RootContributions"/>, so reporting
+/// <see cref="ElevatedScanRetryEligibilityOutcome.NoRootContributions"/> here is accurate, not merely a stub —
+/// the administrator-retry action is correctly never shown for a CLYR_UI_FIXTURE=1 run. <see cref="RetryAsync"/>
+/// exists only to satisfy the interface; the action being hidden means it is never actually invoked.</summary>
+internal sealed class UiFixtureElevatedScanRetryService : IElevatedScanRetryService
+{
+    public ElevatedScanRetryAvailability Evaluate(ScanResult originalResult) =>
+        new(false, ElevatedScanRetryEligibilityOutcome.NoRootContributions, 0, 0, "elevated-retry-availability.no-root-contributions");
+
+    public Task<ElevatedScanRetryWorkflowResult> RetryAsync(ScanResult originalResult, CancellationToken cancellationToken) =>
+        Task.FromResult(new ElevatedScanRetryWorkflowResult(ElevatedScanRetryWorkflowOutcome.NotEligible, originalResult,
+            ElevatedScanRetryEligibilityOutcome.NoRootContributions, null, null, null, null, null, 0, 0, 0, "elevated-retry.not-eligible"));
+}
+
 internal sealed class UiFixtureScanService : IScanService
 {
     public async Task<ScanResult> ScanAsync(ScanRequest request, IProgress<ScanProgress>? progress, CancellationToken cancellationToken)

@@ -61,6 +61,7 @@ public partial class App : Application
             services.AddSingleton<IDriveDiscovery, UiFixtureDriveDiscovery>();
             services.AddSingleton<ISnapshotStore, UiFixtureSnapshotStore>();
             services.AddSingleton<IScanService, UiFixtureScanService>();
+            services.AddSingleton<IElevatedScanRetryService, UiFixtureElevatedScanRetryService>();
         }
         else
         {
@@ -70,6 +71,12 @@ public partial class App : Application
             services.AddSingleton<IRawDriveIdentitySource, WindowsVolumeIdentitySource>();
             services.AddSingleton<IDriveIdentityProvider, HmacDriveIdentityProvider>();
             services.AddSingleton<IFileSystemEnumerator, WindowsFileSystemEnumerator>();
+            // The one production composition of the elevated permission-limited-root retry service — see
+            // ElevatedScanRetryServiceFactory for the full dependency graph it wires together. Reuses the
+            // app's own already-registered IDriveDiscovery/IDriveIdentityProvider rather than standing up a
+            // second, independent copy of either.
+            services.AddSingleton(provider => ElevatedScanRetryServiceFactory.Create(
+                provider.GetRequiredService<IDriveDiscovery>(), provider.GetRequiredService<IDriveIdentityProvider>()));
         }
         services.AddSingleton<IApplicationVersion>(_ => ApplicationVersion.Current);
         services.AddSingleton<ICleanupPlanStore, InMemoryCleanupPlanStore>();

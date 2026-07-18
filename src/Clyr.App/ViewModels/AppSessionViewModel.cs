@@ -125,9 +125,23 @@ public abstract class PageViewModel(AppSessionViewModel session)
 
 public sealed class OverviewViewModel(AppSessionViewModel session) : PageViewModel(session);
 public sealed class ScanViewModel(AppSessionViewModel session) : PageViewModel(session);
-public sealed class ResultsViewModel(AppSessionViewModel session, IScanReportExporter exporter) : PageViewModel(session)
+public sealed class ResultsViewModel(AppSessionViewModel session, IScanReportExporter exporter, IElevatedScanRetryService elevatedRetryService)
+    : PageViewModel(session), IDisposable
 {
     public string? CreatePrivacySafeReport() => Session.Result is null ? null : exporter.Serialize(Session.Result);
+
+    /// <summary>Owns the administrator-retry action's lifecycle for whatever completed result this page is
+    /// currently showing. A session-scoped value, separate from <see cref="AppSessionViewModel.Result"/> itself
+    /// — see <see cref="AdministratorRetryUiState.CombinedResult"/> for why an applied retry's combined figures
+    /// are never written back into the original scan result.</summary>
+    public AdministratorRetryController AdministratorRetry { get; } = new(elevatedRetryService);
+
+    /// <summary>Re-evaluates the administrator-retry action for the page's current result. Passes
+    /// <see langword="null"/> while a new scan is running so the action is never shown against what would
+    /// otherwise be a stale prior result mid-rescan.</summary>
+    public void RefreshAdministratorRetry() => AdministratorRetry.Evaluate(Session.IsScanning ? null : Session.Result);
+
+    public void Dispose() => AdministratorRetry.Dispose();
 }
 public sealed class ReviewPlanViewModel : PageViewModel
 {

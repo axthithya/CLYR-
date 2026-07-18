@@ -484,6 +484,52 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
+    public void AdministratorRetryUiContainsNoProcessPipeOrMutationCapability()
+    {
+        // Phase 7.2.6H2B adds the minimal, user-confirmed administrator-retry UI. Every privileged behavior must
+        // stay behind IElevatedScanRetryService — the UI/view-model layer itself must never gain a process,
+        // pipe, manifest-construction, or filesystem-mutation capability of its own.
+        var forbidden = new[]
+        {
+            "Process.Start", "ProcessStartInfo", "System.Diagnostics.Process", "powershell.exe", "cmd.exe",
+            "cmd /c", "runas", "requireAdministrator", "UseShellExecute", "Verb =", "Verb=",
+            "File.Delete", "File.Move", "File.WriteAllText", "File.WriteAllBytes", "File.AppendAllText",
+            "File.Create(", "File.OpenWrite", "File.Replace", "File.SetAttributes",
+            "Directory.Delete", "Directory.Move", "Directory.CreateDirectory",
+            "FileSecurity", "DirectorySecurity", "SetAccessControl", "FileSystemAclExtensions",
+            "TakeOwnership", "Ownership.Set",
+            "System.Net.Sockets", "TcpClient", "TcpListener", "UdpClient", "HttpClient", "WebRequest",
+            "NamedPipe", "PipeName", "IFileSystemEnumerator", "ElevatedScanManifestBuilder", "PermissionLimitedRoot",
+            "Clyr.ElevatedHelper", "ElevatedHelperLauncher",
+            "NonElevatedCleanupExecutor", "CleanupPlanBuilder", "ExecutionTokenService", "CleanupCandidateFactory",
+            "BuiltInExecutionActions", "MoveKnownFolder", "MoveToAnotherDrive",
+        };
+        var newFiles = new[]
+        {
+            Path.Combine(Root, "src", "Clyr.Core", "AdministratorRetryUx.cs"),
+            Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml.cs"),
+        };
+        foreach (var file in newFiles)
+        {
+            Assert.True(File.Exists(file), $"Expected file not found: {file}");
+            var text = File.ReadAllText(file);
+            foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+        }
+
+        // AppSessionViewModel.cs is a larger, pre-existing shared file (it also hosts ReviewPlanViewModel's own,
+        // already-approved Phase 6 execution code), so only the process/pipe/launch-implementation vocabulary —
+        // never legitimately present anywhere in that file — is checked here, rather than the full list above.
+        var sharedViewModelText = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "ViewModels", "AppSessionViewModel.cs"));
+        foreach (var token in new[]
+        {
+            "Process.Start", "ProcessStartInfo", "System.Diagnostics.Process", "runas", "requireAdministrator",
+            "UseShellExecute", "NamedPipe", "PipeName", "ElevatedScanManifestBuilder", "PermissionLimitedRoot",
+            "IFileSystemEnumerator",
+        })
+            Assert.DoesNotContain(token, sharedViewModelText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ElevatedScannerHasItsOwnRequireAdministratorManifestDistinctFromEverythingElse()
     {
         var scannerManifest = File.ReadAllText(Path.Combine(Root, "src", "Clyr.ElevatedScanner", "app.manifest"));

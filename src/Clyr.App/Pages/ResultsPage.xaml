@@ -33,7 +33,23 @@
                         <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                         <Border x:Name="ContributorPanel" Style="{StaticResource CardStyle}" AutomationProperties.Name="Contributor visualization"><StackPanel Spacing="14"><TextBlock Text="Why is this drive full?" Style="{StaticResource SectionTitleStyle}"/><TextBlock Text="Ranked contributors include exact textual sizes so the visualization never relies on color alone." Style="{StaticResource BodyMutedStyle}"/><ListView x:Name="ContributorList" MaxHeight="420" AutomationProperties.Name="Contributor text alternatives"/></StackPanel></Border>
-                        <StackPanel x:Name="ResultSidebar" Grid.Column="1" Spacing="16"><Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Scan status" Style="{StaticResource CardTitleStyle}"/><TextBlock x:Name="ScanSummary" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border><Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Limitations" Style="{StaticResource CardTitleStyle}"/><TextBlock x:Name="Limitations" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border><Button Content="Review potential actions" Click="ReviewActions" Style="{StaticResource PrimaryActionStyle}"/><Button Content="Export privacy-safe report" IsEnabled="False" ToolTipService.ToolTip="Use the CLI export option in this preview build."/><Button Content="Run another analysis" Click="RunAgain"/></StackPanel>
+                        <StackPanel x:Name="ResultSidebar" Grid.Column="1" Spacing="16">
+                            <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Scan status" Style="{StaticResource CardTitleStyle}"/><TextBlock x:Name="ScanSummary" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+                            <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Limitations" Style="{StaticResource CardTitleStyle}"/><TextBlock x:Name="Limitations" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+                            <Border x:Name="AdministratorRetryCard" Style="{StaticResource CardStyle}" Visibility="Collapsed" AutomationProperties.Name="Administrator retry for restricted scan areas">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Administrator retry" Style="{StaticResource CardTitleStyle}"/>
+                                    <TextBlock Text="Some folders could not be fully inspected. CLYR can retry only those scan areas with administrator access." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
+                                    <Button x:Name="AdministratorRetryButton" Content="Retry restricted areas as administrator" Click="RequestAdministratorRetry"
+                                        AutomationProperties.Name="Retry restricted areas as administrator"
+                                        AutomationProperties.HelpText="Optional, read-only. Retries only the restricted scan areas with administrator permission. Does not delete, move, rename, or modify files."/>
+                                    <ProgressBar x:Name="AdministratorRetryProgress" IsIndeterminate="True" Visibility="Collapsed" Height="5"/>
+                                    <TextBlock x:Name="AdministratorRetryStatus" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+                                    <TextBlock x:Name="AdministratorRetrySummary" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" Visibility="Collapsed"/>
+                                </StackPanel>
+                            </Border>
+                            <Button Content="Review potential actions" Click="ReviewActions" Style="{StaticResource PrimaryActionStyle}"/><Button Content="Export privacy-safe report" IsEnabled="False" ToolTipService.ToolTip="Use the CLI export option in this preview build."/><Button Content="Run another analysis" Click="RunAgain"/>
+                        </StackPanel>
                     </Grid>
                     <TextBlock Text="Findings" Style="{StaticResource SectionTitleStyle}"/><ListView x:Name="FindingList" MaxHeight="420" AutomationProperties.Name="Storage findings"/>
                     <TextBlock x:Name="DirectoryHeading" Text="Largest directories" Style="{StaticResource SectionTitleStyle}"/><ListView x:Name="DirectoryList" MaxHeight="320"/>

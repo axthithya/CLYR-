@@ -22,13 +22,14 @@ public sealed partial class MainWindow : Window
         ISnapshotStore history, IScanReportExporter exporter, IApplicationVersion version,
         ICleanupPlanStore cleanupPlans, IExecutionTokenService executionTokens, IExecutionReceiptStore? executionReceipts,
         IClock clock, ExecutionSessionContext executionSession, ExecutionFixtureRoot fixtureRoot,
-        TrustedExecutableLocator developerLocator, DeveloperToolProbeRunner developerProbeRunner)
+        TrustedExecutableLocator developerLocator, DeveloperToolProbeRunner developerProbeRunner,
+        IElevatedScanRetryService elevatedRetryService)
     {
         InitializeComponent();
         session = new(scanService, drives, rules, version);
         var overview = new OverviewPage(new(session));
         var scan = new ScanPage(new(session));
-        var results = new ResultsPage(new(session, exporter));
+        var results = new ResultsPage(new(session, exporter, elevatedRetryService));
         var reviewPlan = new ReviewPlanPage(new(session, cleanupPlans, executionTokens, executionReceipts, clock,
             executionSession.Value, fixtureRoot.Path));
         var historyPage = new HistoryPage(new(session, history));
@@ -55,7 +56,7 @@ public sealed partial class MainWindow : Window
             viewModel.NavigationRequested += (_, destination) => Select(destination);
         Navigation.SelectedItem = Navigation.MenuItems[0];
         ContentHost.Content = overview;
-        Closed += (_, _) => session.Dispose();
+        Closed += (_, _) => { session.Dispose(); results.ViewModel.Dispose(); };
     }
 
     private async void OnSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)

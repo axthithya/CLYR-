@@ -2,13 +2,22 @@ using Clyr.App.ViewModels;
 using Clyr.Contracts;
 using Clyr.Core;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Clyr.App.Pages;
 
 public sealed partial class ResultsPage : Page
 {
-    public ResultsPage(ResultsViewModel viewModel) { ViewModel = viewModel; InitializeComponent(); viewModel.Session.StateChanged += (_, _) => Refresh(); PageHost.LayoutModeChanged += (_, mode) => Reflow(mode); Refresh(); }
+    public ResultsPage(ResultsViewModel viewModel)
+    {
+        ViewModel = viewModel;
+        InitializeComponent();
+        viewModel.Session.StateChanged += (_, _) => Refresh();
+        viewModel.AdministratorRetry.StateChanged += (_, _) => RenderAdministratorRetry();
+        PageHost.LayoutModeChanged += (_, mode) => Reflow(mode);
+        Refresh();
+    }
     public ResultsViewModel ViewModel { get; }
     public void ResetScroll() => PageHost.ResetScroll();
 
@@ -17,6 +26,7 @@ public sealed partial class ResultsPage : Page
         var r = ViewModel.Session.Result;
         EmptyPanel.Visibility = r is null ? Visibility.Visible : Visibility.Collapsed;
         Dashboard.Visibility = r is null ? Visibility.Collapsed : Visibility.Visible;
+        ViewModel.RefreshAdministratorRetry();
         if (r is null) return;
         var c = r.Classification;
 
@@ -56,6 +66,49 @@ public sealed partial class ResultsPage : Page
         DirectoryList.Visibility = r.LargestDirectories.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ScanSummary.Text = $"{r.Status} · {r.Mode} · {r.EndedAt.LocalDateTime:g} · {r.Coverage.FilesObserved:N0} files · {r.Coverage.DirectoriesObserved:N0} directories";
         Limitations.Text = r.AccountingNote + " " + string.Join(" ", c?.Limitations ?? []);
+    }
+
+    /// <summary>Renders <see cref="ResultsViewModel.AdministratorRetry"/>'s current state. Reads only bounded
+    /// counts and pre-composed safe text off <see cref="AdministratorRetryUiState"/> — never a path, manifest,
+    /// nonce, pipe name, or executable detail, none of which that type carries in the first place.</summary>
+    private void RenderAdministratorRetry()
+    {
+        var state = ViewModel.AdministratorRetry.State;
+        AdministratorRetryCard.Visibility = state.IsAdministratorRetryAvailable || state.IsAdministratorRetryRunning ? Visibility.Visible : Visibility.Collapsed;
+        AdministratorRetryButton.IsEnabled = state.IsAdministratorRetryAvailable && !state.IsAdministratorRetryRunning;
+        AdministratorRetryProgress.Visibility = state.IsAdministratorRetryRunning ? Visibility.Visible : Visibility.Collapsed;
+        AdministratorRetryStatus.Text = state.AdministratorRetryStatusText;
+        var showSummary = state.Phase == AdministratorRetryPhase.Applied;
+        AdministratorRetrySummary.Visibility = showSummary ? Visibility.Visible : Visibility.Collapsed;
+        if (showSummary)
+            AdministratorRetrySummary.Text = $"Additional coverage observed: {OverviewPage.Format(state.AdditionalLogicalBytes ?? 0)} · " +
+                $"Roots completed: {state.RootsCompleted} · Roots still inaccessible: {state.RootsStillInaccessible}";
+    }
+
+    /// <summary>Requires an explicit Continue on the confirmation dialog before ever calling
+    /// <see cref="ResultsViewModel.AdministratorRetry"/>'s <c>RunAsync</c> — cancelling or dismissing the dialog
+    /// (any <see cref="ContentDialogResult"/> other than <see cref="ContentDialogResult.Primary"/>) returns
+    /// without starting a retry, and <see cref="AdministratorRetryController.CanStart"/> independently prevents a
+    /// second concurrent attempt even if this handler were somehow re-entered.</summary>
+    private async void RequestAdministratorRetry(object sender, RoutedEventArgs args)
+    {
+        var r = ViewModel.Session.Result;
+        if (r is null || !ViewModel.AdministratorRetry.CanStart(r)) return;
+
+        var dialog = new ContentDialog
+        {
+            Title = AdministratorRetryUx.ConfirmationTitle,
+            Content = new TextBlock { Text = AdministratorRetryUx.ConfirmationBody, TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = AdministratorRetryUx.ConfirmationPrimaryButtonText,
+            CloseButtonText = AdministratorRetryUx.ConfirmationCloseButtonText,
+            XamlRoot = XamlRoot
+        };
+        AutomationProperties.SetName(dialog, "Administrator retry confirmation dialog");
+
+        var choice = await dialog.ShowAsync();
+        if (choice != ContentDialogResult.Primary) return;
+
+        await ViewModel.AdministratorRetry.RunAsync(r);
     }
 
     private void RunQuick(object sender, RoutedEventArgs args) { ViewModel.Session.SelectedScanMode = ScanMode.Quick; ViewModel.Navigate("Scan"); }
