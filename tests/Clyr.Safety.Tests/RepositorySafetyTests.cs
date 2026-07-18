@@ -443,6 +443,47 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
+    public void ElevatedScanRetryServiceAndCompositionContainNoMutationOrExecutionCapability()
+    {
+        // Phase 7.2.6H2A adds the app-facing IElevatedScanRetryService (Clyr.Core, pure) and its production
+        // composition boundary (Clyr.App) — neither may gain a mutation, filesystem-enumeration, or
+        // process-launch surface of its own. The composition file is allowed to reference the already-approved
+        // WindowsElevatedScannerProcessStarter type by name (construction only), but must never itself contain a
+        // Process.Start call or any other launch-implementation vocabulary.
+        var forbidden = new[]
+        {
+            "Process.Start", "ProcessStartInfo", "System.Diagnostics.Process", "powershell.exe", "cmd.exe",
+            "cmd /c", "runas", "requireAdministrator", "UseShellExecute", "Verb =", "Verb=",
+            "File.Delete", "File.Move", "File.WriteAllText", "File.WriteAllBytes", "File.AppendAllText",
+            "File.Create(", "File.OpenWrite", "File.Replace", "File.SetAttributes",
+            "Directory.Delete", "Directory.Move", "Directory.CreateDirectory",
+            "FileSecurity", "DirectorySecurity", "SetAccessControl", "FileSystemAclExtensions",
+            "TakeOwnership", "Ownership.Set",
+            "System.Net.Sockets", "TcpClient", "TcpListener", "UdpClient", "HttpClient", "WebRequest",
+            "NamedPipe", "IFileSystemEnumerator", "Clyr.ElevatedHelper", "ElevatedHelperLauncher",
+            "NonElevatedCleanupExecutor", "CleanupPlanBuilder", "ExecutionTokenService", "CleanupCandidateFactory",
+            "BuiltInExecutionActions", "MoveKnownFolder", "MoveToAnotherDrive",
+        };
+        var files = new[]
+        {
+            Path.Combine(Root, "src", "Clyr.Core", "ElevatedScanRetryService.cs"),
+            Path.Combine(Root, "src", "Clyr.App", "ElevatedScanRetryServiceFactory.cs"),
+        };
+        foreach (var file in files)
+        {
+            Assert.True(File.Exists(file), $"Expected file not found: {file}");
+            var text = File.ReadAllText(file);
+            foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+        }
+
+        // The composition file may reference the already-approved production launcher by type name (to construct
+        // it) but must never re-declare or shadow it with a second type of the same name.
+        var compositionText = File.ReadAllText(files[1]);
+        Assert.Contains("new WindowsElevatedScannerProcessStarter()", compositionText, StringComparison.Ordinal);
+        Assert.DoesNotContain("class WindowsElevatedScannerProcessStarter", compositionText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ElevatedScannerHasItsOwnRequireAdministratorManifestDistinctFromEverythingElse()
     {
         var scannerManifest = File.ReadAllText(Path.Combine(Root, "src", "Clyr.ElevatedScanner", "app.manifest"));

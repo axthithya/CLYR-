@@ -97,8 +97,10 @@ public static class ElevatedScanRetryEligibility
     /// <summary>Only these two states leave a top-level root in a state a retry can safely and exactly replace —
     /// see <see cref="ScanRootEnumerationState"/> and <c>ElevatedScanResultReconciler</c> for why
     /// <see cref="ScanRootEnumerationState.Completed"/>, <see cref="ScanRootEnumerationState.Cancelled"/> and
-    /// <see cref="ScanRootEnumerationState.Failed"/> are never eligible.</summary>
-    private static bool IsExactReplaceable(ScanRootContribution contribution) => contribution.EnumerationState switch
+    /// <see cref="ScanRootEnumerationState.Failed"/> are never eligible. Public so callers that only need a
+    /// truthful permission-limited-root count (such as <c>ElevatedScanRetryService.Evaluate</c>) can reuse this
+    /// exact rule rather than reimplementing it.</summary>
+    public static bool IsExactReplaceable(ScanRootContribution contribution) => contribution.EnumerationState switch
     {
         ScanRootEnumerationState.InaccessibleAtRoot => true,
         ScanRootEnumerationState.PartiallyObserved => contribution.InaccessibleEntryCount > 0,
@@ -158,20 +160,28 @@ public sealed record ElevatedScanRetryRequestBuildResult(ElevatedScanRetryEligib
 /// </summary>
 public sealed class ElevatedScanRetryRequestFactory(
     IDriveDiscovery drives, IDriveIdentityProvider driveIdentity, IClock clock, INonceGenerator nonceGenerator)
-    : IElevatedScanRetryRequestFactory
+    : IElevatedScanRetryRequestFactory, IElevatedScanRetryEligibilityEvaluator
 {
     /// <summary>Bounded, fixed diagnostic cap for every request this factory builds — a small, safe value, never
     /// caller-configurable and never the protocol's own upper bound.</summary>
     private const int MaximumDiagnosticCount = 32;
 
-    public ElevatedScanRetryRequestBuildResult Build(ScanResult result)
+    /// <summary>The same drive-resolution and eligibility decision <see cref="Build"/> itself uses — exposed
+    /// separately so a caller that only needs to know whether (and how) a retry would qualify, without ever
+    /// constructing a request, nonce, or manifest, can ask for exactly that and nothing more. No filesystem
+    /// access, no process launch, no IPC, no UAC.</summary>
+    public ElevatedScanRetryEligibilityResult EvaluateEligibility(ScanResult result)
     {
         var drive = drives.Discover().FirstOrDefault(candidate =>
             string.Equals(ElevatedScanManifestBuilder.NormalizePath(candidate.Root), ElevatedScanManifestBuilder.NormalizePath(result.Root), StringComparison.Ordinal));
         var identified = drive is null ? null : driveIdentity.Identify(drive.Root, result.FileSystem, drive.UsedBytes);
         var trustedDriveIdentity = identified is { IdentityQuality: DriveIdentityQuality.Stable, Fingerprint.Length: > 0 } ? identified.Fingerprint : null;
+        return ElevatedScanRetryEligibility.Evaluate(result, drive, trustedDriveIdentity);
+    }
 
-        var eligibility = ElevatedScanRetryEligibility.Evaluate(result, drive, trustedDriveIdentity);
+    public ElevatedScanRetryRequestBuildResult Build(ScanResult result)
+    {
+        var eligibility = EvaluateEligibility(result);
         if (!eligibility.IsEligible)
             return new ElevatedScanRetryRequestBuildResult(eligibility.Outcome, null);
 
