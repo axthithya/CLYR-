@@ -8,7 +8,9 @@ using Clyr.Core.Execution;
 using Clyr.Persistence;
 using Clyr.Rules;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 
 namespace Clyr.App;
 
@@ -26,6 +28,7 @@ public sealed partial class MainWindow : Window
         IElevatedScanRetryService elevatedRetryService)
     {
         InitializeComponent();
+        ConfigureShell();
         session = new(scanService, drives, rules, version);
         var overview = new OverviewPage(new(session));
         var scan = new ScanPage(new(session));
@@ -58,6 +61,63 @@ public sealed partial class MainWindow : Window
         ContentHost.Content = overview;
         Closed += (_, _) => { session.Dispose(); results.ViewModel.Dispose(); results.StopElapsedTimer(); };
     }
+
+    private void ConfigureShell()
+    {
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(AppTitleBar);
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "Branding", "CLYR-AppIcon.ico"));
+
+        if (Navigation.SettingsItem is NavigationViewItem settingsItem)
+        {
+            settingsItem.Style = (Style)Application.Current.Resources["ShellNavigationItemStyle"];
+            ToolTipService.SetToolTip(settingsItem, "Settings");
+            AutomationProperties.SetName(settingsItem, "Settings");
+            AutomationProperties.SetHelpText(settingsItem, "Configure CLYR appearance, privacy and local history settings.");
+        }
+
+        ApplyTitleBarColors();
+        UpdateTitleBarInset();
+        UpdatePaneBranding();
+    }
+
+    private void ApplyTitleBarColors()
+    {
+        var titleBar = AppWindow.TitleBar;
+        titleBar.BackgroundColor = ResourceColor("NavigationBackground");
+        titleBar.ForegroundColor = ResourceColor("TextPrimary");
+        titleBar.InactiveBackgroundColor = ResourceColor("NavigationBackground");
+        titleBar.InactiveForegroundColor = ResourceColor("TextMuted");
+        titleBar.ButtonBackgroundColor = Microsoft.UI.Colors.Transparent;
+        titleBar.ButtonForegroundColor = ResourceColor("TextPrimary");
+        titleBar.ButtonHoverBackgroundColor = ResourceColor("SurfaceHover");
+        titleBar.ButtonHoverForegroundColor = ResourceColor("TextPrimary");
+        titleBar.ButtonPressedBackgroundColor = ResourceColor("SurfaceSecondary");
+        titleBar.ButtonPressedForegroundColor = ResourceColor("TextPrimary");
+        titleBar.ButtonInactiveBackgroundColor = Microsoft.UI.Colors.Transparent;
+        titleBar.ButtonInactiveForegroundColor = ResourceColor("TextMuted");
+    }
+
+    private static global::Windows.UI.Color ResourceColor(string key) =>
+        ((SolidColorBrush)Application.Current.Resources[key]).Color;
+
+    private void UpdateTitleBarInset()
+    {
+        var scale = AppTitleBar.XamlRoot?.RasterizationScale ?? 1;
+        CaptionButtonSpacer.Width = AppWindow.TitleBar.RightInset / scale;
+    }
+
+    private void UpdatePaneBranding()
+    {
+        PaneBrandingCopy.Visibility = Navigation.IsPaneOpen ? Visibility.Visible : Visibility.Collapsed;
+        PaneBranding.HorizontalAlignment = Navigation.IsPaneOpen ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
+    }
+
+    private void TitleBarThemeChanged(FrameworkElement sender, object args) => ApplyTitleBarColors();
+    private void TitleBarSizeChanged(object sender, SizeChangedEventArgs args) => UpdateTitleBarInset();
+    private void NavigationPaneOpened(NavigationView sender, object args) => UpdatePaneBranding();
+    private void NavigationPaneClosed(NavigationView sender, object args) => UpdatePaneBranding();
+    private void NavigationDisplayModeChanged(NavigationView sender, NavigationViewDisplayModeChangedEventArgs args) => UpdatePaneBranding();
 
     private async void OnSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {

@@ -11,11 +11,4 @@ public sealed partial class PageHeader : UserControl
     public string Title { get => (string)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
     public string Subtitle { get => (string)GetValue(SubtitleProperty); set => SetValue(SubtitleProperty, value); }
 
-    private void HeaderSizeChanged(object sender, SizeChangedEventArgs args)
-    {
-        var narrow = args.NewSize.Width < 680;
-        Grid.SetRow(TrustBadge, narrow ? 1 : 0);
-        Grid.SetColumn(TrustBadge, narrow ? 0 : 1);
-        TrustBadge.HorizontalAlignment = narrow ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
-    }
 }

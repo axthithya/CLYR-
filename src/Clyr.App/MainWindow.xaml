@@ -2,24 +2,181 @@
     x:Class="Clyr.App.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Clyr.App.Controls"
     Title="CLYR">
-    <Grid Background="{ThemeResource AppBackgroundBrush}">
-        <NavigationView x:Name="Navigation" PaneTitle="CLYR" IsSettingsVisible="True"
-                        PaneDisplayMode="Auto" OpenPaneLength="240" CompactPaneLength="48"
-                        CompactModeThresholdWidth="900" ExpandedModeThresholdWidth="1180"
-                        SelectionChanged="OnSelectionChanged" AutomationProperties.Name="CLYR navigation">
+    <Grid
+        x:Name="ShellRoot"
+        MinWidth="{StaticResource ShellMinimumWidth}"
+        MinHeight="{StaticResource ShellMinimumHeight}"
+        Background="{ThemeResource AppBackground}"
+        AutomationProperties.Name="CLYR application shell">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="{StaticResource TitleBarHeight}" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- System caption buttons remain native. SetTitleBar makes the rest of
+             this non-interactive row a draggable region. -->
+        <Grid
+            x:Name="AppTitleBar"
+            Height="{StaticResource TitleBarHeight}"
+            Background="{ThemeResource NavigationBackground}"
+            ActualThemeChanged="TitleBarThemeChanged"
+            SizeChanged="TitleBarSizeChanged"
+            AutomationProperties.Name="CLYR title bar">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel
+                Margin="16,0,12,0"
+                VerticalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="9">
+                <Image
+                    Width="20"
+                    Height="20"
+                    Source="ms-appx:///Assets/Branding/CLYR-AppIcon-Master-1024.png"
+                    Stretch="Uniform"
+                    AutomationProperties.Name="CLYR application icon" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Foreground="{ThemeResource TextPrimary}"
+                    Style="{StaticResource ShellTitleTextStyle}"
+                    Text="CLYR" />
+            </StackPanel>
+            <controls:PrivacyBadge
+                Grid.Column="2"
+                Margin="12,0"
+                VerticalAlignment="Center"
+                IsHitTestVisible="False" />
+            <Border x:Name="CaptionButtonSpacer" Grid.Column="3" Width="0" />
+        </Grid>
+
+        <NavigationView
+            x:Name="Navigation"
+            Grid.Row="1"
+            Background="{ThemeResource NavigationBackground}"
+            AlwaysShowHeader="False"
+            CompactModeThresholdWidth="900"
+            CompactPaneLength="{StaticResource NavigationPaneCompactWidth}"
+            ExpandedModeThresholdWidth="1180"
+            IsBackButtonVisible="Collapsed"
+            IsPaneToggleButtonVisible="True"
+            IsSettingsVisible="True"
+            IsTitleBarAutoPaddingEnabled="False"
+            OpenPaneLength="{StaticResource SidebarWidth}"
+            PaneClosed="NavigationPaneClosed"
+            PaneDisplayMode="Auto"
+            PaneOpened="NavigationPaneOpened"
+            SelectionChanged="OnSelectionChanged"
+            DisplayModeChanged="NavigationDisplayModeChanged"
+            AutomationProperties.Name="CLYR navigation"
+            AutomationProperties.HelpText="Navigate between CLYR product, advanced, privacy and information pages.">
+            <NavigationView.PaneHeader>
+                <Grid
+                    x:Name="PaneBranding"
+                    MinHeight="56"
+                    Margin="8,8,8,12"
+                    ColumnSpacing="10"
+                    ToolTipService.ToolTip="CLYR — Storage clarity for Windows"
+                    AutomationProperties.Name="CLYR — Storage clarity for Windows">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="36" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Width="36"
+                        Height="36"
+                        Background="{ThemeResource SurfaceSecondary}"
+                        CornerRadius="{StaticResource CornerRadiusControl}">
+                        <Image
+                            Width="30"
+                            Height="30"
+                            Source="ms-appx:///Assets/Branding/CLYR-AppIcon-Master-1024.png"
+                            Stretch="Uniform"
+                            AutomationProperties.AccessibilityView="Raw" />
+                    </Border>
+                    <StackPanel x:Name="PaneBrandingCopy" Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Style="{StaticResource CardTitleStyle}" Text="CLYR" />
+                        <TextBlock Style="{StaticResource CaptionStyle}" Text="Storage clarity for Windows" />
+                    </StackPanel>
+                </Grid>
+            </NavigationView.PaneHeader>
+
             <NavigationView.MenuItems>
-                <NavigationViewItem Content="Overview" Tag="Overview" ToolTipService.ToolTip="Overview"><NavigationViewItem.Icon><SymbolIcon Symbol="Home"/></NavigationViewItem.Icon></NavigationViewItem>
-                <NavigationViewItem Content="Scan" Tag="Scan" ToolTipService.ToolTip="Analyze a drive"><NavigationViewItem.Icon><SymbolIcon Symbol="Find"/></NavigationViewItem.Icon></NavigationViewItem>
-                <NavigationViewItem Content="Results" Tag="Results" ToolTipService.ToolTip="Latest results"><NavigationViewItem.Icon><SymbolIcon Symbol="AllApps"/></NavigationViewItem.Icon></NavigationViewItem>
-                <NavigationViewItem Content="Review Plan" Tag="Review Plan" ToolTipService.ToolTip="Preview potential actions"><NavigationViewItem.Icon><SymbolIcon Symbol="View"/></NavigationViewItem.Icon></NavigationViewItem>
-                <NavigationViewItem Content="History" Tag="History" ToolTipService.ToolTip="Local history"><NavigationViewItem.Icon><SymbolIcon Symbol="Clock"/></NavigationViewItem.Icon></NavigationViewItem>
-                <NavigationViewItem Content="Developer Mode" Tag="Developer Mode" ToolTipService.ToolTip="Developer Mode preview"><NavigationViewItem.Icon><FontIcon Glyph="&#xE943;"/></NavigationViewItem.Icon></NavigationViewItem>
-                <NavigationViewItem Content="Privacy" Tag="Privacy" ToolTipService.ToolTip="Privacy"><NavigationViewItem.Icon><SymbolIcon Symbol="Permissions"/></NavigationViewItem.Icon></NavigationViewItem>
-                <NavigationViewItem Content="Licenses" Tag="Licenses" ToolTipService.ToolTip="Open-source licenses"><NavigationViewItem.Icon><SymbolIcon Symbol="Document"/></NavigationViewItem.Icon></NavigationViewItem>
-                <NavigationViewItem Content="About" Tag="About" ToolTipService.ToolTip="About CLYR"><NavigationViewItem.Icon><SymbolIcon Symbol="Help"/></NavigationViewItem.Icon></NavigationViewItem>
+                <NavigationViewItem
+                    Content="Overview" Tag="Overview" Style="{StaticResource ShellPrimaryNavigationItemStyle}"
+                    ToolTipService.ToolTip="Overview" AutomationProperties.Name="Overview"
+                    AutomationProperties.HelpText="View storage clarity and recent analysis status.">
+                    <NavigationViewItem.Icon><FontIcon FontSize="{StaticResource IconSizeStandard}" Glyph="&#xE80F;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem
+                    Content="Scan" Tag="Scan" Style="{StaticResource ShellPrimaryNavigationItemStyle}"
+                    ToolTipService.ToolTip="Analyze a drive" AutomationProperties.Name="Scan"
+                    AutomationProperties.HelpText="Configure and run a private read-only drive analysis.">
+                    <NavigationViewItem.Icon><FontIcon FontSize="{StaticResource IconSizeStandard}" Glyph="&#xE721;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem
+                    Content="Results" Tag="Results" Style="{StaticResource ShellPrimaryNavigationItemStyle}"
+                    ToolTipService.ToolTip="Latest results" AutomationProperties.Name="Results"
+                    AutomationProperties.HelpText="Review the latest storage analysis results.">
+                    <NavigationViewItem.Icon><FontIcon FontSize="{StaticResource IconSizeStandard}" Glyph="&#xE9D2;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem
+                    Content="Review Plan" Tag="Review Plan" Style="{StaticResource ShellPrimaryNavigationItemStyle}"
+                    ToolTipService.ToolTip="Preview potential actions" AutomationProperties.Name="Review Plan"
+                    AutomationProperties.HelpText="Review a dry-run plan before any eligible action.">
+                    <NavigationViewItem.Icon><FontIcon FontSize="{StaticResource IconSizeStandard}" Glyph="&#xE9D5;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem
+                    Content="History" Tag="History" Style="{StaticResource ShellPrimaryNavigationItemStyle}"
+                    ToolTipService.ToolTip="Local history" AutomationProperties.Name="History"
+                    AutomationProperties.HelpText="Review local storage analysis history.">
+                    <NavigationViewItem.Icon><FontIcon FontSize="{StaticResource IconSizeStandard}" Glyph="&#xE81C;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItemSeparator Margin="16,8" AutomationProperties.Name="Advanced navigation separator" />
+                <NavigationViewItem
+                    Content="Developer Mode" Tag="Developer Mode" Style="{StaticResource ShellNavigationItemStyle}"
+                    ToolTipService.ToolTip="Developer Mode" AutomationProperties.Name="Developer Mode"
+                    AutomationProperties.HelpText="Inspect supported developer storage tools in read-only mode.">
+                    <NavigationViewItem.Icon><FontIcon FontSize="{StaticResource IconSizeStandard}" Glyph="&#xE943;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItemSeparator Margin="16,8" AutomationProperties.Name="Trust and information navigation separator" />
+                <NavigationViewItem
+                    Content="Privacy" Tag="Privacy" Style="{StaticResource ShellNavigationItemStyle}"
+                    ToolTipService.ToolTip="Privacy" AutomationProperties.Name="Privacy"
+                    AutomationProperties.HelpText="Read how CLYR keeps analysis private and local.">
+                    <NavigationViewItem.Icon><FontIcon FontSize="{StaticResource IconSizeStandard}" Glyph="&#xE72E;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem
+                    Content="Licenses" Tag="Licenses" Style="{StaticResource ShellNavigationItemStyle}"
+                    ToolTipService.ToolTip="Open-source licenses" AutomationProperties.Name="Licenses"
+                    AutomationProperties.HelpText="Review CLYR and dependency license information.">
+                    <NavigationViewItem.Icon><FontIcon FontSize="{StaticResource IconSizeStandard}" Glyph="&#xE8A5;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem
+                    Content="About" Tag="About" Style="{StaticResource ShellNavigationItemStyle}"
+                    ToolTipService.ToolTip="About CLYR" AutomationProperties.Name="About"
+                    AutomationProperties.HelpText="View CLYR version and capability information.">
+                    <NavigationViewItem.Icon><FontIcon FontSize="{StaticResource IconSizeStandard}" Glyph="&#xE946;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
             </NavigationView.MenuItems>
-            <ContentControl x:Name="ContentHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+
+            <Border
+                BorderBrush="{ThemeResource BorderSubtle}"
+                BorderThickness="1,0,0,0"
+                Background="{ThemeResource AppBackground}">
+                <ContentControl
+                    x:Name="ContentHost"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch"
+                    AutomationProperties.Name="Current CLYR page" />
+            </Border>
         </NavigationView>
     </Grid>
 </Window>
