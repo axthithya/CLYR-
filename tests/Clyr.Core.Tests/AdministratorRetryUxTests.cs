@@ -170,7 +170,8 @@ public sealed class AdministratorRetryUxTests
         await controller.RunAsync(original);
 
         Assert.Equal(AdministratorRetryPhase.Denied, controller.State.Phase);
-        Assert.Equal(AdministratorRetryUx.DeniedStatusText, controller.State.AdministratorRetryStatusText);
+        Assert.Equal(AdministratorRetryUx.DeniedText, controller.State.AdministratorRetryStatusText);
+        Assert.Equal(AdministratorRetryUx.DeniedTitle, controller.State.AdministratorRetryTitle);
         Assert.False(controller.State.IsAdministratorRetryRunning);
         Assert.Null(controller.State.CombinedResult);
     }
@@ -185,15 +186,15 @@ public sealed class AdministratorRetryUxTests
         service.NextResult = TerminalResult(ElevatedScanRetryWorkflowOutcome.ConnectionTimedOut);
         controller.Evaluate(original);
         await controller.RunAsync(original);
-        Assert.Equal(AdministratorRetryPhase.TimedOut, controller.State.Phase);
-        Assert.Equal(AdministratorRetryUx.TimedOutStatusText, controller.State.AdministratorRetryStatusText);
+        Assert.Equal(AdministratorRetryPhase.ConnectionTimedOut, controller.State.Phase);
+        Assert.Equal(AdministratorRetryUx.ConnectionTimedOutTitle, controller.State.AdministratorRetryTitle);
         Assert.Null(controller.State.CombinedResult);
 
         service.NextResult = TerminalResult(ElevatedScanRetryWorkflowOutcome.Failed);
         controller.Evaluate(original);
         await controller.RunAsync(original);
         Assert.Equal(AdministratorRetryPhase.Failed, controller.State.Phase);
-        Assert.Equal(AdministratorRetryUx.FailedStatusText, controller.State.AdministratorRetryStatusText);
+        Assert.Equal(AdministratorRetryUx.FailedText, controller.State.AdministratorRetryStatusText);
         Assert.Null(controller.State.CombinedResult);
     }
 
@@ -247,7 +248,7 @@ public sealed class AdministratorRetryUxTests
         await controller.RunAsync(original);
 
         Assert.Equal(AdministratorRetryPhase.Failed, controller.State.Phase);
-        Assert.Equal(AdministratorRetryUx.FailedStatusText, controller.State.AdministratorRetryStatusText);
+        Assert.Equal(AdministratorRetryUx.FailedText, controller.State.AdministratorRetryStatusText);
         Assert.False(controller.State.IsAdministratorRetryRunning);
         Assert.DoesNotContain("unexpected", controller.State.AdministratorRetryStatusText, StringComparison.Ordinal);
     }
@@ -278,7 +279,7 @@ public sealed class AdministratorRetryUxTests
 
         await controller.RunAsync(original);
 
-        Assert.Equal(AdministratorRetryPhase.TimedOut, controller.State.Phase);
+        Assert.Equal(AdministratorRetryPhase.OperationTimedOut, controller.State.Phase);
         Assert.False(controller.State.IsAdministratorRetryRunning);
     }
 
@@ -294,7 +295,7 @@ public sealed class AdministratorRetryUxTests
         await controller.RunAsync(original);
 
         Assert.Equal(AdministratorRetryPhase.Failed, controller.State.Phase);
-        Assert.Equal(AdministratorRetryUx.FailedStatusText, controller.State.AdministratorRetryStatusText);
+        Assert.Equal(AdministratorRetryUx.FailedText, controller.State.AdministratorRetryStatusText);
         Assert.DoesNotContain("pipe closed", controller.State.AdministratorRetryStatusText, StringComparison.Ordinal);
     }
 
@@ -377,6 +378,104 @@ public sealed class AdministratorRetryUxTests
         Assert.Equal(ScanStatus.Completed, original.Status);
         Assert.Equal(ScanMode.Deep, original.Mode);
     }
+
+    [Fact]
+    public async Task RunningStateIncludesRootCountAndBoundedDurationExplanation()
+    {
+        var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 3, 3, "elevated-retry-availability.eligible"));
+        var gate = new TaskCompletionSource();
+        service.Gate = gate.Task;
+        service.NextResult = AppliedResult();
+        var controller = new AdministratorRetryController(service, new FixedClock(Now));
+        var original = OriginalResult();
+        controller.Evaluate(original);
+
+        var run = controller.RunAsync(original);
+
+        Assert.Equal(AdministratorRetryPhase.Running, controller.State.Phase);
+        Assert.Equal("Retrying 3 restricted areas…", controller.State.AdministratorRetryStatusText);
+        Assert.Equal(AdministratorRetryUx.RunningTitle, controller.State.AdministratorRetryTitle);
+        Assert.Equal(Now, controller.State.RunningSinceUtc);
+        Assert.Contains("several minutes", AdministratorRetryUx.RunningSupportingText, StringComparison.Ordinal);
+        gate.SetResult();
+        await run;
+    }
+
+    [Fact]
+    public async Task TimeoutUiStateIncludesSafetyLimitDetailWithoutRawPaths()
+    {
+        var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        service.NextResult = TerminalResult(ElevatedScanRetryWorkflowOutcome.TimedOut);
+        var controller = new AdministratorRetryController(service);
+        var original = OriginalResult();
+        controller.Evaluate(original);
+
+        await controller.RunAsync(original);
+
+        Assert.Equal(AdministratorRetryPhase.OperationTimedOut, controller.State.Phase);
+        Assert.Equal(AdministratorRetryUx.OperationTimedOutTitle, controller.State.AdministratorRetryTitle);
+        Assert.Contains("10-minute", controller.State.AdministratorRetryStatusText, StringComparison.Ordinal);
+        Assert.Contains("accounted", controller.State.AdministratorRetryStatusText, StringComparison.Ordinal);
+        Assert.DoesNotContain("C:\\", controller.State.AdministratorRetryStatusText, StringComparison.Ordinal);
+        Assert.DoesNotContain(":\\", controller.State.AdministratorRetryTitle, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunningSinceIsClearedOnEveryTerminalOutcomeIncludingDisposal()
+    {
+        var original = OriginalResult();
+
+        var appliedService = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        appliedService.NextResult = AppliedResult();
+        var appliedController = new AdministratorRetryController(appliedService, new FixedClock(Now));
+        appliedController.Evaluate(original);
+        await appliedController.RunAsync(original);
+        Assert.Null(appliedController.State.RunningSinceUtc);
+
+        var timedOutService = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        timedOutService.NextResult = TerminalResult(ElevatedScanRetryWorkflowOutcome.TimedOut);
+        var timedOutController = new AdministratorRetryController(timedOutService, new FixedClock(Now));
+        timedOutController.Evaluate(original);
+        await timedOutController.RunAsync(original);
+        Assert.Null(timedOutController.State.RunningSinceUtc);
+
+        var cancelledService = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        cancelledService.ExceptionToThrow = new OperationCanceledException();
+        var cancelledController = new AdministratorRetryController(cancelledService, new FixedClock(Now));
+        cancelledController.Evaluate(original);
+        await cancelledController.RunAsync(original);
+        Assert.Null(cancelledController.State.RunningSinceUtc);
+
+        // Disposal never leaves a stale "running since" value visible either — the last-set state before
+        // disposal is whatever it already was (Idle here, since no attempt was ever started).
+        var idleController = new AdministratorRetryController(FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible")));
+        idleController.Evaluate(original);
+        idleController.Dispose();
+        Assert.Null(idleController.State.RunningSinceUtc);
+    }
+
+    [Fact]
+    public async Task NoAutomaticSecondLauncherInvocationOccursAfterATimeout()
+    {
+        var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        service.NextResult = TerminalResult(ElevatedScanRetryWorkflowOutcome.TimedOut);
+        var controller = new AdministratorRetryController(service);
+        var original = OriginalResult();
+        controller.Evaluate(original);
+
+        await controller.RunAsync(original);
+        await Task.Delay(20); // give any hypothetical background retry a chance to fire
+
+        Assert.Equal(1, service.RetryCallCount);
+        Assert.Equal(AdministratorRetryPhase.OperationTimedOut, controller.State.Phase);
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : IClock
+    {
+        public DateTimeOffset UtcNow => now;
+    }
+
+    private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-07-18T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
 
     private static ScanResult OriginalResult() =>
         ScanFixtures.Result(ScanMode.Deep, ScanStatus.Completed) with { ScanId = ScanId };

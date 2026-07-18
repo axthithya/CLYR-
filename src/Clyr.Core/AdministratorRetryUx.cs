@@ -6,10 +6,13 @@ namespace Clyr.Core;
 
 /// <summary>The administrator-retry action's one explicit lifecycle phase — every displayed fact (button
 /// enabled state, status text, whether a summary panel shows) derives from this, mirroring the established
-/// <see cref="ScanUiLifecycleState"/> pattern rather than inventing independent booleans.</summary>
+/// <see cref="ScanUiLifecycleState"/> pattern rather than inventing independent booleans. Phase 7.2.6H2E splits
+/// what was one coarse <c>TimedOut</c> value into three distinct phases so the UI can name the actual typed
+/// outcome truthfully (a helper that reached its own bounded operation budget is a materially different story
+/// from one that never even answered the pipe) rather than a single generic "did not respond in time".</summary>
 public enum AdministratorRetryPhase
 {
-    Hidden, Idle, Running, Applied, Denied, Cancelled, TimedOut, Failed, NotEligible
+    Hidden, Idle, Running, Applied, Denied, Cancelled, OperationTimedOut, ConnectionTimedOut, ResponseTimedOut, Failed, NotEligible
 }
 
 /// <summary>
@@ -18,15 +21,18 @@ public enum AdministratorRetryPhase
 /// and pre-composed safe display text. <see cref="CombinedResult"/> is populated only when
 /// <see cref="Phase"/> is <see cref="AdministratorRetryPhase.Applied"/>, and is always a separate value from
 /// whatever <see cref="ScanResult"/> the caller evaluated — never a replacement for it.
+/// <see cref="RunningSinceUtc"/> is populated only while <see cref="IsAdministratorRetryRunning"/>, so the caller
+/// can compute an elapsed duration for display without this type (or the WinUI-free
+/// <see cref="AdministratorRetryController"/> that owns it) ever running its own background timer.
 /// </summary>
 public sealed record AdministratorRetryUiState(
     bool IsAdministratorRetryAvailable, bool IsAdministratorRetryRunning, AdministratorRetryPhase Phase,
-    string AdministratorRetryStatusKey, string AdministratorRetryStatusText,
+    string AdministratorRetryStatusKey, string AdministratorRetryTitle, string AdministratorRetryStatusText,
     int ReplaceableRootCount, long? AdditionalLogicalBytes, long? AdditionalAllocatedBytes,
-    int RootsCompleted, int RootsStillInaccessible, ElevatedReconciliationResult? CombinedResult)
+    int RootsCompleted, int RootsStillInaccessible, DateTimeOffset? RunningSinceUtc, ElevatedReconciliationResult? CombinedResult)
 {
     public static AdministratorRetryUiState Hidden { get; } =
-        new(false, false, AdministratorRetryPhase.Hidden, "hidden", string.Empty, 0, null, null, 0, 0, null);
+        new(false, false, AdministratorRetryPhase.Hidden, "hidden", string.Empty, string.Empty, 0, null, null, 0, 0, null, null);
 }
 
 /// <summary>
@@ -35,47 +41,92 @@ public sealed record AdministratorRetryUiState(
 /// already-computed <see cref="ElevatedScanRetryAvailability"/>, and every outcome mapping is read straight from
 /// an already-computed <see cref="ElevatedScanRetryWorkflowResult"/>. Every user-facing string here is calm,
 /// truthful, and safe to render as-is — never an exception message, stack trace, raw protocol response, pipe
-/// name, executable path, or request nonce.
+/// name, executable path, or request nonce. Byte counts are exposed as plain numbers only — formatting them into
+/// human-readable sizes (GiB/MiB) is the WinUI page's own job, exactly as it already does for every other metric
+/// on the Results page.
 /// </summary>
 public static class AdministratorRetryUx
 {
+    /// <summary>The elevated helper's own bounded operation budget — read from the same coordinated policy the
+    /// transport enforces, never a second, independently maintained number.</summary>
+    public static TimeSpan SafetyLimit => ElevatedScanRetryTimeoutPolicy.Default.OperationBudget;
+
     public const string ButtonText = "Retry restricted areas as administrator";
+    public const string RetryAgainButtonText = "Retry administrator scan";
     public const string SupportingText =
         "Some folders could not be fully inspected. CLYR can retry only those scan areas with administrator access.";
 
-    public const string ConfirmationTitle = "Retry restricted areas?";
-    public const string ConfirmationBody =
-        "Windows will ask for administrator permission. CLYR will only read file and folder metadata for the " +
-        "restricted scan areas. It will not delete, move, rename or modify files.";
-    public const string ConfirmationPrimaryButtonText = "Continue";
+    public const string ConfirmationPrimaryButtonText = "Continue to Windows permission";
     public const string ConfirmationCloseButtonText = "Cancel";
 
-    public const string RunningStatusText = "Retrying restricted areas…";
-    public const string AppliedStatusText = "Administrator retry completed.";
-    public const string DeniedStatusText = "Administrator permission was cancelled. Your original scan is unchanged.";
-    public const string CancelledStatusText = "Administrator retry was cancelled. Your original scan is unchanged.";
-    public const string TimedOutStatusText = "The administrator retry did not respond in time. Your original scan is unchanged.";
-    public const string FailedStatusText = "Administrator retry could not be completed. Your original scan is unchanged.";
+    public const string RunningTitle = "Scanning restricted areas as administrator";
+    public const string RunningSupportingText = "CLYR is reading file and folder metadata only. Large areas can take several minutes.";
+
+    public const string AppliedTitle = "Administrator retry completed";
+    public const string DeniedTitle = "Administrator permission cancelled";
+    public const string DeniedText = "No administrator scan was performed. Your original scan is unchanged.";
+    public const string CancelledTitle = "Administrator retry cancelled";
+    public const string CancelledText = "No retry result was applied. Your original scan is unchanged.";
+    public const string OperationTimedOutTitle = "Administrator retry reached its safety limit";
+    public const string ConnectionTimedOutTitle = "Administrator helper did not connect";
+    public const string ResponseTimedOutTitle = "Administrator helper stopped responding";
+    public const string FailedTitle = "Administrator retry could not be completed";
+    public const string FailedText = "CLYR did not apply the administrator result because it could not be safely validated. Your original scan is unchanged.";
+
+    /// <summary>Confirmation-dialog title, including the truthful replaceable-root count — never a raw path.</summary>
+    public static string ConfirmationTitle(int replaceableRootCount) =>
+        $"Retry {replaceableRootCount} restricted area{(replaceableRootCount == 1 ? "" : "s")}?";
+
+    public static string ConfirmationBody(TimeSpan safetyLimit) =>
+        "Windows will ask for administrator permission. CLYR will only read file and folder metadata in the " +
+        "restricted scan areas. It will not delete, move, rename or modify files.\n\n" +
+        $"This can take several minutes. The retry has a {FormatMinutes(safetyLimit)} safety limit.";
+
+    /// <summary>Bounded running-state primary status text — the exact replaceable-root count, never a path.</summary>
+    public static string RunningPrimaryStatus(int replaceableRootCount) =>
+        $"Retrying {replaceableRootCount} restricted area{(replaceableRootCount == 1 ? "" : "s")}…";
+
+    /// <summary>The full helper-operation-timeout message: the bounded safety-limit statement plus a supporting
+    /// detail that never claims all missing space was found, and derives the "existing X%-accounted result"
+    /// figure from the original scan itself — never a hard-coded number.</summary>
+    public static string OperationTimedOutMessage(ScanResult originalResult)
+    {
+        var percentageText = ScanAccounting.Summarize(originalResult).AccountedPercentage is { } percentage
+            ? $"{percentage:F1}%-accounted"
+            : "already-accounted";
+        return $"The restricted-area scan did not finish within the {FormatMinutes(SafetyLimit)} safety limit. " +
+            "No partial result was applied, and your original scan remains unchanged. " +
+            $"No files were modified. You may retry once or continue using the existing {percentageText} result.";
+    }
+
+    private static string FormatMinutes(TimeSpan value) => $"{value.TotalMinutes:N0}-minute";
 
     /// <summary>The one entry point for deciding whether the action should even be shown — reads only
     /// <see cref="ElevatedScanRetryAvailability.IsEligible"/> and its truthful root count; never inspects a root
     /// path or re-derives eligibility rules itself.</summary>
     public static AdministratorRetryUiState FromAvailability(ElevatedScanRetryAvailability availability) =>
         availability.IsEligible
-            ? new(true, false, AdministratorRetryPhase.Idle, availability.SafeStatusMessageKey, string.Empty,
-                availability.ReplaceableRootCount, null, null, 0, 0, null)
+            ? new(true, false, AdministratorRetryPhase.Idle, availability.SafeStatusMessageKey, string.Empty, string.Empty,
+                availability.ReplaceableRootCount, null, null, 0, 0, null, null)
             : AdministratorRetryUiState.Hidden;
 
-    public static AdministratorRetryUiState Running(AdministratorRetryUiState current) =>
-        current with { IsAdministratorRetryRunning = true, Phase = AdministratorRetryPhase.Running, AdministratorRetryStatusText = RunningStatusText };
+    public static AdministratorRetryUiState Running(AdministratorRetryUiState current, DateTimeOffset nowUtc) =>
+        current with
+        {
+            IsAdministratorRetryRunning = true,
+            Phase = AdministratorRetryPhase.Running,
+            AdministratorRetryTitle = RunningTitle,
+            AdministratorRetryStatusText = RunningPrimaryStatus(current.ReplaceableRootCount),
+            RunningSinceUtc = nowUtc
+        };
 
     public static AdministratorRetryUiState FromWorkflowResult(ElevatedScanRetryWorkflowResult result)
     {
         var phase = PhaseFor(result.Outcome);
         var combined = phase == AdministratorRetryPhase.Applied ? result.CombinedResult : null;
-        return new(true, false, phase, result.StatusMessageKey, TextFor(phase),
+        return new(true, false, phase, result.StatusMessageKey, TitleFor(phase), TextFor(phase, result.OriginalResult),
             result.RootsRequested, result.AdditionalLogicalBytes, result.AdditionalAllocatedBytes,
-            result.RootsCompleted, result.RootsStillInaccessible, combined);
+            result.RootsCompleted, result.RootsStillInaccessible, null, combined);
     }
 
     /// <summary>Builds a calm terminal state directly from a phase, for the rare case where an unexpected
@@ -83,8 +134,9 @@ public static class AdministratorRetryUx
     /// <see cref="ElevatedScanRetryWorkflowResult"/> to project from — see
     /// <see cref="AdministratorRetryController.RunAsync"/>. Never carries any count or combined-result data that
     /// would otherwise have come from a real response.</summary>
-    public static AdministratorRetryUiState Terminal(AdministratorRetryPhase phase) =>
-        new(true, false, phase, "elevated-retry." + phase.ToString().ToLowerInvariant(), TextFor(phase), 0, null, null, 0, 0, null);
+    public static AdministratorRetryUiState Terminal(AdministratorRetryPhase phase, ScanResult originalResult) =>
+        new(true, false, phase, "elevated-retry." + phase.ToString().ToLowerInvariant(), TitleFor(phase), TextFor(phase, originalResult),
+            0, null, null, 0, 0, null, null);
 
     /// <summary>Every exception kind this action's retry boundary is expected to see and safely contain —
     /// cancellation, timeout, and ordinary IPC/transport/serialization failures — mapped to <see langword="true"/>.
@@ -100,21 +152,35 @@ public static class AdministratorRetryUx
         ElevatedScanRetryWorkflowOutcome.Denied => AdministratorRetryPhase.Denied,
         ElevatedScanRetryWorkflowOutcome.NotEligible => AdministratorRetryPhase.NotEligible,
         ElevatedScanRetryWorkflowOutcome.Cancelled => AdministratorRetryPhase.Cancelled,
-        ElevatedScanRetryWorkflowOutcome.TimedOut or ElevatedScanRetryWorkflowOutcome.ConnectionTimedOut
-            or ElevatedScanRetryWorkflowOutcome.ResponseTimedOut => AdministratorRetryPhase.TimedOut,
+        ElevatedScanRetryWorkflowOutcome.TimedOut => AdministratorRetryPhase.OperationTimedOut,
+        ElevatedScanRetryWorkflowOutcome.ConnectionTimedOut => AdministratorRetryPhase.ConnectionTimedOut,
+        ElevatedScanRetryWorkflowOutcome.ResponseTimedOut => AdministratorRetryPhase.ResponseTimedOut,
         _ => AdministratorRetryPhase.Failed // HelperMissing, InvalidLaunchPlan, LaunchFailed, ProtocolRejected, ValidationRejected,
                                             // InvalidResponse, RequiresReplacementData, AccountingBasisMismatch, RootSetMismatch,
                                             // AlreadyRunning, Failed — every one of these is reported as the same calm, bounded message.
     };
 
-    private static string TextFor(AdministratorRetryPhase phase) => phase switch
+    private static string TitleFor(AdministratorRetryPhase phase) => phase switch
     {
-        AdministratorRetryPhase.Applied => AppliedStatusText,
-        AdministratorRetryPhase.Denied => DeniedStatusText,
-        AdministratorRetryPhase.Cancelled => CancelledStatusText,
-        AdministratorRetryPhase.TimedOut => TimedOutStatusText,
+        AdministratorRetryPhase.Applied => AppliedTitle,
+        AdministratorRetryPhase.Denied => DeniedTitle,
+        AdministratorRetryPhase.Cancelled => CancelledTitle,
+        AdministratorRetryPhase.OperationTimedOut => OperationTimedOutTitle,
+        AdministratorRetryPhase.ConnectionTimedOut => ConnectionTimedOutTitle,
+        AdministratorRetryPhase.ResponseTimedOut => ResponseTimedOutTitle,
         AdministratorRetryPhase.NotEligible => string.Empty,
-        _ => FailedStatusText
+        _ => FailedTitle
+    };
+
+    private static string TextFor(AdministratorRetryPhase phase, ScanResult originalResult) => phase switch
+    {
+        AdministratorRetryPhase.Applied => string.Empty, // the page composes the full "inspected N areas, added X" sentence from the numeric fields.
+        AdministratorRetryPhase.Denied => DeniedText,
+        AdministratorRetryPhase.Cancelled => CancelledText,
+        AdministratorRetryPhase.OperationTimedOut => OperationTimedOutMessage(originalResult),
+        AdministratorRetryPhase.ConnectionTimedOut or AdministratorRetryPhase.ResponseTimedOut => "Your original scan is unchanged.",
+        AdministratorRetryPhase.NotEligible => string.Empty,
+        _ => FailedText
     };
 }
 
@@ -126,10 +192,13 @@ public static class AdministratorRetryUx
 /// behind <see cref="IElevatedScanRetryService"/>. Prevents a second concurrent attempt for the same (or any)
 /// result outright — <see cref="RunAsync"/> is a no-op unless <see cref="CanStart"/> is true at the moment it is
 /// called, and a fresh <see cref="AdministratorRetryUiState.IsAdministratorRetryRunning"/> value is set
-/// synchronously before any awaiting begins, so a rapid duplicate call can never race past this guard.
+/// synchronously before any awaiting begins, so a rapid duplicate call can never race past this guard. Never
+/// starts a background timer of its own — <see cref="AdministratorRetryUiState.RunningSinceUtc"/> gives a caller
+/// (such as a WinUI page's own <c>DispatcherTimer</c>) everything it needs to display elapsed time itself.
 /// </summary>
-public sealed class AdministratorRetryController(IElevatedScanRetryService service) : IDisposable
+public sealed class AdministratorRetryController(IElevatedScanRetryService service, IClock? clock = null) : IDisposable
 {
+    private readonly IClock clock = clock ?? new SystemClock();
     private CancellationTokenSource? cancellation;
     private ScanResult? evaluatedFor;
     private bool disposed;
@@ -178,7 +247,7 @@ public sealed class AdministratorRetryController(IElevatedScanRetryService servi
         if (!CanStart(originalResult)) return;
         var ownCancellation = new CancellationTokenSource();
         cancellation = ownCancellation;
-        SetState(AdministratorRetryUx.Running(State));
+        SetState(AdministratorRetryUx.Running(State, clock.UtcNow));
         try
         {
             var result = await service.RetryAsync(originalResult, ownCancellation.Token).ConfigureAwait(false);
@@ -186,24 +255,24 @@ public sealed class AdministratorRetryController(IElevatedScanRetryService servi
         }
         catch (OperationCanceledException)
         {
-            SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.Cancelled));
+            SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.Cancelled, originalResult));
         }
         catch (ObjectDisposedException)
         {
             // Only reachable if Dispose() raced this call and cancelled/disposed the token source it was
             // holding out from under it — that is itself a form of cancellation, never an app-visible failure.
-            SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.Cancelled));
+            SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.Cancelled, originalResult));
         }
         catch (TimeoutException)
         {
-            SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.TimedOut));
+            SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.OperationTimedOut, originalResult));
         }
         catch (Exception exception) when (AdministratorRetryUx.IsRecoverable(exception))
         {
             // IOException (and its EndOfStreamException subclass), JsonException, Win32Exception, and any other
             // non-fatal operational failure this boundary was not specifically expecting all land here — one
             // calm, bounded message, never the exception's own message or stack trace.
-            SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.Failed));
+            SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.Failed, originalResult));
         }
         finally
         {

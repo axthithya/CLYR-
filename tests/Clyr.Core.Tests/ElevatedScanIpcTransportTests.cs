@@ -119,19 +119,88 @@ public sealed class ElevatedScanIpcTransportTests
     }
 
     [Fact]
-    public async Task OperationTimeoutFiresWhenTheHandlerHangs()
+    public async Task OperationTimeoutFiresWhenTheHandlerHangsAndProducesATypedTimeoutResponse()
     {
+        // Phase 7.2.6H2E: previously, a handler that never cooperatively observed cancellation left the server's
+        // own Operation deadline propagating an uncaught OperationCanceledException all the way out of
+        // RunOneShotAsync — no response was ever sent, and the client eventually failed too (a real UAC smoke
+        // test hit exactly this). Now the server always produces exactly one bounded, typed TimedOut response
+        // instead — the client receives it cleanly, and the pipe is disposed normally.
         var pipeName = ElevatedScanPipeName.New();
         var shortServerTimeouts = FastServerTimeouts with { Operation = TimeSpan.FromMilliseconds(150) };
+        var clientTimeoutsThatOutlastTheOperation = FastClientTimeouts with { Read = TimeSpan.FromSeconds(5) };
         var serverTask = ElevatedScanIpcTransport.RunOneShotAsync(pipeName, shortServerTimeouts, new FixedClock(Now),
             async (received, ct) => { await Task.Delay(Timeout.Infinite, ct); return CompletedResponse(received); },
             CancellationToken.None);
-        var clientTask = ElevatedScanIpcTransport.SendRequestAsync(pipeName, ValidRequest(), FastClientTimeouts, CancellationToken.None);
+        var clientTask = ElevatedScanIpcTransport.SendRequestAsync(pipeName, ValidRequest(), clientTimeoutsThatOutlastTheOperation, CancellationToken.None);
 
+        var serverResponse = await serverTask;
+        var clientResponse = await clientTask;
+
+        Assert.Equal(ElevatedScanRetryOutcome.TimedOut, serverResponse.Outcome);
+        Assert.Equal(ElevatedScanRetryOutcome.TimedOut, clientResponse.Outcome);
+    }
+
+    [Fact]
+    public async Task CallerCancellationDuringTheOperationDoesNotProduceATimedOutResponse()
+    {
+        // The caller's own cancellationToken (never this transport's internal Operation-budget timer) firing is
+        // a full host-level shutdown, not a bounded operation deadline — RunOneShotAsync makes no response
+        // guarantee in that case (the response-write phase is itself linked to the same, already-cancelled
+        // token), but whatever happens must never be mislabeled as ElevatedScanRetryOutcome.TimedOut, which is
+        // reserved exclusively for this transport's own Operation-budget deadline.
+        var pipeName = ElevatedScanPipeName.New();
+        var longServerTimeouts = FastServerTimeouts with { Operation = TimeSpan.FromSeconds(30) };
+        using var hostCancellation = new CancellationTokenSource();
+        var handlerStarted = new TaskCompletionSource();
+        var serverTask = ElevatedScanIpcTransport.RunOneShotAsync(pipeName, longServerTimeouts, new FixedClock(Now),
+            async (received, ct) =>
+            {
+                handlerStarted.SetResult();
+                while (!ct.IsCancellationRequested) await Task.Delay(5, CancellationToken.None);
+                return CompletedResponse(received) with { Outcome = ElevatedScanRetryOutcome.Cancelled };
+            },
+            hostCancellation.Token);
+        var clientTask = ElevatedScanIpcTransport.SendRequestAsync(pipeName, ValidRequest(), FastClientTimeouts with { Read = TimeSpan.FromSeconds(5) }, CancellationToken.None);
+
+        await handlerStarted.Task;
+        hostCancellation.Cancel();
+
+        // Host-level cancellation aborts the response write too (it shares the same token) — the server task
+        // itself ends in cancellation here, which is the pre-existing, correct behavior for a real host shutdown;
+        // this test's only concern is that this is never reported as TimedOut.
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => serverTask);
-        // Once the server aborts, the pipe closes underneath the client — its pending read fails promptly
-        // rather than waiting out its own multi-second timeout.
         await Assert.ThrowsAnyAsync<Exception>(() => clientTask);
+    }
+
+    [Fact]
+    public async Task ASimulatedOperationLongerThanTheOldThirtySecondBudgetSucceedsUnderTheNewCoordinatedBudget()
+    {
+        // Scaled-down reproduction of the real bug and its fix: an "oldBudgetScale" of 100ms stands in for the
+        // previous flat 30-second Operation/Read defaults, and "newBudgetScale" (20x larger, matching the real
+        // 10-minute-vs-30-second ratio) stands in for the coordinated policy. A handler that takes 300ms — longer
+        // than oldBudgetScale, which would have been aborted under the old policy — completes successfully here
+        // because the server's own Operation budget is the larger, coordinated value, and the client's Read
+        // deadline (Operation budget + margin, exactly as ElevatedScanRetryTimeoutPolicy computes it) comfortably
+        // outlasts it. No real multi-minute wait is used anywhere in this test.
+        var oldBudgetScale = TimeSpan.FromMilliseconds(100);
+        var newBudgetScale = TimeSpan.FromMilliseconds(2000);
+        var handlerDuration = TimeSpan.FromMilliseconds(300);
+        Assert.True(handlerDuration > oldBudgetScale);
+        Assert.True(handlerDuration < newBudgetScale);
+
+        var pipeName = ElevatedScanPipeName.New();
+        var coordinatedServerTimeouts = FastServerTimeouts with { Operation = newBudgetScale };
+        var coordinatedClientTimeouts = FastClientTimeouts with { Read = newBudgetScale + TimeSpan.FromSeconds(1) };
+        var serverTask = ElevatedScanIpcTransport.RunOneShotAsync(pipeName, coordinatedServerTimeouts, new FixedClock(Now),
+            async (received, ct) => { await Task.Delay(handlerDuration, CancellationToken.None); return CompletedResponse(received); },
+            CancellationToken.None);
+        var clientTask = ElevatedScanIpcTransport.SendRequestAsync(pipeName, ValidRequest(), coordinatedClientTimeouts, CancellationToken.None);
+
+        var response = await clientTask;
+        await serverTask;
+
+        Assert.Equal(ElevatedScanRetryOutcome.Completed, response.Outcome);
     }
 
     [Fact]

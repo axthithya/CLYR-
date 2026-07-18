@@ -230,6 +230,34 @@ public sealed class ElevatedScanRetryCoordinatorTests
         Assert.Equal(1, launcher.CallCount);
     }
 
+    [Fact]
+    public async Task TypedHelperTimeoutReachesTheWorkflowAsTimedOutWithZeroByteChangesAndTheOriginalResultPreserved()
+    {
+        // Phase 7.2.6H2E: exercises the real ElevatedScanResultReconcilerAdapter (not a fake) so this proves the
+        // actual production mapping — ElevatedScanRetryOutcome.TimedOut (as now correctly produced by
+        // ElevatedScanIpcTransport.RunOneShotAsync when its own Operation budget, not caller cancellation, is the
+        // cause) reaches the workflow as ElevatedScanRetryWorkflowOutcome.TimedOut, with zero accounting changes
+        // and the exact original ScanResult reference untouched.
+        var original = OriginalResult();
+        var response = ValidResponse() with { Outcome = ElevatedScanRetryOutcome.TimedOut };
+        var launcher = FakeLauncher.Returning(new ElevatedScannerLauncherResult(ElevatedScannerLauncherOutcome.Completed, response));
+        var reconciler = new ElevatedScanResultReconcilerAdapter(new FixedClock(Now));
+
+        var result = await Coordinator(EligibleFactory(), launcher, reconciler).RetryAsync(original, CancellationToken.None);
+
+        Assert.Equal(ElevatedScanRetryWorkflowOutcome.TimedOut, result.Outcome);
+        Assert.Same(original, result.OriginalResult);
+        Assert.Null(result.CombinedResult);
+        Assert.Null(result.AdditionalLogicalBytes);
+        Assert.Null(result.AdditionalAllocatedBytes);
+        Assert.Equal(ScanStatus.Completed, original.Status);
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : IClock
+    {
+        public DateTimeOffset UtcNow => now;
+    }
+
     private static readonly ScanResult OriginalResultReference = ScanFixtures.Result(ScanMode.Deep, ScanStatus.Completed) with { ScanId = ScanId };
 
     private static ScanResult OriginalResult() => OriginalResultReference;

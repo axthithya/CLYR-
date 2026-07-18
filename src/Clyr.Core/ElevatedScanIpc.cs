@@ -133,16 +133,70 @@ public static class ElevatedScanIpcSerializer
         new($"ipc.{kind}-malformed", $"The {kind} could not be parsed as a well-formed, closed-contract message.");
 }
 
+/// <summary>
+/// Phase 7.2.6H2E: the one centrally documented, coordinated timeout policy for the entire elevated
+/// permission-limited-root retry workflow — connection, request framing, the elevated helper's own bounded
+/// metadata-enumeration operation, and response framing all derive from this single record, so
+/// <see cref="ElevatedScanIpcServerTimeouts"/> and <see cref="ElevatedScanIpcClientTimeouts"/> (and, through
+/// them, <c>ElevatedScannerLauncher</c> and <c>Clyr.ElevatedScanner</c>'s own host) can never independently drift
+/// out of sync with each other.
+/// </summary>
+/// <remarks>
+/// Root-cause context (the real UAC smoke-test failure this replaces): the previous <c>Operation</c>/<c>Read</c>
+/// defaults were both a flat 30 seconds — far too short for a legitimate retry over a large restricted top-level
+/// root, which can take several minutes. Both the helper's own operation budget and the client's read deadline
+/// elapsed at nearly the same moment; the client gave up first (its own 30-second <c>Read</c> timeout is
+/// triggered by <see cref="ElevatedScanIpcTransport.SendRequestAsync"/>'s call to <c>WithTimeout</c>), throwing
+/// <see cref="OperationCanceledException"/>, which <c>ElevatedScannerLauncher.RunAsync</c>'s existing catch maps
+/// to <c>ConnectionTimedOut</c> — exactly the "did not respond in time" message that was observed. Separately,
+/// the helper itself had no way to distinguish its own elapsed operation budget from genuine external
+/// cancellation: <c>ElevatedScanIpcTransport.RunOneShotAsync</c> now disambiguates that (see the operation-phase
+/// handling there), reporting the already-existing <see cref="ElevatedScanRetryOutcome.TimedOut"/> — never
+/// mislabeled as <see cref="ElevatedScanRetryOutcome.Cancelled"/> — whenever its own deadline, not the caller's
+/// own cancellation, was the cause.
+/// </remarks>
+/// <param name="ConnectionTimeout">How long the client may wait to connect, and the server to accept a
+/// connection.</param>
+/// <param name="RequestTimeout">How long writing (client) or reading (server) the one request frame may take.</param>
+/// <param name="OperationBudget">The elevated helper's own bounded wall-clock budget for one metadata retry
+/// attempt — long enough for a legitimate multi-minute enumeration of a large restricted root, never unlimited.
+/// When exceeded, the helper stops enumerating (via its own cooperative cancellation check) and reports
+/// <see cref="ElevatedScanRetryOutcome.TimedOut"/> instead of continuing indefinitely.</param>
+/// <param name="ResponseWriteTimeout">How long writing (server) or reading (client, as part of its own larger
+/// <see cref="ClientResponseMargin"/>-extended deadline) the one response frame may take.</param>
+/// <param name="ClientResponseMargin">Extra time added on top of <see cref="OperationBudget"/> for the client's
+/// own response-read deadline — covers the helper's own margin for detecting its deadline, building the bounded
+/// timeout response, and writing it, so the client is never waiting for a shorter total time than the helper
+/// itself is allowed to take. Must exceed <see cref="ResponseWriteTimeout"/>; see
+/// <see cref="ElevatedScanRetryTimeoutPolicy"/>'s own invariant check.</param>
+public sealed record ElevatedScanRetryTimeoutPolicy(
+    TimeSpan ConnectionTimeout, TimeSpan RequestTimeout, TimeSpan OperationBudget,
+    TimeSpan ResponseWriteTimeout, TimeSpan ClientResponseMargin)
+{
+    public static ElevatedScanRetryTimeoutPolicy Default { get; } = new(
+        ConnectionTimeout: TimeSpan.FromSeconds(15),
+        RequestTimeout: TimeSpan.FromSeconds(15),
+        OperationBudget: TimeSpan.FromMinutes(10),
+        ResponseWriteTimeout: TimeSpan.FromSeconds(15),
+        ClientResponseMargin: TimeSpan.FromSeconds(20));
+
+    /// <summary>The critical invariant: the client must never stop waiting at (or before) the same instant the
+    /// helper is still attempting to detect its own deadline and send its bounded timeout response.</summary>
+    public TimeSpan ClientResponseDeadline => OperationBudget + ClientResponseMargin;
+
+    public ElevatedScanIpcServerTimeouts ToServerTimeouts() => new(ConnectionTimeout, RequestTimeout, OperationBudget, ResponseWriteTimeout);
+
+    public ElevatedScanIpcClientTimeouts ToClientTimeouts() => new(ConnectionTimeout, RequestTimeout, ClientResponseDeadline);
+}
+
 public sealed record ElevatedScanIpcServerTimeouts(TimeSpan Connection, TimeSpan RequestRead, TimeSpan Operation, TimeSpan ResponseWrite)
 {
-    public static ElevatedScanIpcServerTimeouts Default { get; } =
-        new(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(10));
+    public static ElevatedScanIpcServerTimeouts Default { get; } = ElevatedScanRetryTimeoutPolicy.Default.ToServerTimeouts();
 }
 
 public sealed record ElevatedScanIpcClientTimeouts(TimeSpan Connect, TimeSpan Write, TimeSpan Read)
 {
-    public static ElevatedScanIpcClientTimeouts Default { get; } =
-        new(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30));
+    public static ElevatedScanIpcClientTimeouts Default { get; } = ElevatedScanRetryTimeoutPolicy.Default.ToClientTimeouts();
 }
 
 /// <summary>
@@ -195,7 +249,7 @@ public static class ElevatedScanIpcTransport
             var request = ElevatedScanIpcSerializer.DeserializeRequest(requestBytes);
             var validation = ElevatedScanRetryValidator.Validate(request, clock.UtcNow);
             response = validation.IsValid
-                ? await WithTimeout(timeouts.Operation, ct => handleRequest(request, ct), cancellationToken).ConfigureAwait(false)
+                ? await RunOperationWithTypedTimeout(request, handleRequest, timeouts.Operation, cancellationToken).ConfigureAwait(false)
                 : Rejected(request.ProtocolVersion, request.Nonce, ElevatedScanRetryOutcome.ValidationRejected, startedAtUtc, clock.UtcNow, validation.Outcome.ToString());
         }
         catch (ElevatedScanIpcFrameException exception)
@@ -254,6 +308,43 @@ public static class ElevatedScanIpcTransport
     private static ElevatedScanRetryResponse Rejected(int protocolVersion, string nonce, ElevatedScanRetryOutcome outcome,
         DateTimeOffset startedAtUtc, DateTimeOffset completedAtUtc, string diagnosticCode) =>
         new(protocolVersion, nonce, outcome, startedAtUtc, completedAtUtc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, [diagnosticCode]);
+
+    /// <summary>
+    /// Runs the handler under its own operation-budget deadline, linked to (but independently distinguishable
+    /// from) the caller's own <paramref name="callerToken"/>, and relabels the response as
+    /// <see cref="ElevatedScanRetryOutcome.TimedOut"/> — never <see cref="ElevatedScanRetryOutcome.Cancelled"/> —
+    /// whenever this operation's own deadline, not the caller's own cancellation, was the actual cause. Handles
+    /// both ways a handler can react to its own deadline elapsing: cooperatively (returning a normal response
+    /// with <see cref="ElevatedScanRetryOutcome.Cancelled"/>, since the handler itself cannot tell an internal
+    /// deadline apart from real external cancellation — see <c>ElevatedMetadataRetryEngine</c>) or by letting
+    /// <see cref="OperationCanceledException"/> escape. Exactly one response is ever produced either way; no
+    /// second attempt, no retry loop.
+    /// </summary>
+    private static async Task<ElevatedScanRetryResponse> RunOperationWithTypedTimeout(ElevatedScanRetryRequest request,
+        Func<ElevatedScanRetryRequest, CancellationToken, Task<ElevatedScanRetryResponse>> handleRequest,
+        TimeSpan operationBudget, CancellationToken callerToken)
+    {
+        using var operationCts = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
+        operationCts.CancelAfter(operationBudget);
+        var startedAtUtc = DateTimeOffset.UtcNow;
+        try
+        {
+            var response = await handleRequest(request, operationCts.Token).ConfigureAwait(false);
+            return IsOwnDeadline(operationCts, callerToken) && response.Outcome == ElevatedScanRetryOutcome.Cancelled
+                ? response with { Outcome = ElevatedScanRetryOutcome.TimedOut }
+                : response;
+        }
+        catch (OperationCanceledException) when (IsOwnDeadline(operationCts, callerToken))
+        {
+            return Rejected(request.ProtocolVersion, request.Nonce, ElevatedScanRetryOutcome.TimedOut, startedAtUtc, DateTimeOffset.UtcNow, "server.operation-timed-out");
+        }
+    }
+
+    /// <summary>True only when this operation's own local deadline fired and the caller's own token did not —
+    /// i.e., this is genuinely our own budget elapsing, not external cancellation merely observed through the
+    /// same linked token.</summary>
+    private static bool IsOwnDeadline(CancellationTokenSource operationCts, CancellationToken callerToken) =>
+        operationCts.IsCancellationRequested && !callerToken.IsCancellationRequested;
 
     private static async Task WithTimeout(TimeSpan timeout, Func<CancellationToken, Task> action, CancellationToken cancellationToken)
     {

@@ -40,11 +40,13 @@
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="Administrator retry" Style="{StaticResource CardTitleStyle}"/>
                                     <TextBlock Text="Some folders could not be fully inspected. CLYR can retry only those scan areas with administrator access." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
-                                    <Button x:Name="AdministratorRetryButton" Content="Retry restricted areas as administrator" Click="RequestAdministratorRetry"
-                                        AutomationProperties.Name="Retry restricted areas as administrator"
+                                    <Button x:Name="AdministratorRetryButton" Click="RequestAdministratorRetry"
                                         AutomationProperties.HelpText="Optional, read-only. Retries only the restricted scan areas with administrator permission. Does not delete, move, rename, or modify files."/>
-                                    <ProgressBar x:Name="AdministratorRetryProgress" IsIndeterminate="True" Visibility="Collapsed" Height="5"/>
-                                    <TextBlock x:Name="AdministratorRetryStatus" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+                                    <StackPanel x:Name="AdministratorRetryRunningPanel" Spacing="4" Visibility="Collapsed">
+                                        <ProgressBar x:Name="AdministratorRetryProgress" IsIndeterminate="True" Height="5"/>
+                                        <TextBlock x:Name="AdministratorRetryElapsedText" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+                                    </StackPanel>
+                                    <InfoBar x:Name="AdministratorRetryInfoBar" IsOpen="False" IsClosable="False"/>
                                     <TextBlock x:Name="AdministratorRetrySummary" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" Visibility="Collapsed"/>
                                 </StackPanel>
                             </Border>

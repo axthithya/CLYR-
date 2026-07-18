@@ -26,10 +26,21 @@ public static class ElevatedScanRetryProtocol
     public const int MaxRoots = 64;
     public const int MaxDiagnosticCount = 256;
     public const int MinNonceLength = 32;
-    /// <summary>The longest a retry request may remain valid from the moment it is created — deliberately short,
-    /// since this authorizes a one-time, narrow, read-only retry of a specific prior scan's inaccessible roots,
-    /// not a standing grant.</summary>
-    public static readonly TimeSpan MaxRequestLifetime = TimeSpan.FromMinutes(5);
+    /// <summary>
+    /// The longest a retry request may remain valid from the moment it is created — deliberately bounded, since
+    /// this authorizes a one-time, narrow, read-only retry of a specific prior scan's inaccessible roots, not a
+    /// standing grant. Must comfortably exceed the coordinated client response deadline (see
+    /// <c>ElevatedScanRetryTimeoutPolicy</c> in Clyr.Core): <c>ElevatedScanResultReconciler.Reconcile</c>
+    /// independently re-validates <see cref="ElevatedScanRetryRequest.ExpiresAtUtc"/> a second time, on the
+    /// client, only after the entire round trip (connect, write, the elevated helper's own bounded metadata
+    /// operation, and the response write) has already completed — a real permission-limited-root retry over a
+    /// large restricted area can legitimately take several minutes, so this window must never be so short that a
+    /// retry which finished successfully, on time, and within its own operation budget is then rejected here as
+    /// merely "stale." (Phase 7.2.6H2E: this was previously 5 minutes — too short once the operation budget below
+    /// was extended to 10 minutes — proven inconsistent by exactly this re-validation path, not changed
+    /// speculatively.)
+    /// </summary>
+    public static readonly TimeSpan MaxRequestLifetime = TimeSpan.FromMinutes(15);
 
     /// <summary>The declared length prefix of a serialized <see cref="ElevatedScanRetryRequest"/> frame is
     /// rejected — before any buffer sized to it is allocated — once it exceeds this many bytes.</summary>

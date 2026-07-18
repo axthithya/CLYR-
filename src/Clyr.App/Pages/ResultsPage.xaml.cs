@@ -15,10 +15,17 @@ public sealed partial class ResultsPage : Page
     /// already reflects whatever the latest state was by the time it executes.</summary>
     private bool administratorRetryRenderQueued;
 
+    /// <summary>Ticks only while an administrator retry is running, to keep the elapsed-time display current —
+    /// see <see cref="RenderAdministratorRetry"/>. Stopped on every terminal outcome and again, defensively, when
+    /// the page's owning window closes (<see cref="StopElapsedTimer"/>); never runs any workflow logic itself,
+    /// only reads <see cref="AdministratorRetryUiState.RunningSinceUtc"/>.</summary>
+    private readonly DispatcherTimer administratorRetryElapsedTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+
     public ResultsPage(ResultsViewModel viewModel)
     {
         ViewModel = viewModel;
         InitializeComponent();
+        administratorRetryElapsedTimer.Tick += (_, _) => RenderAdministratorRetryElapsed();
         viewModel.Session.StateChanged += (_, _) => Refresh();
         viewModel.AdministratorRetry.StateChanged += OnAdministratorRetryStateChanged;
         PageHost.LayoutModeChanged += (_, mode) => Reflow(mode);
@@ -26,6 +33,11 @@ public sealed partial class ResultsPage : Page
     }
     public ResultsViewModel ViewModel { get; }
     public void ResetScroll() => PageHost.ResetScroll();
+
+    /// <summary>Stops the elapsed-time timer — called when the owning window closes, following the app's
+    /// existing lifecycle pattern (see <c>MainWindow</c>'s <c>Closed</c> handler). Never cancels the retry itself;
+    /// that remains <see cref="ResultsViewModel.Dispose"/>'s job.</summary>
+    public void StopElapsedTimer() => administratorRetryElapsedTimer.Stop();
 
     /// <summary>
     /// <see cref="AdministratorRetryController.StateChanged"/> can fire from any thread — the controller awaits
@@ -110,14 +122,60 @@ public sealed partial class ResultsPage : Page
     {
         var state = ViewModel.AdministratorRetry.State;
         AdministratorRetryCard.Visibility = state.IsAdministratorRetryAvailable || state.IsAdministratorRetryRunning ? Visibility.Visible : Visibility.Collapsed;
+
+        var everAttempted = state.Phase is not (AdministratorRetryPhase.Idle or AdministratorRetryPhase.Hidden or AdministratorRetryPhase.Running);
+        AdministratorRetryButton.Content = everAttempted ? AdministratorRetryUx.RetryAgainButtonText : AdministratorRetryUx.ButtonText;
+        AutomationProperties.SetName(AdministratorRetryButton, everAttempted ? AdministratorRetryUx.RetryAgainButtonText : AdministratorRetryUx.ButtonText);
         AdministratorRetryButton.IsEnabled = state.IsAdministratorRetryAvailable && !state.IsAdministratorRetryRunning;
-        AdministratorRetryProgress.Visibility = state.IsAdministratorRetryRunning ? Visibility.Visible : Visibility.Collapsed;
-        AdministratorRetryStatus.Text = state.AdministratorRetryStatusText;
+
+        AdministratorRetryRunningPanel.Visibility = state.IsAdministratorRetryRunning ? Visibility.Visible : Visibility.Collapsed;
+        if (state.IsAdministratorRetryRunning)
+        {
+            RenderAdministratorRetryElapsed();
+            if (!administratorRetryElapsedTimer.IsEnabled) administratorRetryElapsedTimer.Start();
+        }
+        else
+        {
+            administratorRetryElapsedTimer.Stop();
+        }
+
+        var showInfoBar = state.Phase is not (AdministratorRetryPhase.Idle or AdministratorRetryPhase.Hidden or AdministratorRetryPhase.Running or AdministratorRetryPhase.NotEligible);
+        AdministratorRetryInfoBar.IsOpen = showInfoBar;
+        if (showInfoBar)
+        {
+            AdministratorRetryInfoBar.Title = state.AdministratorRetryTitle;
+            AdministratorRetryInfoBar.Message = state.AdministratorRetryStatusText;
+            AdministratorRetryInfoBar.Severity = state.Phase switch
+            {
+                AdministratorRetryPhase.Applied => InfoBarSeverity.Success,
+                AdministratorRetryPhase.Denied or AdministratorRetryPhase.Cancelled => InfoBarSeverity.Informational,
+                _ => InfoBarSeverity.Warning
+            };
+        }
+
         var showSummary = state.Phase == AdministratorRetryPhase.Applied;
         AdministratorRetrySummary.Visibility = showSummary ? Visibility.Visible : Visibility.Collapsed;
         if (showSummary)
-            AdministratorRetrySummary.Text = $"Additional coverage observed: {OverviewPage.Format(state.AdditionalLogicalBytes ?? 0)} · " +
-                $"Roots completed: {state.RootsCompleted} · Roots still inaccessible: {state.RootsStillInaccessible}";
+            AdministratorRetrySummary.Text =
+                $"CLYR inspected {state.RootsCompleted} restricted area(s) and added {OverviewPage.Format(state.AdditionalLogicalBytes ?? 0)}" +
+                (state.AdditionalAllocatedBytes is { } allocated ? $" ({OverviewPage.Format(allocated)} allocated)" : string.Empty) +
+                $". {state.RootsStillInaccessible} area(s) could still not be inspected.";
+    }
+
+    /// <summary>Updates only the elapsed-time text from <see cref="AdministratorRetryUiState.RunningSinceUtc"/> —
+    /// never starts, stops, or otherwise affects the retry workflow itself.</summary>
+    private void RenderAdministratorRetryElapsed()
+    {
+        var state = ViewModel.AdministratorRetry.State;
+        if (!state.IsAdministratorRetryRunning || state.RunningSinceUtc is not { } runningSince)
+        {
+            administratorRetryElapsedTimer.Stop();
+            return;
+        }
+        var elapsed = DateTimeOffset.UtcNow - runningSince;
+        if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
+        AdministratorRetryElapsedText.Text =
+            $"Elapsed {elapsed:mm\\:ss} of up to {AdministratorRetryUx.SafetyLimit.TotalMinutes:N0} minutes.";
     }
 
     /// <summary>Requires an explicit Continue on the confirmation dialog before ever calling
@@ -138,12 +196,14 @@ public sealed partial class ResultsPage : Page
 
         try
         {
+            var replaceableRootCount = ViewModel.AdministratorRetry.State.ReplaceableRootCount;
             var dialog = new ContentDialog
             {
-                Title = AdministratorRetryUx.ConfirmationTitle,
-                Content = new TextBlock { Text = AdministratorRetryUx.ConfirmationBody, TextWrapping = TextWrapping.Wrap },
+                Title = AdministratorRetryUx.ConfirmationTitle(replaceableRootCount),
+                Content = new TextBlock { Text = AdministratorRetryUx.ConfirmationBody(AdministratorRetryUx.SafetyLimit), TextWrapping = TextWrapping.Wrap },
                 PrimaryButtonText = AdministratorRetryUx.ConfirmationPrimaryButtonText,
                 CloseButtonText = AdministratorRetryUx.ConfirmationCloseButtonText,
+                DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = XamlRoot
             };
             AutomationProperties.SetName(dialog, "Administrator retry confirmation dialog");

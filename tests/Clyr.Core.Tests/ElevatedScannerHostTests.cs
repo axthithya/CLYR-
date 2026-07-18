@@ -104,11 +104,15 @@ public sealed class ElevatedScannerHostTests
     }
 
     [Fact]
-    public async Task CancelledResponseIsSentSuccessfully()
+    public async Task OperationTimeoutResponseIsSentSuccessfully()
     {
         // A very short Operation timeout (bounded, deterministic) plus one small Thread.Sleep between two
         // yielded entries — by the time the second entry is recorded and the engine loop re-checks
-        // cancellation, the Operation-phase timeout has already fired.
+        // cancellation, the Operation-phase timeout has already fired. Phase 7.2.6H2E: the engine itself still
+        // cooperatively returns Cancelled (it cannot tell its own deadline apart from real external
+        // cancellation), but ElevatedScanIpcTransport.RunOneShotAsync now correctly relabels this as
+        // ElevatedScanRetryOutcome.TimedOut, since the caller's own token (CancellationToken.None here) was
+        // never itself cancelled — only this transport's internal Operation-budget timer fired.
         const string root = "C:\\Data\\Alpha";
         var fs = new FakeFileSystem(directory => directory == root ? SlowSequence() : throw Unexpected(directory));
         var shortOperationTimeouts = FastServerTimeouts with { Operation = TimeSpan.FromMilliseconds(50) };
@@ -120,7 +124,7 @@ public sealed class ElevatedScannerHostTests
         var hostResult = await serverTask;
 
         Assert.Equal(ElevatedScannerHostOutcome.ResponseSent, hostResult.Outcome);
-        Assert.Equal(ElevatedScanRetryOutcome.Cancelled, response.Outcome);
+        Assert.Equal(ElevatedScanRetryOutcome.TimedOut, response.Outcome);
     }
 
     [Fact]

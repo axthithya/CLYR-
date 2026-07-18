@@ -56,7 +56,7 @@ public sealed partial class MainWindow : Window
             viewModel.NavigationRequested += (_, destination) => Select(destination);
         Navigation.SelectedItem = Navigation.MenuItems[0];
         ContentHost.Content = overview;
-        Closed += (_, _) => { session.Dispose(); results.ViewModel.Dispose(); };
+        Closed += (_, _) => { session.Dispose(); results.ViewModel.Dispose(); results.StopElapsedTimer(); };
     }
 
     private async void OnSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
