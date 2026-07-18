@@ -17,9 +17,9 @@
         <Grid x:Name="ViewportSurface" HorizontalAlignment="Stretch">
             <Grid
                 x:Name="ContentContainer"
-                MaxWidth="1120"
+                MaxWidth="{StaticResource ContentMaxWidthDesktop}"
                 HorizontalAlignment="Center"
-                RowSpacing="24"
+                RowSpacing="{StaticResource PageSectionSpacing}"
                 AutomationProperties.Name="Page content container">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />

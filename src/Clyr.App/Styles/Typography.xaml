@@ -1,0 +1,87 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <FontFamily x:Key="FontFamilyText">Segoe UI Variable Text</FontFamily>
+    <FontFamily x:Key="FontFamilyDisplay">Segoe UI Variable Display</FontFamily>
+    <FontFamily x:Key="FontFamilyMonospace">Cascadia Mono</FontFamily>
+
+    <Style x:Key="PageTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamilyDisplay}" />
+        <Setter Property="FontSize" Value="30" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{ThemeResource TextPrimary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="PageSubtitleStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamilyText}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{ThemeResource TextSecondary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="MaxWidth" Value="760" />
+    </Style>
+    <Style x:Key="SectionTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamilyDisplay}" />
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{ThemeResource TextPrimary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="CardTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamilyText}" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{ThemeResource TextPrimary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="MetricValueStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamilyDisplay}" />
+        <Setter Property="FontSize" Value="28" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{ThemeResource TextPrimary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="MetricLabelStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamilyText}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{ThemeResource TextMuted}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="BodyStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamilyText}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{ThemeResource TextPrimary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="BodySecondaryStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamilyText}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{ThemeResource TextSecondary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="CaptionStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamilyText}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{ThemeResource TextMuted}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="StatusTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamilyText}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{ThemeResource TextSecondary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="MonospaceDetailStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamilyMonospace}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{ThemeResource TextSecondary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="IsTextSelectionEnabled" Value="True" />
+    </Style>
+
+    <!-- Compatibility alias for existing Phase 7.2 pages. -->
+    <Style x:Key="BodyMutedStyle" TargetType="TextBlock" BasedOn="{StaticResource BodySecondaryStyle}">
+        <Setter Property="Foreground" Value="{ThemeResource TextMuted}" />
+    </Style>
+</ResourceDictionary>

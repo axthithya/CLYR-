@@ -1,0 +1,22 @@
+<UserControl
+    x:Class="Clyr.App.Controls.KeyValueRow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    AutomationProperties.Name="{x:Bind Label, Mode=OneWay}">
+    <Grid MinHeight="40" ColumnSpacing="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*" />
+            <ColumnDefinition Width="3*" />
+        </Grid.ColumnDefinitions>
+        <TextBlock
+            VerticalAlignment="Center"
+            Style="{StaticResource BodySecondaryStyle}"
+            Text="{x:Bind Label, Mode=OneWay}" />
+        <TextBlock
+            Grid.Column="1"
+            VerticalAlignment="Center"
+            Style="{StaticResource BodyStyle}"
+            Text="{x:Bind Value, Mode=OneWay}"
+            TextAlignment="Right" />
+    </Grid>
+</UserControl>

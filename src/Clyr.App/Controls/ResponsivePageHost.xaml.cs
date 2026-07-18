@@ -33,13 +33,14 @@ public sealed partial class ResponsivePageHost : UserControl
     private void ViewportSizeChanged(object sender, SizeChangedEventArgs args)
     {
         var width = Math.Max(0, args.NewSize.Width);
+        var desktopWidth = (double)Application.Current.Resources["ContentMaxWidthDesktop"];
         ViewportSurface.Width = width;
-        ContentContainer.Width = Math.Min(1120, width);
+        ContentContainer.Width = Math.Min(desktopWidth, width);
         ContentContainer.Padding = width switch
         {
-            < 760 => new Thickness(16, 20, 16, 28),
-            < 1200 => new Thickness(24, 28, 24, 32),
-            _ => new Thickness(32, 32, 32, 40)
+            < 760 => (Thickness)Application.Current.Resources["PageMarginNarrow"],
+            < 1200 => (Thickness)Application.Current.Resources["PageMarginMedium"],
+            _ => (Thickness)Application.Current.Resources["PageMarginDesktop"]
         };
 
         var next = width switch

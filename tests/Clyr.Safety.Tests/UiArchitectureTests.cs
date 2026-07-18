@@ -28,7 +28,7 @@ public sealed class UiArchitectureTests
         Assert.Contains("VerticalScrollMode=\"Auto\"", host, StringComparison.Ordinal);
         Assert.Contains("HorizontalScrollBarVisibility=\"Disabled\"", host, StringComparison.Ordinal);
         Assert.Contains("HorizontalScrollMode=\"Disabled\"", host, StringComparison.Ordinal);
-        Assert.Contains("MaxWidth=\"1120\"", host, StringComparison.Ordinal);
+        Assert.Contains("MaxWidth=\"{StaticResource ContentMaxWidthDesktop}\"", host, StringComparison.Ordinal);
         Assert.Contains("HorizontalAlignment=\"Center\"", host, StringComparison.Ordinal);
         foreach (var name in PageNames)
         {
