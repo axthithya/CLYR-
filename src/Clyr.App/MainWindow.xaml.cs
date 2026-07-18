@@ -30,7 +30,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         ConfigureShell();
         session = new(scanService, drives, rules, version);
-        var overview = new OverviewPage(new(session));
+        var overview = new OverviewPage(new(session, history));
         var scan = new ScanPage(new(session));
         var results = new ResultsPage(new(session, exporter, elevatedRetryService));
         var reviewPlan = new ReviewPlanPage(new(session, cleanupPlans, executionTokens, executionReceipts, clock,

@@ -123,7 +123,15 @@ public abstract class PageViewModel(AppSessionViewModel session)
     public void Navigate(string destination) => NavigationRequested?.Invoke(this, destination);
 }
 
-public sealed class OverviewViewModel(AppSessionViewModel session) : PageViewModel(session);
+public sealed class OverviewViewModel(AppSessionViewModel session, ISnapshotStore history) : PageViewModel(session)
+{
+    public IReadOnlyList<SnapshotSummary> RecentAnalyses { get; private set; } = [];
+
+    public async Task LoadRecentAsync()
+    {
+        RecentAnalyses = await history.ListAsync(3).ConfigureAwait(false);
+    }
+}
 public sealed class ScanViewModel(AppSessionViewModel session) : PageViewModel(session);
 public sealed class ResultsViewModel(AppSessionViewModel session, IScanReportExporter exporter, IElevatedScanRetryService elevatedRetryService)
     : PageViewModel(session), IDisposable
