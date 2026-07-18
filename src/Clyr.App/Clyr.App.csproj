@@ -17,6 +17,11 @@
     <ProjectReference Include="..\Clyr.Persistence\Clyr.Persistence.csproj" />
     <ProjectReference Include="..\Clyr.Rules\Clyr.Rules.csproj" />
     <ProjectReference Include="..\Clyr.Windows\Clyr.Windows.csproj" />
+    <!-- Build-order dependency only: ReferenceOutputAssembly="false" ensures Clyr.ElevatedScanner is built
+         before this project (so the artifacts copied below always exist) without pulling its own copies of
+         Clyr.Contracts/Clyr.Core/Clyr.Windows into this project's compile or output closure — those already
+         come from this project's own ProjectReferences above, and must never be duplicated from elsewhere. -->
+    <ProjectReference Include="..\Clyr.ElevatedScanner\Clyr.ElevatedScanner.csproj" ReferenceOutputAssembly="false" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
     <PackageReference Include="Microsoft.Extensions.Logging" />
@@ -27,4 +32,41 @@
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\rules\builtin\**\*" Link="rules\builtin\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!--
+    Phase 7.2.6H2C: the production launcher (ElevatedScannerLaunchPlanBuilder, via ElevatedScannerExecutableResolver)
+    resolves the trusted helper at AppContext.BaseDirectory\Clyr.ElevatedScanner.exe — i.e. directly beside this
+    app's own executable, never in a nested subdirectory. These targets copy exactly the four files the helper
+    needs to run (never its .pdb, never a recursive directory copy, never Clyr.Contracts/Clyr.Core/Clyr.Windows —
+    this app already has its own copies of those) from Clyr.ElevatedScanner's own build output into both this
+    project's ordinary build output and its publish output.
+  -->
+  <PropertyGroup>
+    <ElevatedScannerOutputDir>$(MSBuildThisFileDirectory)..\Clyr.ElevatedScanner\bin\$(Configuration)\$(TargetFramework)\</ElevatedScannerOutputDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ElevatedScannerRequiredArtifact Include="Clyr.ElevatedScanner.exe" />
+    <ElevatedScannerRequiredArtifact Include="Clyr.ElevatedScanner.dll" />
+    <ElevatedScannerRequiredArtifact Include="Clyr.ElevatedScanner.deps.json" />
+    <ElevatedScannerRequiredArtifact Include="Clyr.ElevatedScanner.runtimeconfig.json" />
+  </ItemGroup>
+
+  <!-- Runs after Clyr.ElevatedScanner has built (see the ReferenceOutputAssembly="false" reference above) and
+       before either copy target below, so a missing artifact fails this build clearly instead of silently
+       shipping an app that cannot find its elevated helper at runtime. -->
+  <Target Name="EnsureElevatedScannerArtifactsExist">
+    <ItemGroup>
+      <_ElevatedScannerSourceFile Include="@(ElevatedScannerRequiredArtifact->'$(ElevatedScannerOutputDir)%(Identity)')" />
+    </ItemGroup>
+    <Error Condition="!Exists('%(_ElevatedScannerSourceFile.Identity)')"
+           Text="Required Clyr.ElevatedScanner artifact is missing: %(_ElevatedScannerSourceFile.Identity). Build Clyr.ElevatedScanner (matching Configuration) before building Clyr.App." />
+  </Target>
+
+  <Target Name="CopyElevatedScannerArtifactsToBuildOutput" AfterTargets="Build" DependsOnTargets="EnsureElevatedScannerArtifactsExist">
+    <Copy SourceFiles="@(_ElevatedScannerSourceFile)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyElevatedScannerArtifactsToPublishOutput" AfterTargets="Publish" DependsOnTargets="EnsureElevatedScannerArtifactsExist">
+    <Copy SourceFiles="@(_ElevatedScannerSourceFile)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>
