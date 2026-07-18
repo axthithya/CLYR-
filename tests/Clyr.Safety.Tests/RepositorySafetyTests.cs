@@ -416,6 +416,33 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
+    public void ElevatedScanRetryCoordinatorContainsNoMutationOrExecutionCapability()
+    {
+        // Phase 7.2.6H1 adds the pure application-orchestration coordinator that connects the request factory,
+        // launcher, and reconciler behind one typed workflow — it must never gain a mutation, filesystem, or
+        // process-launch surface of its own; every real capability stays behind the already-reviewed dependency
+        // it delegates to.
+        var forbidden = new[]
+        {
+            "Process.Start", "ProcessStartInfo", "System.Diagnostics.Process", "powershell.exe", "cmd.exe",
+            "cmd /c", "runas", "requireAdministrator",
+            "File.Delete", "File.Move", "File.WriteAllText", "File.WriteAllBytes", "File.AppendAllText",
+            "File.Create(", "File.OpenWrite", "File.Replace", "File.SetAttributes",
+            "Directory.Delete", "Directory.Move", "Directory.CreateDirectory",
+            "FileSecurity", "DirectorySecurity", "SetAccessControl", "FileSystemAclExtensions",
+            "TakeOwnership", "Ownership.Set",
+            "System.Net.Sockets", "TcpClient", "TcpListener", "UdpClient", "HttpClient", "WebRequest",
+            "NamedPipe", "IFileSystemEnumerator", "Clyr.ElevatedHelper", "ElevatedHelperLauncher",
+            "NonElevatedCleanupExecutor", "CleanupPlanBuilder", "ExecutionTokenService", "CleanupCandidateFactory",
+            "BuiltInExecutionActions", "MoveKnownFolder", "MoveToAnotherDrive",
+        };
+        var file = Path.Combine(Root, "src", "Clyr.Core", "ElevatedScanRetryCoordinator.cs");
+        Assert.True(File.Exists(file), $"Expected file not found: {file}");
+        var text = File.ReadAllText(file);
+        foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ElevatedScannerHasItsOwnRequireAdministratorManifestDistinctFromEverythingElse()
     {
         var scannerManifest = File.ReadAllText(Path.Combine(Root, "src", "Clyr.ElevatedScanner", "app.manifest"));

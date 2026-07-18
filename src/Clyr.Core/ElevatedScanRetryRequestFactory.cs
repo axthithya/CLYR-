@@ -158,6 +158,7 @@ public sealed record ElevatedScanRetryRequestBuildResult(ElevatedScanRetryEligib
 /// </summary>
 public sealed class ElevatedScanRetryRequestFactory(
     IDriveDiscovery drives, IDriveIdentityProvider driveIdentity, IClock clock, INonceGenerator nonceGenerator)
+    : IElevatedScanRetryRequestFactory
 {
     /// <summary>Bounded, fixed diagnostic cap for every request this factory builds — a small, safe value, never
     /// caller-configurable and never the protocol's own upper bound.</summary>

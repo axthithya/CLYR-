@@ -51,7 +51,7 @@ public sealed class ElevatedScannerLauncher(
     ITrustedApplicationBaseDirectory trustedDirectory,
     IElevatedScannerFileProbe fileProbe,
     IElevatedScannerProcessStarter processStarter,
-    ElevatedScanIpcClientTimeouts? timeouts = null)
+    ElevatedScanIpcClientTimeouts? timeouts = null) : IElevatedScannerLauncher
 {
     private readonly ElevatedScanIpcClientTimeouts timeouts = timeouts ?? ElevatedScanIpcClientTimeouts.Default;
 
