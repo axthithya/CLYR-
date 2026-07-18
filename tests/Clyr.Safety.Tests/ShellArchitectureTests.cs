@@ -48,13 +48,27 @@ public sealed class ShellArchitectureTests
     }
 
     [Fact]
+    public void BrandingAppearsOnceInTheTitleBarAndNeverInThePane()
+    {
+        var xaml = Read("MainWindow.xaml");
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Count(xaml, Attribute("Text", "CLYR"), System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Count(xaml, "CLYR-AppIcon-Master-1024.png", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Count(xaml, "<controls:PrivacyBadge", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
+        Assert.DoesNotContain("NavigationView.PaneHeader", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("PaneBranding", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SelectedNavigationUsesSurfaceIndicatorAndTextEmphasis()
     {
         var shell = Read(Path.Combine("Styles", "Shell.xaml"));
         Assert.Contains("NavigationViewItemBackgroundSelected", shell, StringComparison.Ordinal);
         Assert.Contains("ResourceKey=\"SurfaceSelected\"", shell, StringComparison.Ordinal);
         Assert.Contains("NavigationViewSelectionIndicatorForeground", shell, StringComparison.Ordinal);
-        Assert.Contains(">4</x:Double>", shell, StringComparison.Ordinal);
+        Assert.Contains("x:Key=" + Quote + "NavigationViewSelectionIndicatorWidth" + Quote + ">3</x:Double>", shell, StringComparison.Ordinal);
+        Assert.Contains("x:Key=" + Quote + "NavigationViewItemButtonMargin" + Quote + ">4,1</Thickness>", shell, StringComparison.Ordinal);
+        Assert.Contains("CornerRadiusSmall", shell, StringComparison.Ordinal);
+        Assert.Contains("BasedOn=" + Quote + "{StaticResource ShellNavigationItemStyle}" + Quote, shell, StringComparison.Ordinal);
         Assert.Contains("NavigationViewItemForegroundSelected", shell, StringComparison.Ordinal);
         Assert.Contains("UseSystemFocusVisuals", shell, StringComparison.Ordinal);
     }
@@ -79,7 +93,7 @@ public sealed class ShellArchitectureTests
     public void ShellUsesOnlySemanticDesignSystemColors()
     {
         var xaml = Read("MainWindow.xaml");
-        foreach (var token in new[] { "NavigationBackground", "AppBackground", "SurfaceSecondary", "BorderSubtle", "TextPrimary" })
+        foreach (var token in new[] { "NavigationBackground", "AppBackground", "BorderSubtle", "TextPrimary" })
             Assert.Contains($"{{ThemeResource {token}}}", xaml, StringComparison.Ordinal);
         Assert.DoesNotMatch("#[0-9A-Fa-f]{6,8}", xaml);
 
@@ -101,14 +115,30 @@ public sealed class ShellArchitectureTests
     public void AutoPaneAndTokenizedBoundsSupportNarrowWindows()
     {
         var xaml = Read("MainWindow.xaml");
+        var tokens = Read(Path.Combine("Styles", "DesignTokens.xaml"));
         foreach (var required in new[]
         {
-            Attribute("PaneDisplayMode", "Auto"), Attribute("CompactModeThresholdWidth", "900"),
-            Attribute("ExpandedModeThresholdWidth", "1180"), "NavigationPaneCompactWidth",
+            Attribute("PaneDisplayMode", "Auto"), Attribute("CompactModeThresholdWidth", "{StaticResource NavigationCompactModeThreshold}"),
+            Attribute("ExpandedModeThresholdWidth", "{StaticResource NavigationExpandedModeThreshold}"), "NavigationPaneCompactWidth",
             "ShellMinimumWidth", "ShellMinimumHeight", Attribute("HorizontalContentAlignment", "Stretch")
         })
             Assert.Contains(required, xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("HorizontalScroll", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Key=" + Quote + "SidebarWidth" + Quote + ">244</x:Double>", tokens, StringComparison.Ordinal);
+        Assert.Contains("x:Key=" + Quote + "NavigationPaneCompactWidth" + Quote + ">56</x:Double>", tokens, StringComparison.Ordinal);
+        Assert.Contains("x:Key=" + Quote + "NavigationCompactModeThreshold" + Quote + ">760</x:Double>", tokens, StringComparison.Ordinal);
+        Assert.Contains("x:Key=" + Quote + "NavigationExpandedModeThreshold" + Quote + ">1180</x:Double>", tokens, StringComparison.Ordinal);
+        Assert.Contains("x:Key=" + Quote + "ControlHeightNavigationRow" + Quote + ">44</x:Double>", tokens, StringComparison.Ordinal);
+        Assert.Contains("x:Key=" + Quote + "ShellNavigationIconSize" + Quote + ">20</x:Double>", tokens, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PaneUsesNativeReducedMotionAwareTwoHundredMillisecondTransitions()
+    {
+        var shell = Read(Path.Combine("Styles", "Shell.xaml"));
+        Assert.Contains("SplitViewPaneAnimationOpenDuration" + Quote + ">00:00:00.2</x:String>", shell, StringComparison.Ordinal);
+        Assert.Contains("SplitViewPaneAnimationCloseDuration" + Quote + ">00:00:00.2</x:String>", shell, StringComparison.Ordinal);
+        Assert.DoesNotContain("Storyboard.Begin", Read("MainWindow.xaml.cs"), StringComparison.Ordinal);
     }
 
     [Fact]

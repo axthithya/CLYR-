@@ -24,6 +24,11 @@ public sealed class UiArchitectureTests
     public void EveryPageUsesSharedResponsiveHostWithScrollContract()
     {
         var host = Read(Path.Combine(Root, "src", "Clyr.App", "Controls", "ResponsivePageHost.xaml"));
+        var header = Read(Path.Combine(Root, "src", "Clyr.App", "Controls", "PageHeader.xaml"));
+        Assert.Contains("UseLayoutRounding", host, StringComparison.Ordinal);
+        Assert.Contains("VerticalAlignment", host, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.HeadingLevel", header, StringComparison.Ordinal);
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Count(header, "TextWrapping", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
         Assert.Contains("VerticalScrollBarVisibility=\"Auto\"", host, StringComparison.Ordinal);
         Assert.Contains("VerticalScrollMode=\"Auto\"", host, StringComparison.Ordinal);
         Assert.Contains("HorizontalScrollBarVisibility=\"Disabled\"", host, StringComparison.Ordinal);
@@ -112,6 +117,9 @@ public sealed class UiArchitectureTests
     public void SharedHostHasConsistentGuttersAndBreakpoints()
     {
         var codeBehind = Read(Path.Combine(Root, "src", "Clyr.App", "Controls", "ResponsivePageHost.xaml.cs"));
+        var tokens = Read(Path.Combine(Root, "src", "Clyr.App", "Styles", "DesignTokens.xaml"));
+        Assert.Contains(">16,24,16,32</Thickness>", tokens, StringComparison.Ordinal);
+        Assert.Contains(">24,32,24,40</Thickness>", tokens, StringComparison.Ordinal);
         Assert.Contains("< 760", codeBehind, StringComparison.Ordinal);
         Assert.Contains("< 1200", codeBehind, StringComparison.Ordinal);
         Assert.Contains("ResponsivePageWidth.Narrow", codeBehind, StringComparison.Ordinal);

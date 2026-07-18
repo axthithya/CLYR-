@@ -78,7 +78,6 @@ public sealed partial class MainWindow : Window
 
         ApplyTitleBarColors();
         UpdateTitleBarInset();
-        UpdatePaneBranding();
     }
 
     private void ApplyTitleBarColors()
@@ -107,17 +106,8 @@ public sealed partial class MainWindow : Window
         CaptionButtonSpacer.Width = AppWindow.TitleBar.RightInset / scale;
     }
 
-    private void UpdatePaneBranding()
-    {
-        PaneBrandingCopy.Visibility = Navigation.IsPaneOpen ? Visibility.Visible : Visibility.Collapsed;
-        PaneBranding.HorizontalAlignment = Navigation.IsPaneOpen ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
-    }
-
     private void TitleBarThemeChanged(FrameworkElement sender, object args) => ApplyTitleBarColors();
     private void TitleBarSizeChanged(object sender, SizeChangedEventArgs args) => UpdateTitleBarInset();
-    private void NavigationPaneOpened(NavigationView sender, object args) => UpdatePaneBranding();
-    private void NavigationPaneClosed(NavigationView sender, object args) => UpdatePaneBranding();
-    private void NavigationDisplayModeChanged(NavigationView sender, NavigationViewDisplayModeChangedEventArgs args) => UpdatePaneBranding();
 
     private async void OnSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {

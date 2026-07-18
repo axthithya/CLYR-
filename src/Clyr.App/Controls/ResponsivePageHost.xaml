@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Clyr.App.Controls"
+    UseLayoutRounding="True"
     AutomationProperties.Name="Responsive page host">
     <ScrollViewer
         x:Name="PageScroll"
@@ -19,6 +20,7 @@
                 x:Name="ContentContainer"
                 MaxWidth="{StaticResource ContentMaxWidthDesktop}"
                 HorizontalAlignment="Center"
+                VerticalAlignment="Top"
                 RowSpacing="{StaticResource PageSectionSpacing}"
                 AutomationProperties.Name="Page content container">
                 <Grid.RowDefinitions>

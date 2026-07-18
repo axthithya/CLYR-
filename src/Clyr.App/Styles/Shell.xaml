@@ -19,21 +19,33 @@
     <StaticResource x:Key="NavigationViewItemForegroundSelectedPointerOver" ResourceKey="TextPrimary" />
     <StaticResource x:Key="NavigationViewItemForegroundSelectedPressed" ResourceKey="TextPrimary" />
     <StaticResource x:Key="NavigationViewSelectionIndicatorForeground" ResourceKey="AccentPrimary" />
+    <StaticResource x:Key="NavigationViewItemSeparatorForeground" ResourceKey="BorderSubtle" />
 
-    <!-- The native selected indicator is retained and made substantial; the
-         selected surface and foreground emphasis are independent signals. -->
-    <x:Double x:Key="NavigationViewSelectionIndicatorWidth">4</x:Double>
-    <x:Double x:Key="NavigationViewSelectionIndicatorHeight">28</x:Double>
+    <!-- These native NavigationView template keys keep expanded and compact
+         layouts on the same 56 px icon axis and the same light row language. -->
+    <x:Double x:Key="NavigationViewIconBoxWidth">48</x:Double>
+    <x:Double x:Key="NavigationViewItemOnLeftMinHeight">44</x:Double>
+    <x:Double x:Key="NavigationViewItemOnLeftIconBoxHeight">20</x:Double>
+    <x:Double x:Key="NavigationViewSelectionIndicatorWidth">3</x:Double>
+    <x:Double x:Key="NavigationViewSelectionIndicatorHeight">24</x:Double>
+    <x:Double x:Key="NavigationViewSelectionIndicatorRadius">2</x:Double>
+    <Thickness x:Key="NavigationViewItemButtonMargin">4,1</Thickness>
+    <Thickness x:Key="NavigationViewItemSeparatorMargin">16,7,12,7</Thickness>
+    <Thickness x:Key="NavigationViewCompactItemSeparatorMargin">12,7</Thickness>
+
+    <!-- The native pane and label transitions honor the Windows animation
+         setting; both directions use the plan's 200 ms motion cadence. -->
+    <x:String x:Key="SplitViewPaneAnimationOpenDuration">00:00:00.2</x:String>
+    <x:String x:Key="SplitViewPaneAnimationOpenPreDuration">00:00:00.19999</x:String>
+    <x:String x:Key="SplitViewPaneAnimationCloseDuration">00:00:00.2</x:String>
 
     <Style x:Key="ShellNavigationItemStyle" TargetType="NavigationViewItem">
         <Setter Property="MinHeight" Value="{StaticResource ControlHeightNavigationRow}" />
-        <Setter Property="Margin" Value="8,2" />
-        <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusControl}" />
+        <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusSmall}" />
+        <Setter Property="FontWeight" Value="Normal" />
         <Setter Property="UseSystemFocusVisuals" Value="True" />
     </Style>
-    <Style x:Key="ShellPrimaryNavigationItemStyle" TargetType="NavigationViewItem" BasedOn="{StaticResource ShellNavigationItemStyle}">
-        <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
+    <Style x:Key="ShellPrimaryNavigationItemStyle" TargetType="NavigationViewItem" BasedOn="{StaticResource ShellNavigationItemStyle}" />
     <Style x:Key="ShellTitleTextStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontFamilyText}" />
         <Setter Property="FontSize" Value="13" />
