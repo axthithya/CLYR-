@@ -6,20 +6,226 @@
     Background="{ThemeResource AppBackgroundBrush}"
     AutomationProperties.Name="Privacy page">
     <controls:ResponsivePageHost x:Name="PageHost" Title="Privacy"
-        Subtitle="CLYR is designed to explain storage without collecting your files or requiring an account."
+        Subtitle="Understand what CLYR reads, stores and never sends."
         AutomationProperties.Name="Privacy responsive page host">
         <controls:ResponsivePageHost.PageContent>
-            <StackPanel Spacing="20">
-                <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Your data stays here" Style="{StaticResource SectionTitleStyle}"/><TextBlock Text="Analysis runs locally. There is no cloud upload, no telemetry by default, and no account requirement." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                <Grid x:Name="ReadGrid" ColumnSpacing="20" RowSpacing="20">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="What CLYR reads" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="File and directory metadata · logical sizes · filesystem structure · timestamps and attributes when required" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                    <Border x:Name="DoesNotReadCard" Grid.Column="1" Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="What CLYR does not read" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="File contents · document text · passwords · browser history · email · source-code contents · cloud-only file contents" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+            <StackPanel Spacing="28">
+                <Border Style="{StaticResource StandardCardStyle}"
+                        AutomationProperties.Name="Privacy summary">
+                    <StackPanel Spacing="18">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Your storage analysis stays on this device"
+                                       Style="{StaticResource SectionTitleStyle}" TextWrapping="Wrap" />
+                            <TextBlock Text="CLYR reads file and folder metadata locally to understand storage usage. It does not upload your scan data or inspect file contents."
+                                       Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Grid x:Name="TruthGrid" ColumnSpacing="20" RowSpacing="14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <StackPanel x:Name="LocalTruth" Spacing="5" AutomationProperties.Name="Local analysis truth">
+                                <FontIcon Glyph="&#xE770;" FontSize="19" Foreground="{ThemeResource PrivacySafe}"
+                                          HorizontalAlignment="Left" />
+                                <TextBlock Text="Local" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Analysis runs on this PC." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel x:Name="MetadataTruth" Grid.Column="1" Spacing="5"
+                                        AutomationProperties.Name="Metadata-only analysis truth">
+                                <FontIcon Glyph="&#xE8A5;" FontSize="19" Foreground="{ThemeResource PrivacySafe}"
+                                          HorizontalAlignment="Left" />
+                                <TextBlock Text="Metadata only" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="CLYR reads names, paths, sizes, attributes and filesystem metadata where permitted."
+                                           Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel x:Name="ReadOnlyTruth" Grid.Column="2" Spacing="5"
+                                        AutomationProperties.Name="Read-only analysis truth">
+                                <FontIcon Glyph="&#xE72E;" FontSize="19" Foreground="{ThemeResource PrivacySafe}"
+                                          HorizontalAlignment="Left" />
+                                <TextBlock Text="Read-only by default" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Analysis never deletes, moves or changes files."
+                                           Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Spacing="12" AutomationProperties.Name="Storage analysis data boundaries">
+                    <TextBlock Text="What storage analysis examines" Style="{StaticResource SectionTitleStyle}" />
+                    <Grid x:Name="ReadGrid" ColumnSpacing="20" RowSpacing="16">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Border x:Name="ReadsSection" Style="{StaticResource CompactCardStyle}">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="What CLYR reads" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Existing file and folder metadata needed to measure storage:" TextWrapping="Wrap" />
+                                <StackPanel Spacing="7" AutomationProperties.Name="Metadata fields used by storage analysis">
+                                    <TextBlock Text="• Names and paths used while organizing results" TextWrapping="Wrap" />
+                                    <TextBlock Text="• Logical and allocated sizes where Windows provides them" TextWrapping="Wrap" />
+                                    <TextBlock Text="• File and folder attributes needed to identify directories, reparse points and cloud placeholders" TextWrapping="Wrap" />
+                                    <TextBlock Text="• Hard-link identity and sparse or compressed state where supported" TextWrapping="Wrap" />
+                                    <TextBlock Text="• Drive, filesystem and access-denied or unavailable status" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="DoesNotReadSection" Grid.Column="1" Style="{StaticResource CompactCardStyle}">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="What CLYR does not inspect" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="CLYR does not open files to understand their contents during storage analysis."
+                                           TextWrapping="Wrap" />
+                                <StackPanel Spacing="7" AutomationProperties.Name="Content not inspected by storage analysis">
+                                    <TextBlock Text="• Document text or source-code contents" TextWrapping="Wrap" />
+                                    <TextBlock Text="• Photo pixels, video or audio content" TextWrapping="Wrap" />
+                                    <TextBlock Text="• Passwords or account credentials" TextWrapping="Wrap" />
+                                    <TextBlock Text="• Browser history, messages or email contents" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <TextBlock Text="File and folder names can still appear during local analysis; content inside those files is not parsed."
+                                           Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Spacing="12">
+                    <TextBlock Text="How data moves" Style="{StaticResource SectionTitleStyle}" />
+                    <Border Style="{StaticResource StandardCardStyle}"
+                            AutomationProperties.Name="Local privacy data flow">
+                        <StackPanel Spacing="14">
+                            <Grid x:Name="DataFlowGrid" ColumnSpacing="12" RowSpacing="14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel x:Name="MetadataFlowStep" Spacing="5" AutomationProperties.Name="Step 1, read metadata locally">
+                                    <FontIcon Glyph="&#xE8B7;" FontSize="18" Foreground="{ThemeResource PrivacySafe}" HorizontalAlignment="Left" />
+                                    <TextBlock Text="Read metadata locally" Style="{StaticResource CardTitleStyle}" TextWrapping="Wrap" />
+                                    <TextBlock Text="CLYR asks Windows for permitted storage metadata." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <FontIcon x:Name="FlowArrowOne" Grid.Column="1" Glyph="&#xE72A;" VerticalAlignment="Center"
+                                          Foreground="{ThemeResource MutedTextBrush}" AutomationProperties.AccessibilityView="Raw" />
+                                <StackPanel x:Name="AnalysisFlowStep" Grid.Column="2" Spacing="5" AutomationProperties.Name="Step 2, analyze storage usage">
+                                    <FontIcon Glyph="&#xE9D9;" FontSize="18" Foreground="{ThemeResource PrivacySafe}" HorizontalAlignment="Left" />
+                                    <TextBlock Text="Analyze storage usage" Style="{StaticResource CardTitleStyle}" TextWrapping="Wrap" />
+                                    <TextBlock Text="Accounting and classification happen inside CLYR." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <FontIcon x:Name="FlowArrowTwo" Grid.Column="3" Glyph="&#xE72A;" VerticalAlignment="Center"
+                                          Foreground="{ThemeResource MutedTextBrush}" AutomationProperties.AccessibilityView="Raw" />
+                                <StackPanel x:Name="ResultsFlowStep" Grid.Column="4" Spacing="5" AutomationProperties.Name="Step 3, show local results">
+                                    <FontIcon Glyph="&#xE9F9;" FontSize="18" Foreground="{ThemeResource PrivacySafe}" HorizontalAlignment="Left" />
+                                    <TextBlock Text="Show local results" Style="{StaticResource CardTitleStyle}" TextWrapping="Wrap" />
+                                    <TextBlock Text="Results and supported summaries stay on this device." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <FontIcon x:Name="FlowArrowThree" Grid.Column="5" Glyph="&#xE72A;" VerticalAlignment="Center"
+                                          Foreground="{ThemeResource MutedTextBrush}" AutomationProperties.AccessibilityView="Raw" />
+                                <StackPanel x:Name="ExportFlowStep" Grid.Column="6" Spacing="5" AutomationProperties.Name="Step 4, export only when requested">
+                                    <FontIcon Glyph="&#xEDE1;" FontSize="18" Foreground="{ThemeResource PrivacySafe}" HorizontalAlignment="Left" />
+                                    <TextBlock Text="Export only when you ask" Style="{StaticResource CardTitleStyle}" TextWrapping="Wrap" />
+                                    <TextBlock Text="A privacy-safe report is created only through an explicit export action." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="There is no upload stage. CLYR does not send scan data to an online service."
+                                       Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Local storage and history" Style="{StaticResource SectionTitleStyle}" />
+                    <Grid x:Name="LocalStorageGrid" ColumnSpacing="20" RowSpacing="14">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <StackPanel x:Name="HistoryStorageColumn" Spacing="6">
+                            <TextBlock Text="Saved summaries" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="When history is enabled, CLYR stores aggregate scan summaries locally. It does not store file contents in history."
+                                       Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel x:Name="WorkflowStorageColumn" Grid.Column="1" Spacing="6">
+                            <TextBlock Text="Local workflow data" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Supported history settings, review plans and receipts remain within CLYR’s existing on-device workflow. Reports exist only when explicitly requested."
+                                       Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+
+                <Border Style="{StaticResource StandardCardStyle}"
+                        AutomationProperties.Name="Optional administrator retry privacy explanation">
+                    <StackPanel Spacing="14">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Administrator retry is optional" Style="{StaticResource SectionTitleStyle}" />
+                            <TextBlock Text="After an eligible Deep Analysis, you can choose to retry only restricted scan areas. CLYR asks for confirmation before Windows shows UAC. The retry remains metadata-only and read-only."
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Grid x:Name="RetryFlowGrid" ColumnSpacing="10" RowSpacing="10"
+                              AutomationProperties.Name="Administrator retry privacy flow">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock x:Name="RetryStepOne" Text="1  User chooses retry" Style="{StaticResource StatusTextStyle}" TextWrapping="Wrap" />
+                            <FontIcon x:Name="RetryArrowOne" Grid.Column="1" Glyph="&#xE72A;" Foreground="{ThemeResource MutedTextBrush}" AutomationProperties.AccessibilityView="Raw" />
+                            <TextBlock x:Name="RetryStepTwo" Grid.Column="2" Text="2  Windows permission" Style="{StaticResource StatusTextStyle}" TextWrapping="Wrap" />
+                            <FontIcon x:Name="RetryArrowTwo" Grid.Column="3" Glyph="&#xE72A;" Foreground="{ThemeResource MutedTextBrush}" AutomationProperties.AccessibilityView="Raw" />
+                            <TextBlock x:Name="RetryStepThree" Grid.Column="4" Text="3  Restricted metadata scan" Style="{StaticResource StatusTextStyle}" TextWrapping="Wrap" />
+                            <FontIcon x:Name="RetryArrowThree" Grid.Column="5" Glyph="&#xE72A;" Foreground="{ThemeResource MutedTextBrush}" AutomationProperties.AccessibilityView="Raw" />
+                            <TextBlock x:Name="RetryStepFour" Grid.Column="6" Text="4  Validated result" Style="{StaticResource StatusTextStyle}" TextWrapping="Wrap" />
+                        </Grid>
+                        <TextBlock Text="No files are deleted, moved, renamed or modified. If permission is denied, the retry fails or it times out, the original scan remains unchanged. CLYR does not show an automatic second UAC prompt."
+                                   Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <Grid x:Name="SafetyGrid" ColumnSpacing="20" RowSpacing="16">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Border x:Name="ExportPrivacySection" Style="{StaticResource CompactCardStyle}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Report and export privacy" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Reports are created only when requested. The supported exporter removes full ranked paths, file names and user names, and redacts sensitive root identity fields."
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="Reports can still contain storage categories, sizes, timestamps and technical metadata. CLYR reduces personal identifiers, but it does not promise perfect anonymization. Review every report before sharing it."
+                                       Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="CleanupSafetySection" Grid.Column="1" Style="{StaticResource CompactCardStyle}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Analysis and cleanup are separate" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Analysis is read-only. Review Plan is a separate step: protected and unsupported locations remain excluded, selected supported actions are reviewed, and plan preview comes before final confirmation."
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="Estimated reclaimable space is not guaranteed. No cleanup can start from the Privacy page."
+                                       Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
                 </Grid>
-                <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Cloud files" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="CLYR avoids downloading cloud placeholders. Cloud metadata can differ from space physically stored on this device." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Local history" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="Only aggregate snapshots are stored locally. Raw volume identity is protected, full scanned paths are not stored, and history can be disabled or cleared." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Exports" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="Reports are privacy-safe by default, personal paths are redacted, and CLYR never uploads an export automatically." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+
+                <Border Style="{StaticResource CompactCardStyle}">
+                    <Expander Header="Advanced privacy details"
+                              AutomationProperties.Name="Advanced privacy details">
+                        <StackPanel Spacing="10" Padding="0,12,0,0">
+                            <TextBlock Text="Metadata fields vary by filesystem and permissions. Unavailable allocated size, file identity or protected entries are recorded as unavailable rather than invented."
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="Cloud placeholders are not opened to download their contents. Their metadata may not equal space physically stored on this device."
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="This build has no scan-data upload or telemetry service. It does not require an online account for storage analysis."
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="Export redaction reduces supported personal identifiers; technical context can remain, so user review is still required."
+                                       Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Expander>
+                </Border>
             </StackPanel>
         </controls:ResponsivePageHost.PageContent>
     </controls:ResponsivePageHost>
