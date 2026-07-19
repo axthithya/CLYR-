@@ -36,43 +36,40 @@ public sealed partial class ScanPage : Page
         Refresh();
     }
 
-    private void QuickSelected(object sender, RoutedEventArgs args)
-    {
-        var session = ViewModel.Session;
-        if (!session.IsScanning)
-            session.SelectedScanMode = ScanModeSelector.Toggle(session.SelectedScanMode, ScanMode.Quick);
-        Refresh();
-    }
+    private async void StartAnalysis(object sender, RoutedEventArgs args) => await StartAsync();
 
-    private void DeepSelected(object sender, RoutedEventArgs args)
+    /// <summary>Truthfully labelled "Stop analysis," not "Cancel Analysis" — see section 13. Confirms first
+    /// (Cancel is the safe default focus) rather than stopping immediately, and never claims more than
+    /// <see cref="AppSessionViewModel.ProvisionalSnapshot"/> actually preserves.</summary>
+    private async void StopAnalysis(object sender, RoutedEventArgs args)
     {
-        var session = ViewModel.Session;
-        if (!session.IsScanning)
-            session.SelectedScanMode = ScanModeSelector.Toggle(session.SelectedScanMode, ScanMode.Deep);
-        Refresh();
-    }
-
-    private async void StartAnalysis(object sender, RoutedEventArgs args) => await StartAsync(false);
-
-    private void CancelAnalysis(object sender, RoutedEventArgs args)
-    {
-        CancelButton.IsEnabled = false;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "Stop analysis?",
+            Content = new TextBlock
+            {
+                Text = "CLYR will stop inspecting the drive. The insights gathered so far will remain available, " +
+                    "marked as incomplete. Cleanup planning will remain unavailable until a new full analysis completes.",
+                TextWrapping = TextWrapping.Wrap
+            },
+            PrimaryButtonText = "Stop analysis",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        StopButton.IsEnabled = false;
         ViewModel.Session.Cancel();
         Refresh();
     }
 
-    private async void ContinueQuickAnalysis(object sender, RoutedEventArgs args)
+    private async void ViewCurrentInsights(object sender, RoutedEventArgs args)
     {
-        ViewModel.Session.SelectedScanMode = ScanMode.Quick;
-        await StartAsync(true);
+        await Task.CompletedTask;
+        ViewModel.Navigate("Results");
     }
 
-    private async void RunAgain(object sender, RoutedEventArgs args)
-    {
-        if (ViewModel.Session.LatestAttempt is { } attempt)
-            ViewModel.Session.SelectedScanMode = attempt.Mode;
-        await StartAsync(false);
-    }
+    private async void RunAgain(object sender, RoutedEventArgs args) => await StartAsync();
 
     private void ChangeSetup(object sender, RoutedEventArgs args)
     {
@@ -81,10 +78,10 @@ public sealed partial class ScanPage : Page
         PageHost.ResetScroll();
     }
 
-    private async Task StartAsync(bool continueQuick)
+    private async Task StartAsync()
     {
         showSetupAfterAttempt = false;
-        await ViewModel.Session.StartAsync(continueQuick);
+        await ViewModel.Session.AnalyzeDriveAsync();
         Refresh();
     }
 
@@ -95,7 +92,7 @@ public sealed partial class ScanPage : Page
     {
         var session = ViewModel.Session;
         RenderDrive(session.SelectedDrive);
-        RenderSelection(session);
+        RenderIdle(session);
 
         var active = session.IsScanning;
         var hasAttempt = session.LatestAttempt is not null;
@@ -142,48 +139,28 @@ public sealed partial class ScanPage : Page
 
         var ready = drive is { IsReady: true, IsSupported: true };
         DriveReadyValue.Text = ready ? "Ready" : "Needs attention";
-        DriveReadyIcon.Glyph = ready ? "\uE73E" : "\uE7BA";
+        DriveReadyIcon.Glyph = ready ? "" : "";
         var readinessBrush = (Brush)Application.Current.Resources[ready ? "Success" : "Warning"];
         DriveReadyIcon.Foreground = readinessBrush;
         DriveReadyValue.Foreground = readinessBrush;
     }
 
-    private void RenderSelection(AppSessionViewModel session)
+    private void RenderIdle(AppSessionViewModel session)
     {
-        QuickCard.IsChecked = session.SelectedScanMode == ScanMode.Quick;
-        DeepCard.IsChecked = session.SelectedScanMode == ScanMode.Deep;
-        QuickCard.IsEnabled = !session.IsScanning;
-        DeepCard.IsEnabled = !session.IsScanning;
-        AutomationProperties.SetHelpText(QuickCard, session.SelectedScanMode == ScanMode.Quick
-            ? "Selected. Recommended bounded first look that may not account for the entire drive."
-            : "Recommended bounded first look that may not account for the entire drive.");
-        AutomationProperties.SetHelpText(DeepCard, session.SelectedScanMode == ScanMode.Deep
-            ? "Selected. Recursively examines accessible folders; restricted areas may remain unobserved."
-            : "Recursively examines accessible folders; restricted areas may remain unobserved.");
-
-        var hasMode = session.SelectedScanMode is not null;
-        ModeHelperText.Visibility = hasMode ? Visibility.Collapsed : Visibility.Visible;
-        StartButton.Visibility = hasMode ? Visibility.Visible : Visibility.Collapsed;
-        var buttonText = ScanUiLifecycle.PrimaryActionText(session.SelectedScanMode, session.LatestAttempt);
-        StartButton.Content = buttonText;
-        StartButton.IsEnabled = hasMode && session.SelectedDrive?.IsSupported == true && !session.IsScanning;
-        AutomationProperties.SetName(StartButton, buttonText);
+        StartButton.IsEnabled = session.SelectedDrive?.IsSupported == true && !session.IsScanning;
     }
 
     private void RenderRunning(AppSessionViewModel session)
     {
         var progress = session.Progress;
+        var snapshot = session.ProvisionalSnapshot;
         var cancelling = session.LifecycleState == ScanUiLifecycleState.Cancelling;
-        var mode = session.LifecycleState == ScanUiLifecycleState.ScanningDeep ? ScanMode.Deep
-            : session.LifecycleState == ScanUiLifecycleState.ScanningQuick ? ScanMode.Quick
-            : session.SelectedScanMode ?? ScanMode.Quick;
-        RunningTitle.Text = cancelling ? "Cancelling analysis..." : $"{ModeName(mode)} Analysis";
+        var stageText = StageText(session.LifecycleState, snapshot?.Stage);
+        RunningTitle.Text = cancelling ? "Stopping analysis…" : stageText;
         RunningStatus.Text = cancelling
             ? "Finishing the current metadata operation safely."
-            : progress?.Message ?? "Examining accessible folders...";
-        RunningGuidance.Text = mode == ScanMode.Quick
-            ? "This is a bounded first look and may not account for the entire drive."
-            : "This can take several minutes, and restricted areas may remain unobserved.";
+            : progress?.Message ?? "Examining accessible folders…";
+        RunningGuidance.Text = "CLYR begins showing useful storage insights early and continues toward a complete drive analysis.";
 
         ElapsedText.Text = progress?.Elapsed.ToString(@"mm\:ss", CultureInfo.InvariantCulture) ?? "00:00";
         FileCount.Text = progress?.FilesObserved.ToString("N0", CultureInfo.CurrentCulture) ?? "0";
@@ -191,32 +168,53 @@ public sealed partial class ScanPage : Page
         ObservedSize.Text = OverviewPage.Format(progress?.LogicalBytesObserved ?? 0);
         InaccessibleCount.Text = progress?.InaccessibleEntries.ToString("N0", CultureInfo.CurrentCulture) ?? "0";
         WarningCountText.Text = progress?.WarningCount.ToString("N0", CultureInfo.CurrentCulture) ?? "0";
-        CurrentLocation.Text = progress is null ? "Preparing a privacy-safe location..." : $"Current location: {progress.CurrentPath}";
+        CurrentLocation.Text = progress is null ? "Preparing a privacy-safe location…" : $"Current location: {progress.CurrentPath}";
         ToolTipService.SetToolTip(CurrentLocation, CurrentLocation.Text);
         AutomationProperties.SetName(ActiveProgress,
-            $"{ModeName(mode)} Analysis in progress. {FileCount.Text} files and {DirectoryCount.Text} folders examined.");
+            $"{stageText}. {FileCount.Text} files and {DirectoryCount.Text} folders examined.");
 
-        CancelButton.Content = cancelling ? "Cancelling..." : "Cancel Analysis";
-        CancelButton.IsEnabled = !cancelling;
+        var insightsReady = !cancelling && (snapshot?.EarlyInsightsReady ?? false);
+        EarlyInsightsPanel.Visibility = insightsReady ? Visibility.Visible : Visibility.Collapsed;
+        if (insightsReady && snapshot is not null)
+        {
+            EarlyInsightsSummary.Text = $"{OverviewPage.Format(snapshot.LogicalBytesObserved)} observed so far across " +
+                $"{snapshot.TopContributors.Count} storage area{(snapshot.TopContributors.Count == 1 ? "" : "s")}.";
+            ViewCurrentInsightsButton.IsEnabled = true;
+        }
+
+        StopButton.Content = cancelling ? "Stopping…" : "Stop analysis";
+        StopButton.IsEnabled = !cancelling;
     }
+
+    private static string StageText(ScanUiLifecycleState lifecycle, ScanStage? stage) => lifecycle switch
+    {
+        ScanUiLifecycleState.Preparing => "Preparing drive",
+        _ => stage switch
+        {
+            ScanStage.DiscoveringMajorStorageAreas => "Discovering major storage areas",
+            ScanStage.InspectingFilesAndFolders => "Inspecting files and folders",
+            ScanStage.Finalizing => "Finalizing results",
+            _ => "Preparing drive"
+        }
+    };
 
     private void RenderTerminal(ScanResult attempt)
     {
         var completed = attempt.Status is ScanStatus.Completed or ScanStatus.CompletedWithWarnings;
         var cancelled = attempt.Status == ScanStatus.Cancelled;
         var failed = !completed && !cancelled;
-        TerminalTitle.Text = completed ? $"{ModeName(attempt.Mode)} Analysis completed"
-            : cancelled ? "Analysis cancelled" : "Analysis could not be completed";
+        TerminalTitle.Text = completed ? "Drive analysis complete"
+            : cancelled ? "Analysis stopped" : "Analysis could not be completed";
         TerminalMessage.Text = completed
-            ? "The analysis is ready to review. Coverage and access warnings are shown separately below."
+            ? "CLYR finished inspecting the safely accessible areas of this drive."
             : cancelled
                 ? attempt.LogicalBytesObserved > 0
-                    ? "No further folders were inspected. Partial observations remain attached to this attempt."
+                    ? "No further folders were inspected. The insights gathered so far remain available, marked incomplete."
                     : "No further folders were inspected."
                 : "Your files were not changed. Try again or choose another supported drive.";
         ApplyTerminalTone(completed ? "Success" : cancelled ? "Warning" : "Error",
             completed ? "SuccessSurface" : cancelled ? "WarningSurface" : "ErrorSurface",
-            completed ? "\uE73E" : cancelled ? "\uE711" : "\uEA39");
+            completed ? "" : cancelled ? "" : "");
 
         TerminalSummary.Visibility = failed ? Visibility.Collapsed : Visibility.Visible;
         var accounting = ScanAccounting.Summarize(attempt);
@@ -243,15 +241,10 @@ public sealed partial class ScanPage : Page
             ? $"{warningCount:N0} access {(warningCount == 1 ? "warning" : "warnings")}"
             : "Analysis completed with warnings";
 
-        var boundary = ContinuationBoundary(attempt);
-        var canContinue = completed && boundary is not null;
-        ContinuationPanel.Visibility = canContinue ? Visibility.Visible : Visibility.Collapsed;
-        ContinueQuickButton.Visibility = canContinue ? Visibility.Visible : Visibility.Collapsed;
-        ContinuationReason.Text = boundary?.SafeDetail ?? string.Empty;
-
-        ResultsButton.Visibility = completed ? Visibility.Visible : Visibility.Collapsed;
-        RunAgainButton.Content = failed ? "Try Again" : "Run Again";
-        ChangeSetupButton.Content = failed ? "Change drive" : "Change drive or mode";
+        ResultsButton.Visibility = completed || (cancelled && attempt.LogicalBytesObserved > 0) ? Visibility.Visible : Visibility.Collapsed;
+        ResultsButton.Content = completed ? "View Results" : "View partial results";
+        RunAgainButton.Content = failed ? "Try Again" : "Run again";
+        ChangeSetupButton.Content = "Change drive";
     }
 
     private void ApplyTerminalTone(string foregroundKey, string surfaceKey, string glyph)
@@ -270,13 +263,11 @@ public sealed partial class ScanPage : Page
         Position(DriveFreeMetric, 1, 0);
         Position(DriveTotalMetric, narrow ? 0 : 2, narrow ? 1 : 0);
         Position(DriveReadyMetric, narrow ? 1 : 3, narrow ? 1 : 0);
-        Position(DeepCard, narrow ? 0 : 1, narrow ? 1 : 0);
-        SafetyNote.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal;
         StartButton.HorizontalAlignment = narrow ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
 
         LayoutMetrics(RunningMetrics,
             [ElapsedMetric, FilesMetric, DirectoryMetric, ObservedMetric, InaccessibleMetric, WarningMetric], narrow ? 2 : 3);
-        CancelButton.HorizontalAlignment = narrow ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
+        RunningActions.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal;
 
         Position(TerminalStorageMetrics, narrow ? 0 : 1, narrow ? 1 : 0);
         LayoutMetrics(TerminalDetails,
@@ -301,16 +292,11 @@ public sealed partial class ScanPage : Page
         Grid.SetRow(element, row);
     }
 
-    private static ScanIssueSummary? ContinuationBoundary(ScanResult result) => result.Mode == ScanMode.Quick
-        ? result.Issues.FirstOrDefault(item => item.Code is "scan.quick-time-budget" or "scan.quick-item-budget")
-        : null;
-
     private static long WarningCount(ScanResult result) => result.Issues
         .Where(item => item.Severity is ScanIssueSeverity.AccessWarning or ScanIssueSeverity.PermissionLimited
             or ScanIssueSeverity.DataChanged or ScanIssueSeverity.Fatal)
         .Sum(item => item.Count);
 
-    private static string ModeName(ScanMode mode) => mode == ScanMode.Quick ? "Quick" : "Deep";
     private static string DrivePickerLabel(DriveSummary drive)
     {
         var label = string.IsNullOrWhiteSpace(drive.Label) ? "Local drive" : drive.Label.Trim();

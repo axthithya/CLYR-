@@ -87,10 +87,19 @@ public sealed partial class ResultsPage : Page
     public void Refresh()
     {
         var r = ViewModel.Session.Result;
-        EmptyPanel.Visibility = r is null ? Visibility.Visible : Visibility.Collapsed;
-        Dashboard.Visibility = r is null ? Visibility.Collapsed : Visibility.Visible;
+        var session = ViewModel.Session;
+        var snapshot = session.ProvisionalSnapshot;
+        // A completed result is always authoritative once it exists — provisional data belongs strictly to the
+        // period before that, or to an attempt that never reached completion (cancelled/failed).
+        var showProvisional = r is null && snapshot is not null;
+
+        EmptyPanel.Visibility = r is null && snapshot is null ? Visibility.Visible : Visibility.Collapsed;
+        ProvisionalPanel.Visibility = showProvisional ? Visibility.Visible : Visibility.Collapsed;
+        Dashboard.Visibility = r is not null ? Visibility.Visible : Visibility.Collapsed;
         ViewModel.RefreshAdministratorRetry();
-        if (r is null) return;
+
+        if (showProvisional) RenderProvisional(snapshot!, session.IsScanning);
+        if (r is null) { Reflow(PageHost.LayoutMode); return; }
 
         RenderIdentity(r);
         RenderStorageHero(r);
@@ -100,6 +109,44 @@ public sealed partial class ResultsPage : Page
         RenderFindings(r);
         RenderDirectoriesAndFiles(r);
         Reflow(PageHost.LayoutMode);
+    }
+
+    /// <summary>
+    /// Renders the bounded, provisional in-progress (or just-stopped) snapshot — never Review Plan, never
+    /// Administrator Retry, never a final quality claim. <paramref name="stillRunning"/> distinguishes "Analysis
+    /// in progress" from "Analysis stopped" wording so a cancelled provisional state can never look completed.
+    /// </summary>
+    private void RenderProvisional(ProgressiveScanSnapshot snapshot, bool stillRunning)
+    {
+        ProvisionalTitleText.Text = stillRunning ? "Analysis in progress" : "Analysis stopped";
+        ProvisionalSubtitleText.Text = stillRunning
+            ? "CLYR is continuing to inspect the drive. Values may change until the analysis finishes."
+            : "The analysis stopped before finishing. These insights are the last available and are marked incomplete.";
+        ProvisionalBadge.Text = stillRunning ? "In progress" : "Incomplete";
+        ProvisionalBadge.Glyph = stillRunning ? "" : "";
+
+        ProvisionalObservedText.Text = OverviewPage.Format(snapshot.LogicalBytesObserved);
+        ProvisionalCoverageText.Text = snapshot.ProvisionalCoveragePercentage is { } coverage ? $"{coverage:F1}%" : "Unavailable";
+        ProvisionalExaminedText.Text = $"{snapshot.FilesObserved:N0} files, {snapshot.DirectoriesObserved:N0} folders";
+        ProvisionalElapsedText.Text = snapshot.Elapsed.ToString(@"mm\:ss", System.Globalization.CultureInfo.InvariantCulture);
+        ProvisionalWarningsText.Text = snapshot.WarningCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
+        ProvisionalLimitationsText.Text = snapshot.LimitationCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
+
+        ProvisionalContributorList.ItemsSource = snapshot.TopContributors
+            .Where(item => item.LogicalBytes > 0)
+            .OrderByDescending(item => item.LogicalBytes)
+            .Select(item => new ResultsLimitationRow(OverviewPage.Humanize(item.Category), OverviewPage.Format(item.LogicalBytes)))
+            .ToArray();
+        ProvisionalDirectoryList.ItemsSource = snapshot.TopDirectories
+            .OrderByDescending(item => item.LogicalBytes)
+            .Take(10)
+            .Select(item => new ResultsLimitationRow(item.DisplayPath, OverviewPage.Format(item.LogicalBytes)))
+            .ToArray();
+        ProvisionalFileList.ItemsSource = snapshot.TopFiles
+            .OrderByDescending(item => item.LogicalBytes)
+            .Take(10)
+            .Select(item => new ResultsLimitationRow(item.DisplayPath, OverviewPage.Format(item.LogicalBytes)))
+            .ToArray();
     }
 
     private void RenderIdentity(ScanResult r)
@@ -499,8 +546,8 @@ public sealed partial class ResultsPage : Page
         }
     }
 
-    private void RunQuick(object sender, RoutedEventArgs args) { ViewModel.Session.SelectedScanMode = ScanMode.Quick; ViewModel.Navigate("Scan"); }
-    private void RunDeep(object sender, RoutedEventArgs args) { ViewModel.Session.SelectedScanMode = ScanMode.Deep; ViewModel.Navigate("Scan"); }
+    private void AnalyzeDrive(object sender, RoutedEventArgs args) => ViewModel.Navigate("Scan");
+    private void ViewScanProgressFromResults(object sender, RoutedEventArgs args) => ViewModel.Navigate("Scan");
     private void RunAgain(object sender, RoutedEventArgs args) => ViewModel.Navigate("Scan");
     private void ReviewActions(object sender, RoutedEventArgs args) => ViewModel.Navigate("Review Plan");
 
@@ -508,6 +555,7 @@ public sealed partial class ResultsPage : Page
     {
         var narrow = mode == Controls.ResponsivePageWidth.Narrow;
         EmptyActions.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal;
+        ProvisionalActions.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal;
         FinalActionArea.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal;
         FindingFilter.HorizontalAlignment = narrow ? HorizontalAlignment.Stretch : HorizontalAlignment.Right;
 

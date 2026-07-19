@@ -11,48 +11,55 @@ public sealed class ScanDesignTests
     private static readonly string Lifecycle = File.ReadAllText(Path.Combine(Root, "src", "Clyr.Core", "ScanUx.cs"));
 
     [Fact]
-    public void QuickModeProducesRunQuickAnalysis()
+    public void NormalFlowShowsOneAnalyzeDriveActionNeverModeWording()
     {
-        Assert.Contains("modeName = selectedMode == ScanMode.Quick ? " + Q + "Quick" + Q, Lifecycle, StringComparison.Ordinal);
-        Assert.Contains("Run {modeName} Analysis", Lifecycle, StringComparison.Ordinal);
+        Assert.Contains("Content=" + Q + "Analyze drive" + Q, Page, StringComparison.Ordinal);
+        Assert.Contains("Click=" + Q + "StartAnalysis" + Q, Page, StringComparison.Ordinal);
+        foreach (var forbidden in new[] { "Quick Analysis", "Deep Analysis", "Quick estimate", "Fast mode", "Thorough mode", "Choose Quick or Deep" })
+            Assert.DoesNotContain(forbidden, Page, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void DeepModeProducesRunDeepAnalysis()
+    public void AnalyzeDriveAlwaysRunsTheExistingDeepStrategyInternally()
     {
-        Assert.Contains("selectedMode == ScanMode.Quick ? " + Q + "Quick" + Q + " : " + Q + "Deep" + Q, Lifecycle, StringComparison.Ordinal);
-        Assert.Contains("StartButton.Content = buttonText", Code, StringComparison.Ordinal);
+        Assert.Contains("SelectedScanMode = ScanMode.Deep", Session, StringComparison.Ordinal);
+        Assert.Contains("public Task<ScanResult?> AnalyzeDriveAsync()", Session, StringComparison.Ordinal);
+        Assert.Contains("ViewModel.Session.AnalyzeDriveAsync()", Code, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void IdleStateDoesNotRenderCancel()
+    public void IdleStateDoesNotRenderStop()
     {
-        AssertInOrder(Page, Named("SetupPanel"), Named("RunningPanel"), Named("CancelButton"), Named("TerminalPanel"));
+        AssertInOrder(Page, Named("SetupPanel"), Named("RunningPanel"), Named("StopButton"), Named("TerminalPanel"));
         Assert.Contains("RunningPanel.Visibility = active", Code, StringComparison.Ordinal);
-        Assert.DoesNotContain("CancelButton", Section(Page, "SetupPanel", "RunningPanel"), StringComparison.Ordinal);
+        Assert.DoesNotContain("StopButton", Section(Page, "SetupPanel", "RunningPanel"), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void RunningStateShowsSecondaryCancel()
+    public void RunningStateShowsSecondaryStopWithConfirmation()
     {
-        Assert.Contains("Content=" + Q + "Cancel Analysis" + Q, Page, StringComparison.Ordinal);
-        Assert.Contains("SecondaryActionStyle", Section(Page, "CancelButton", "TerminalPanel"), StringComparison.Ordinal);
+        Assert.Contains("Content=" + Q + "Stop analysis" + Q, Page, StringComparison.Ordinal);
+        Assert.Contains("QuietButtonStyle", Section(Page, "StopButton", "TerminalPanel"), StringComparison.Ordinal);
         Assert.Contains("RunningPanel.Visibility = active ? Visibility.Visible", Code, StringComparison.Ordinal);
+        // Section 13: a confirmation dialog, defaulting to the safe "Cancel" choice, gates the actual stop.
+        Assert.Contains("Title = " + Q + "Stop analysis?" + Q, Code, StringComparison.Ordinal);
+        Assert.Contains("DefaultButton = ContentDialogButton.Close", Code, StringComparison.Ordinal);
+        Assert.Contains("CloseButtonText = " + Q + "Cancel" + Q, Code, StringComparison.Ordinal);
     }
 
     [Fact]
     public void CancellingBlocksDuplicateCancellation()
     {
-        Assert.Contains("CancelButton.IsEnabled = false", Code, StringComparison.Ordinal);
-        Assert.Contains("CancelButton.IsEnabled = !cancelling", Code, StringComparison.Ordinal);
-        Assert.Contains("Cancelling analysis...", Code, StringComparison.Ordinal);
+        Assert.Contains("StopButton.IsEnabled = false", Code, StringComparison.Ordinal);
+        Assert.Contains("StopButton.IsEnabled = !cancelling", Code, StringComparison.Ordinal);
+        Assert.Contains("Stopping analysis", Code, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void CompletedStateContainsNoCancelControl()
+    public void CompletedStateContainsNoStopControl()
     {
         var terminal = Section(Page, "TerminalPanel", "/Page");
-        Assert.DoesNotContain("CancelButton", terminal, StringComparison.Ordinal);
+        Assert.DoesNotContain("StopButton", terminal, StringComparison.Ordinal);
         Assert.Contains("TerminalPanel.Visibility = !active && hasAttempt", Code, StringComparison.Ordinal);
     }
 
@@ -66,8 +73,9 @@ public sealed class ScanDesignTests
     [Fact]
     public void CompletedStateShowsRunAgain()
     {
-        Assert.Contains("Content=" + Q + "Run Again" + Q, Page, StringComparison.Ordinal);
+        Assert.Contains("Content=" + Q + "Run again" + Q, Page, StringComparison.Ordinal);
         Assert.Contains("Click=" + Q + "RunAgain" + Q, Page, StringComparison.Ordinal);
+        Assert.Contains("Drive analysis complete", Code, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -80,29 +88,27 @@ public sealed class ScanDesignTests
     }
 
     [Fact]
-    public void QuickCopyDoesNotPromiseFullCoverage()
+    public void NormalCopyNeverPromisesGuaranteedFullCoverage()
     {
-        Assert.Contains("May not account for the entire drive", Page, StringComparison.Ordinal);
-        Assert.Contains("bounded", Page, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Quick Analysis scans the entire drive", Page, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void DeepCopyDoesNotPromiseRestrictedAccess()
-    {
-        Assert.Contains("every folder CLYR can safely access", Page, StringComparison.Ordinal);
-        Assert.Contains("Restricted areas may remain unobserved", Page, StringComparison.Ordinal);
+        // No Quick/Deep contrast to draw anymore, but the same truthfulness requirement holds: the normal flow
+        // must never claim guaranteed, unconditional full coverage of the drive.
+        Assert.DoesNotContain("scans the entire drive", Page, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("accesses every folder", Page, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CLYR finished inspecting the safely accessible areas of this drive", Code, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void QuickContinuationUsesOnlySupportedCheckpointReasons()
+    public void ScanCliRetainsQuickAndDeepFlagsUnaffectedByNormalUiModeRemoval()
     {
-        Assert.Contains("Continue Quick Analysis", Page, StringComparison.Ordinal);
-        Assert.Contains("scan.quick-time-budget", Code, StringComparison.Ordinal);
-        Assert.Contains("scan.quick-item-budget", Code, StringComparison.Ordinal);
-        Assert.Contains("ContinueFromCheckpoint: continueQuick && mode == ScanMode.Quick", Session, StringComparison.Ordinal);
-        Assert.Contains("StartAsync(true)", Code, StringComparison.Ordinal);
+        // Confirms the CLI's --quick/--deep remain intact and independent of the WinUI mode-card removal — see
+        // Clyr.Cli.Tests for CLI-side coverage; this just guards the App-side assumption that nothing here
+        // depends on (or removes) the Quick engine itself.
+        var cliScanCommands = File.ReadAllText(Path.Combine(Root, "src", "Clyr.Cli", "ScanCliCommands.cs"));
+        Assert.Contains("--quick", cliScanCommands, StringComparison.Ordinal);
+        Assert.Contains("--deep", cliScanCommands, StringComparison.Ordinal);
+        var scanning = File.ReadAllText(Path.Combine(Root, "src", "Clyr.Core", "Scanning.cs"));
+        Assert.Contains("void RunQuick(", scanning, StringComparison.Ordinal);
+        Assert.Contains("void RunDeep(", scanning, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -115,9 +121,9 @@ public sealed class ScanDesignTests
     }
 
     [Fact]
-    public void NarrowLayoutStacksModeSelectionAndActions()
+    public void NarrowLayoutStacksRunningAndTerminalActions()
     {
-        Assert.Contains("Position(DeepCard, narrow ? 0 : 1, narrow ? 1 : 0)", Code, StringComparison.Ordinal);
+        Assert.Contains("RunningActions.Orientation = narrow ? Orientation.Vertical", Code, StringComparison.Ordinal);
         Assert.Contains("TerminalActions.Orientation = narrow ? Orientation.Vertical", Code, StringComparison.Ordinal);
         Assert.Contains("StartButton.HorizontalAlignment = narrow ? HorizontalAlignment.Stretch", Code, StringComparison.Ordinal);
     }

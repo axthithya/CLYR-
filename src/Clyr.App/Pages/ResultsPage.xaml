@@ -17,8 +17,98 @@
                         Message="Run a private, read-only analysis to understand what is using storage on your drive."
                         Glyph="&#xE9D2;" />
                     <StackPanel x:Name="EmptyActions" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
-                        <Button Content="Run Quick Analysis" Click="RunQuick" Style="{StaticResource PrimaryActionStyle}" />
-                        <Button Content="Run Deep Analysis" Click="RunDeep" Style="{StaticResource QuietButtonStyle}" />
+                        <Button Content="Analyze drive" Click="AnalyzeDrive" Style="{StaticResource PrimaryActionStyle}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Provisional state: an analysis is running, or was stopped before completing, but useful
+                     bounded insights already exist. Never shown once a completed result exists (Dashboard, below,
+                     is authoritative once available). -->
+                <StackPanel x:Name="ProvisionalPanel" Visibility="Collapsed" Spacing="{StaticResource PageSectionSpacing}"
+                            AutomationProperties.Name="Provisional analysis results">
+                    <StackPanel.Transitions>
+                        <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
+                    </StackPanel.Transitions>
+                    <Grid ColumnSpacing="12" RowSpacing="8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel Spacing="4" MinWidth="0">
+                            <TextBlock x:Name="ProvisionalTitleText" Style="{StaticResource CardTitleStyle}"
+                                       AutomationProperties.LiveSetting="Polite" />
+                            <TextBlock x:Name="ProvisionalSubtitleText" Style="{StaticResource BodySecondaryStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <controls:StatusBadge x:Name="ProvisionalBadge" Grid.Column="1" />
+                    </Grid>
+                    <TextBlock Text="These values are provisional and may change while the analysis continues."
+                               Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
+                    <Border Style="{StaticResource StandardCardStyle}" AutomationProperties.Name="Provisional storage accounting">
+                        <StackPanel Spacing="16">
+                            <Grid ColumnSpacing="16" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Observed so far" Style="{StaticResource BodyMutedStyle}" />
+                                    <TextBlock x:Name="ProvisionalObservedText" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Provisional coverage" Style="{StaticResource BodyMutedStyle}" />
+                                    <TextBlock x:Name="ProvisionalCoverageText" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="2">
+                                    <TextBlock Text="Files / folders examined" Style="{StaticResource BodyMutedStyle}" />
+                                    <TextBlock x:Name="ProvisionalExaminedText" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Spacing="2">
+                                    <TextBlock Text="Elapsed" Style="{StaticResource BodyMutedStyle}" />
+                                    <TextBlock x:Name="ProvisionalElapsedText" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                            </Grid>
+                            <Border Style="{StaticResource DividerStyle}" />
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Warnings" Style="{StaticResource BodyMutedStyle}" />
+                                    <TextBlock x:Name="ProvisionalWarningsText" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Scan limitations" Style="{StaticResource BodyMutedStyle}" />
+                                    <TextBlock x:Name="ProvisionalLimitationsText" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <StackPanel Spacing="10">
+                        <controls:SectionHeader Title="Current largest observed contributors"
+                            Description="These rankings describe only the storage observed so far and may change." />
+                        <ItemsControl x:Name="ProvisionalContributorList" AutomationProperties.Name="Provisional storage contributors">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate><controls:KeyValueRow Label="{Binding Label}" Value="{Binding Value}" /></DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <StackPanel Spacing="10">
+                        <controls:SectionHeader Title="Current largest directories"
+                            Description="Provisional; may change as the analysis continues." />
+                        <ItemsControl x:Name="ProvisionalDirectoryList" AutomationProperties.Name="Provisional largest directories">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate><controls:KeyValueRow Label="{Binding Label}" Value="{Binding Value}" /></DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <StackPanel Spacing="10">
+                        <controls:SectionHeader Title="Current largest files"
+                            Description="Provisional; may change as the analysis continues." />
+                        <ItemsControl x:Name="ProvisionalFileList" AutomationProperties.Name="Provisional largest files">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate><controls:KeyValueRow Label="{Binding Label}" Value="{Binding Value}" /></DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <Border Style="{StaticResource DividerStyle}" />
+                    <StackPanel x:Name="ProvisionalActions" Orientation="Horizontal" Spacing="12"
+                                AutomationProperties.Name="Provisional results actions">
+                        <Button Content="View progress" Click="ViewScanProgressFromResults" Style="{StaticResource SecondaryActionStyle}" />
                     </StackPanel>
                 </StackPanel>
 

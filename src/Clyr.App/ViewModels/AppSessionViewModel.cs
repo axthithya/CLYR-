@@ -14,9 +14,9 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
     private readonly IScanService scanService;
     private CancellationTokenSource? cancellation;
     private ScanMode? selectedScanMode;
-    private ScanMode? runningScanMode;
     private int selectedDriveIndex;
     private ScanProgress? progress;
+    private ProgressiveScanSnapshot? provisionalSnapshot;
     private ScanResult? result;
     private ScanResult? latestAttempt;
     private readonly string applicationVersion;
@@ -67,18 +67,28 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
     /// attempt was successful enough to replace <see cref="Result"/>.</summary>
     public ScanResult? LatestAttempt { get => latestAttempt; private set => Set(ref latestAttempt, value); }
 
+    /// <summary>
+    /// The current in-memory, bounded, provisional snapshot of a running (or just-stopped) analysis — never
+    /// persisted, never a substitute for <see cref="Result"/>, and never accepted by Review Plan or Administrator
+    /// Retry (both gate on <see cref="Result"/> alone, which this never touches). Cleared only when a new
+    /// analysis starts; deliberately left in place after a cancelled or failed attempt so the last real insights
+    /// gathered remain visible, clearly marked incomplete, rather than being thrown away — see
+    /// <see cref="ScanUiLifecycleState"/>'s terminal states, which distinguish this case from a genuine
+    /// completion.
+    /// </summary>
+    public ProgressiveScanSnapshot? ProvisionalSnapshot { get => provisionalSnapshot; private set => Set(ref provisionalSnapshot, value); }
+
     public bool IsScanning => cancellation is not null;
 
-    /// <summary>The single authoritative scan-mode selection. Null means no mode is chosen — there is
-    /// deliberately no independent "QuickSelected"/"DeepSelected" boolean pair anywhere; every selection-derived
-    /// fact (card checkmark, button text/enabled state, the mode actually sent to the scanner) reads this one
-    /// value.</summary>
+    /// <summary>The scan-mode actually sent to the scanner. Retained for CLI/Developer Mode compatibility and as
+    /// the one place <see cref="AnalyzeDriveAsync"/> pins to <see cref="ScanMode.Deep"/> — the normal "Analyze
+    /// drive" experience no longer exposes this as a user selection (no mode cards, no toggle).</summary>
     public ScanMode? SelectedScanMode { get => selectedScanMode; set => Set(ref selectedScanMode, value); }
 
     /// <summary>The lifecycle state driving the Scan page's display. Computed, never independently tracked, so
-    /// it can never drift from the underlying selection/progress/result facts it derives from.</summary>
+    /// it can never drift from the underlying progress/snapshot/result facts it derives from.</summary>
     public ScanUiLifecycleState LifecycleState =>
-        ScanUiLifecycle.Compute(runningScanMode ?? selectedScanMode, IsScanning, Progress?.Status, latestAttempt);
+        ScanUiLifecycle.Compute(IsScanning, Progress?.Status, ProvisionalSnapshot?.EarlyInsightsReady ?? false, latestAttempt);
 
     public int SelectedDriveIndex { get => selectedDriveIndex; set => Set(ref selectedDriveIndex, value); }
     public DriveSummary? SelectedDrive => selectedDriveIndex >= 0 && selectedDriveIndex < Drives.Count ? Drives[selectedDriveIndex] : null;
@@ -89,38 +99,56 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
     public CleanupPlanId? PendingReviewPlanId { get; set; }
 
     /// <summary>
+    /// The normal-app entry point: one progressive full-drive analysis, always running the existing Deep engine
+    /// internally (see <see cref="ScanMode.Deep"/>) — there is no normal-user mode choice anymore. Kept as a thin
+    /// wrapper over <see cref="StartAsync"/> rather than folding mode selection away entirely, so
+    /// <see cref="SelectedScanMode"/>/<see cref="StartAsync"/> remain available unchanged for CLI-equivalent
+    /// internal callers (Developer Mode diagnostics, tests) that still need to reason about a specific mode.
+    /// </summary>
+    public Task<ScanResult?> AnalyzeDriveAsync()
+    {
+        SelectedScanMode = ScanMode.Deep;
+        return StartAsync();
+    }
+
+    /// <summary>
     /// Starts exactly one scan attempt for <see cref="SelectedScanMode"/>. Refuses to start with no mode chosen
     /// (defect: "a scan must never start without a clear authoritative mode"), while already scanning, or with
-    /// no supported drive selected. The mode is captured into <c>runningScanMode</c> for the duration of the
-    /// attempt so the lifecycle display stays correct even if the user changes <see cref="SelectedScanMode"/>
-    /// again immediately after this attempt finishes. Every attempt gets a fresh, independent
-    /// <see cref="ScanResult"/> (never a mutated reuse of the previous one — see <c>ScanResult.ScanId</c>);
-    /// <see cref="Result"/> is only replaced on a genuinely successful terminal state, so a cancelled or failed
-    /// rescan can never erase a previous success.
+    /// no supported drive selected. Every attempt gets a fresh, independent <see cref="ScanResult"/> (never a
+    /// mutated reuse of the previous one — see <c>ScanResult.ScanId</c>); <see cref="Result"/> is only replaced
+    /// on a genuinely successful terminal state, so a cancelled or failed rescan can never erase a previous
+    /// success. <see cref="ProvisionalSnapshot"/> is cleared at the start of every new attempt (it belongs to
+    /// whichever attempt produced it) and populated, at most every ~750ms, only while this specific attempt runs.
     /// </summary>
     public async Task<ScanResult?> StartAsync(bool continueQuick = false)
     {
         var drive = SelectedDrive;
         if (drive is null || !drive.IsSupported || IsScanning || SelectedScanMode is not { } mode) return null;
-        runningScanMode = mode;
         cancellation = new CancellationTokenSource();
+        ProvisionalSnapshot = null;
         Progress = new(ScanStatus.Preparing, TimeSpan.Zero, 0, 0, 0, 0, drive.Root, "Preparing private analysis.");
         Changed();
         try
         {
             var reporter = new Progress<ScanProgress>(value => { Progress = value; Changed(); });
+            var progressiveReporter = new Progress<ProgressiveScanSnapshot>(value => { ProvisionalSnapshot = value; Changed(); });
             var outcome = await scanService.ScanAsync(new(drive.Root, mode,
-                ContinueFromCheckpoint: continueQuick && mode == ScanMode.Quick), reporter, cancellation.Token);
+                ContinueFromCheckpoint: continueQuick && mode == ScanMode.Quick, ProgressiveProgress: progressiveReporter), reporter, cancellation.Token);
             LatestAttempt = outcome;
             if (outcome.Status is ScanStatus.Completed or ScanStatus.CompletedWithWarnings) Result = outcome;
             return outcome;
         }
         finally
         {
-            cancellation.Dispose(); cancellation = null; runningScanMode = null; Changed();
+            cancellation.Dispose(); cancellation = null; Changed();
         }
     }
 
+    /// <summary>Stops the running analysis. Truthfully labelled at the call site (<c>ScanPage</c>'s "Stop
+    /// analysis" confirmation) rather than here — this method only performs the stop; it never claims more than
+    /// <see cref="ProvisionalSnapshot"/> actually preserves (the last snapshot gathered before cancellation,
+    /// clearly marked incomplete by <see cref="ScanUiLifecycleState.Cancelled"/> — never a substitute for a
+    /// genuinely completed <see cref="Result"/>).</summary>
     public void Cancel()
     {
         cancellation?.Cancel();

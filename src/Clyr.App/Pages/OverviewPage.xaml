@@ -90,24 +90,33 @@
                                            Style="{StaticResource BodySecondaryStyle}" />
                             </StackPanel>
                         </Grid>
-                        <Grid x:Name="FirstRunDetails" ColumnSpacing="24" RowSpacing="12">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                            <StackPanel Spacing="3">
-                                <TextBlock Text="Quick Analysis · Recommended" Style="{StaticResource StatusTextStyle}" />
-                                <TextBlock Text="A fast first look at the largest and most useful storage areas."
-                                           Style="{StaticResource BodyMutedStyle}" />
-                            </StackPanel>
-                            <StackPanel x:Name="DeepAnalysisDescription" Grid.Column="1" Spacing="3">
-                                <TextBlock Text="Deep Analysis" Style="{StaticResource StatusTextStyle}" />
-                                <TextBlock Text="A more complete scan that can take several minutes."
-                                           Style="{StaticResource BodyMutedStyle}" />
+                        <TextBlock Text="CLYR begins showing useful storage insights early and continues toward a complete drive analysis."
+                                   Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                        <StackPanel x:Name="FirstRunActions" Orientation="Horizontal" Spacing="12">
+                            <Button Content="Analyze drive" Click="AnalyzeDrive" Style="{StaticResource PrimaryActionStyle}"
+                                    AutomationProperties.Name="Analyze drive" />
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel x:Name="RunningPanel" Spacing="12" Visibility="Collapsed"
+                                AutomationProperties.Name="Analysis in progress" AutomationProperties.LiveSetting="Polite">
+                        <StackPanel.Transitions>
+                            <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
+                        </StackPanel.Transitions>
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Border Width="44" Height="44" Background="{ThemeResource SurfaceSelected}" CornerRadius="22">
+                                <FontIcon Glyph="&#xE895;" FontSize="20" Foreground="{ThemeResource AccentPrimary}" />
+                            </Border>
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <TextBlock Text="Analysis in progress" Style="{StaticResource SectionTitleStyle}"
+                                           AutomationProperties.HeadingLevel="Level2" />
+                                <TextBlock x:Name="RunningSummaryText" Style="{StaticResource BodySecondaryStyle}" />
                             </StackPanel>
                         </Grid>
-                        <StackPanel x:Name="FirstRunActions" Orientation="Horizontal" Spacing="12">
-                            <Button Content="Run Quick Analysis" Click="RunQuick" Style="{StaticResource PrimaryActionStyle}"
-                                    AutomationProperties.Name="Run recommended Quick Analysis" />
-                            <Button Content="Choose Deep Analysis" Click="RunDeep" Style="{StaticResource QuietButtonStyle}" />
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Button Content="View progress" Click="ViewScanProgress" Style="{StaticResource SecondaryActionStyle}" />
+                            <Button x:Name="ViewCurrentInsightsFromOverview" Content="View current insights" Click="ViewCurrentInsights"
+                                    Style="{StaticResource QuietButtonStyle}" IsEnabled="False" />
                         </StackPanel>
                     </StackPanel>
                     <StackPanel x:Name="ResultActionPanel" Spacing="12" Visibility="Collapsed"

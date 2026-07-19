@@ -71,71 +71,13 @@
                             </Grid>
                         </StackPanel>
                     </Border>
-                    <StackPanel x:Name="ModeSection" Spacing="10">
-                        <StackPanel Spacing="3">
-                            <TextBlock Text="Choose analysis depth" Style="{StaticResource SectionTitleStyle}"
-                                       AutomationProperties.HeadingLevel="Level2" />
-                            <TextBlock Text="Compare the two read-only approaches, then choose the one that fits this run."
-                                       Style="{StaticResource BodyMutedStyle}" />
-                        </StackPanel>
-                        <Grid x:Name="ModeCards" ColumnSpacing="20" RowSpacing="12">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                            <ToggleButton x:Name="QuickCard" Click="QuickSelected" Style="{StaticResource AnalysisModeCardStyle}"
-                                          AutomationProperties.Name="Quick Analysis mode card"
-                                          AutomationProperties.AutomationId="QuickAnalysisMode">
-                                <StackPanel Spacing="9">
-                                    <Grid ColumnSpacing="12">
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                        <FontIcon Glyph="&#xE945;" FontSize="22" Foreground="{ThemeResource AccentPrimary}" />
-                                        <StackPanel Grid.Column="1" Spacing="4">
-                                            <TextBlock Text="Quick Analysis" Style="{StaticResource CardTitleStyle}" />
-                                            <Border Style="{StaticResource PrivacyBadgeStyle}" HorizontalAlignment="Left">
-                                                <TextBlock Text="Recommended" Style="{StaticResource CaptionStyle}" />
-                                            </Border>
-                                        </StackPanel>
-                                    </Grid>
-                                    <TextBlock Text="A fast first look at the largest and most useful storage areas."
-                                               Style="{StaticResource BodySecondaryStyle}" />
-                                    <StackPanel Spacing="3">
-                                        <TextBlock Text="Bounded scan that usually finishes quickly" Style="{StaticResource CaptionStyle}" />
-                                        <TextBlock Text="Resumable when a supported checkpoint remains" Style="{StaticResource CaptionStyle}" />
-                                        <TextBlock Text="May not account for the entire drive" Style="{StaticResource CaptionStyle}" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </ToggleButton>
-                            <ToggleButton x:Name="DeepCard" Grid.Column="1" Click="DeepSelected"
-                                          Style="{StaticResource AnalysisModeCardStyle}"
-                                          AutomationProperties.Name="Deep Analysis mode card"
-                                          AutomationProperties.AutomationId="DeepAnalysisMode">
-                                <StackPanel Spacing="9">
-                                    <Grid ColumnSpacing="12">
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                        <FontIcon Glyph="&#xE8B1;" FontSize="22" Foreground="{ThemeResource Information}" />
-                                        <StackPanel Grid.Column="1" Spacing="4">
-                                            <TextBlock Text="Deep Analysis" Style="{StaticResource CardTitleStyle}" />
-                                            <Border Style="{StaticResource StatusBadgeStyle}" HorizontalAlignment="Left">
-                                                <TextBlock Text="Most complete" Style="{StaticResource CaptionStyle}" />
-                                            </Border>
-                                        </StackPanel>
-                                    </Grid>
-                                    <TextBlock Text="Examines every folder CLYR can safely access for a more complete result."
-                                               Style="{StaticResource BodySecondaryStyle}" />
-                                    <StackPanel Spacing="3">
-                                        <TextBlock Text="Recursively scans accessible folders" Style="{StaticResource CaptionStyle}" />
-                                        <TextBlock Text="Can take several minutes" Style="{StaticResource CaptionStyle}" />
-                                        <TextBlock Text="Restricted areas may remain unobserved" Style="{StaticResource CaptionStyle}" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </ToggleButton>
-                        </Grid>
-                    </StackPanel>
                     <StackPanel x:Name="IdleActionPanel" Spacing="8">
-                        <TextBlock x:Name="ModeHelperText" Text="Choose Quick or Deep Analysis to continue."
-                                   Style="{StaticResource BodyMutedStyle}" AutomationProperties.LiveSetting="Polite" />
-                        <Button x:Name="StartButton" Content="Run Quick Analysis" Style="{StaticResource PrimaryActionStyle}"
-                                Click="StartAnalysis" HorizontalAlignment="Left" Visibility="Collapsed"
-                                AutomationProperties.HelpText="Starts the selected private read-only analysis." />
+                        <Button x:Name="StartButton" Content="Analyze drive" Style="{StaticResource PrimaryActionStyle}"
+                                Click="StartAnalysis" HorizontalAlignment="Left"
+                                AutomationProperties.Name="Analyze drive"
+                                AutomationProperties.HelpText="Begins a private, read-only analysis of the selected drive." />
+                        <TextBlock Text="CLYR begins showing useful storage insights early and continues toward a complete drive analysis."
+                                   Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
                         <StackPanel x:Name="SafetyNote" Orientation="Horizontal" Spacing="8">
                             <FontIcon Glyph="&#xE72E;" FontSize="14" Foreground="{ThemeResource PrivacySafe}" />
                             <TextBlock Text="Reads file and folder metadata only. No files are changed."
@@ -201,10 +143,25 @@
                                            AutomationProperties.Name="Privacy-safe current scan location" />
                             </Grid>
                         </Border>
-                        <Button x:Name="CancelButton" Content="Cancel Analysis" Click="CancelAnalysis"
-                                Style="{StaticResource SecondaryActionStyle}" HorizontalAlignment="Left"
-                                AutomationProperties.Name="Cancel Analysis"
-                                AutomationProperties.HelpText="Stops the active analysis safely after the current metadata operation." />
+                        <Border x:Name="EarlyInsightsPanel" Style="{StaticResource InfoBannerStyle}" Visibility="Collapsed"
+                                AutomationProperties.Name="Early insights ready" AutomationProperties.LiveSetting="Polite">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Early insights are ready" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock x:Name="EarlyInsightsSummary" Style="{StaticResource BodySecondaryStyle}" TextWrapping="Wrap" />
+                                <TextBlock Text="These values are provisional and may change while the analysis continues."
+                                           Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                        <StackPanel x:Name="RunningActions" Orientation="Horizontal" Spacing="12">
+                            <Button x:Name="ViewCurrentInsightsButton" Content="View current insights" Click="ViewCurrentInsights"
+                                    Style="{StaticResource SecondaryActionStyle}" IsEnabled="False"
+                                    AutomationProperties.Name="View current insights"
+                                    AutomationProperties.HelpText="Shows the provisional results gathered so far while the analysis keeps running." />
+                            <Button x:Name="StopButton" Content="Stop analysis" Click="StopAnalysis"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    AutomationProperties.Name="Stop analysis"
+                                    AutomationProperties.HelpText="Stops the active analysis safely after the current metadata operation." />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
                 <StackPanel x:Name="TerminalPanel" Spacing="20" Visibility="Collapsed"
@@ -288,21 +245,12 @@
                                        Style="{StaticResource BodyMutedStyle}" />
                         </StackPanel>
                     </Grid>
-                    <Border x:Name="ContinuationPanel" Style="{StaticResource InfoBannerStyle}" Visibility="Collapsed"
-                            AutomationProperties.Name="Quick Analysis continuation available">
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Quick Analysis completed its current pass." Style="{StaticResource CardTitleStyle}" />
-                            <TextBlock x:Name="ContinuationReason" Style="{StaticResource BodySecondaryStyle}" />
-                        </StackPanel>
-                    </Border>
                     <StackPanel x:Name="TerminalActions" Orientation="Horizontal" Spacing="12">
                         <Button x:Name="ResultsButton" Content="View Results" Click="ViewResults"
                                 Style="{StaticResource PrimaryActionStyle}" AutomationProperties.Name="View Results" />
-                        <Button x:Name="ContinueQuickButton" Content="Continue Quick Analysis" Click="ContinueQuickAnalysis"
-                                Style="{StaticResource SecondaryActionStyle}" Visibility="Collapsed" />
-                        <Button x:Name="RunAgainButton" Content="Run Again" Click="RunAgain"
+                        <Button x:Name="RunAgainButton" Content="Run again" Click="RunAgain"
                                 Style="{StaticResource SecondaryActionStyle}" />
-                        <Button x:Name="ChangeSetupButton" Content="Change drive or mode" Click="ChangeSetup"
+                        <Button x:Name="ChangeSetupButton" Content="Change drive" Click="ChangeSetup"
                                 Style="{StaticResource QuietButtonStyle}" />
                     </StackPanel>
                 </StackPanel>

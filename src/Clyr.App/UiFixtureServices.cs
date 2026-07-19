@@ -89,16 +89,42 @@ internal sealed class UiFixtureScanService : IScanService
     public async Task<ScanResult> ScanAsync(ScanRequest request, IProgress<ScanProgress>? progress, CancellationToken cancellationToken)
     {
         var started = DateTimeOffset.UtcNow;
+        var scanId = Guid.NewGuid();
         for (var index = 1; index <= 8; index++)
         {
             await Task.Delay(120, CancellationToken.None);
-            if (cancellationToken.IsCancellationRequested) return Result(ScanStatus.Cancelled, index * 400, started);
+            if (cancellationToken.IsCancellationRequested) return Result(ScanStatus.Cancelled, index * 400, started, scanId);
             progress?.Report(new(ScanStatus.Scanning, DateTimeOffset.UtcNow - started, index * 400, index * 75,
                 index * 450_000_000L, index / 3, "C:\\<redacted>", "Observing file metadata locally."));
+            // Deterministic UI-fixture coverage for the progressive-analysis states (section 25): "running before
+            // insights" for the first two ticks, "running with early insights" from tick 3 onward, once enough
+            // synthetic aggregate data exists to be worth showing — never real UAC, never a real scan.
+            if (request.ProgressiveProgress is { } reporter)
+            {
+                var stage = index <= 2 ? ScanStage.DiscoveringMajorStorageAreas
+                    : index >= 7 ? ScanStage.Finalizing : ScanStage.InspectingFilesAndFolders;
+                var earlyInsightsReady = index >= 3;
+                var contributors = earlyInsightsReady
+                    ? new CategorySummary[]
+                    {
+                        new(StorageCategory.WindowsSystemManaged, index * 160_000_000L, index * 70, MeasurementPrecision.Estimated, FindingStatus.Protected),
+                        new(StorageCategory.UserMedia, index * 90_000_000L, index * 50, MeasurementPrecision.Estimated, FindingStatus.Review),
+                    }
+                    : [];
+                var topDirectories = earlyInsightsReady
+                    ? new RankedPath[] { new("C:\\<redacted>\\Users", index * 140_000_000L, index * 120, MeasurementPrecision.Estimated) }
+                    : [];
+                var topFiles = earlyInsightsReady
+                    ? new RankedPath[] { new("C:\\<redacted>\\Media\\large-file.bin", index * 90_000_000L, 1, MeasurementPrecision.Estimated) }
+                    : [];
+                reporter.Report(new(scanId, "C:\\", DateTimeOffset.UtcNow - started, index * 400, index * 75, index * 450_000_000L,
+                    320L * 1024 * 1024 * 1024, Math.Min(99.9, index * 12.5), index / 4, index / 5,
+                    contributors, topDirectories, topFiles, stage, earlyInsightsReady));
+            }
         }
-        return Result(ScanStatus.CompletedWithWarnings, 3_200, started);
+        return Result(ScanStatus.CompletedWithWarnings, 3_200, started, scanId);
 
-        ScanResult Result(ScanStatus status, long files, DateTimeOffset began)
+        ScanResult Result(ScanStatus status, long files, DateTimeOffset began, Guid id)
         {
             var categories = new CategorySummary[]
             {
@@ -110,7 +136,7 @@ internal sealed class UiFixtureScanService : IScanService
             var pack = new RulePackSummary("clyr.builtin", "1.0.0", "fixture-digest", RulePackTrust.BuiltIn, true, true, 36, "verified", "Verified", "fixture", "MIT");
             var classification = new ClassificationResult(categories, [new("fixture", "developer.npm.cache", "1.0.0", "clyr.builtin", "1.0.0", "fixture-digest", "Developer package cache", StorageCategory.DeveloperCache, ["developer"], FindingConfidence.High, FindingStatus.Informational, 600_000_000, 900, MeasurementPrecision.Estimated, new("Caches downloaded packages.", "This aggregate can grow as tools download packages.", "Report only. No files are changed.", "Fixture metadata evidence.", ["Fixture-backed UI verification data."]))], new(files - 1_100, 3_100_000_000, 1_100, 500_000_000, 2, 4, 20_000_000_000), pack, "Most observed storage is Windows-managed or user media.", ["Logical sizes are estimates."]);
             var coverage = new ScanCoverage(files, 600, 2, 1, 0, 0, 1, false, false, false);
-            return new(Guid.NewGuid(), status, request.Mode, "C:\\", "NTFS", began, DateTimeOffset.UtcNow, 3_600_000_000,
+            return new(id, status, request.Mode, "C:\\", "NTFS", began, DateTimeOffset.UtcNow, 3_600_000_000,
                 320L * 1024 * 1024 * 1024, 20_000_000_000, MeasurementPrecision.Estimated, "Logical metadata only; no file contents were read.", coverage,
                 [new("C:\\<redacted>\\Users", 1_400_000_000, 1_200, MeasurementPrecision.Estimated), new("C:\\<redacted>\\Windows", 1_300_000_000, 900, MeasurementPrecision.Estimated)],
                 [new("C:\\<redacted>\\Media", 900_000_000, 500, MeasurementPrecision.Estimated)], [], [],

@@ -65,10 +65,47 @@ public sealed record AllocationAccounting(
 
 public sealed record DriveSummary(string Root, string Label, string FileSystem, DriveKind Kind, bool IsReady,
     bool IsSystemVolume, bool IsSupported, string SupportReason, long? CapacityBytes, long? UsedBytes, long? FreeBytes);
-public sealed record ScanRequest(string Root, ScanMode Mode, int? TopCount = null, bool ContinueFromCheckpoint = false);
+
+/// <summary>
+/// <see cref="ProgressiveProgress"/> is an additive, optional second progress channel — entirely separate from
+/// <see cref="ScanProgress"/>, which stays scalar-only so its existing shape, JSON export, and tests are
+/// untouched. It carries a coarser-cadence <see cref="ProgressiveScanSnapshot"/> so a caller (the WinUI "Analyze
+/// drive" experience) can surface useful early insights while a scan keeps running, without waiting for the
+/// final <see cref="ScanResult"/>. Every existing caller that constructs a <see cref="ScanRequest"/> positionally
+/// through <see cref="ContinueFromCheckpoint"/> is unaffected — this is a new optional trailing parameter.
+/// </summary>
+public sealed record ScanRequest(string Root, ScanMode Mode, int? TopCount = null, bool ContinueFromCheckpoint = false,
+    IProgress<ProgressiveScanSnapshot>? ProgressiveProgress = null);
 public sealed record ScanProgress(ScanStatus Status, TimeSpan Elapsed, long FilesObserved, long DirectoriesObserved,
     long LogicalBytesObserved, long SkippedEntries, string CurrentPath, string Message,
     long InaccessibleEntries = 0, long ReparsePointsSkipped = 0, long WarningCount = 0);
+
+/// <summary>
+/// A truthful scan stage derived only from real traversal state — never a fake percentage milestone and never
+/// "complete" merely because a timer elapsed. <see cref="DiscoveringMajorStorageAreas"/> means not even one
+/// top-level area has finished being measured yet; <see cref="InspectingFilesAndFolders"/> is the main,
+/// longest-running stage once real data starts arriving. Classification in this engine (see
+/// <c>Clyr.Core.IClassificationSession</c>) is fully incremental — matched against every file as it is
+/// observed — not a distinct batch phase, so there is no honest separate "building storage accounting" stage to
+/// report mid-scan; that work happens, briefly, during <see cref="Finalizing"/>.
+/// </summary>
+public enum ScanStage { Preparing, DiscoveringMajorStorageAreas, InspectingFilesAndFolders, Finalizing }
+
+/// <summary>
+/// A bounded, immutable, in-memory-only snapshot of a scan's provisional progress — never persisted, never
+/// substituted for a completed <see cref="ScanResult"/>, and never accepted by Review Plan or Administrator
+/// Retry. Every collection here is already bounded by the same caps the final <see cref="ScanResult"/> uses
+/// (<c>BoundedRanking</c>'s fixed capacity, the classification session's own rule-count-bounded category list) —
+/// this type never carries a full file or directory inventory. <see cref="EarlyInsightsReady"/> becomes true once
+/// enough real aggregate data exists to be worth showing; every numeric value remains provisional until a
+/// terminal <see cref="ScanResult"/> replaces it.
+/// </summary>
+public sealed record ProgressiveScanSnapshot(
+    Guid ScanId, string Root, TimeSpan Elapsed, long FilesObserved, long DirectoriesObserved,
+    long LogicalBytesObserved, long? DriveUsedBytes, double? ProvisionalCoveragePercentage,
+    long WarningCount, long LimitationCount,
+    IReadOnlyList<CategorySummary> TopContributors, IReadOnlyList<RankedPath> TopDirectories, IReadOnlyList<RankedPath> TopFiles,
+    ScanStage Stage, bool EarlyInsightsReady);
 public sealed record RankedPath(string DisplayPath, long LogicalBytes, long FileCount, MeasurementPrecision Precision);
 public sealed record ExtensionSummary(ExtensionFamily Family, long LogicalBytes, long FileCount);
 public sealed record ScanIssueSummary(ScanIssueKind Kind, string Code, long Count, string SafeDetail, ScanIssueSeverity Severity = ScanIssueSeverity.AccessWarning);

@@ -38,16 +38,22 @@ public sealed class OverviewDesignTests
     {
         foreach (var required in new[]
         {
-            "No analysis yet", "Run Quick Analysis", "Choose Deep Analysis",
-            "A fast first look at the largest and most useful storage areas.",
-            "A more complete scan that can take several minutes.",
+            "No analysis yet", "Analyze drive",
             "View latest results", "Run another analysis", "Review potential actions"
         })
             Assert.Contains(required, Page, StringComparison.Ordinal);
-        Assert.Contains("Run Quick Analysis" + Q + " Click=" + Q + "RunQuick" + Q + " Style=" + Q + "{StaticResource PrimaryActionStyle}", Page, StringComparison.Ordinal);
-        Assert.Contains("Choose Deep Analysis" + Q + " Click=" + Q + "RunDeep" + Q + " Style=" + Q + "{StaticResource QuietButtonStyle}", Page, StringComparison.Ordinal);
+        Assert.Contains("Analyze drive" + Q + " Click=" + Q + "AnalyzeDrive" + Q + " Style=" + Q + "{StaticResource PrimaryActionStyle}", Page, StringComparison.Ordinal);
         Assert.DoesNotContain("controls:EmptyState", Page, StringComparison.Ordinal);
-        Assert.DoesNotContain("Overview Quick Analysis card", Page, StringComparison.Ordinal);
+        foreach (var forbidden in new[] { "Run Quick Analysis", "Choose Deep Analysis", "Quick Analysis", "Deep Analysis", "Overview Quick Analysis card" })
+            Assert.DoesNotContain(forbidden, Page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RunningStateShowsProgressAndCurrentInsightsWhenAvailable()
+    {
+        foreach (var required in new[] { "Analysis in progress", "RunningPanel", "ViewScanProgress", "ViewCurrentInsights", "RunningSummaryText" })
+            Assert.Contains(required, Page + Code, StringComparison.Ordinal);
+        Assert.Contains("RunningPanel.Visibility = scanning", Code, StringComparison.Ordinal);
     }
 
     [Fact]

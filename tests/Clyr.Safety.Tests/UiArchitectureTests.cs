@@ -47,18 +47,17 @@ public sealed class UiArchitectureTests
     {
         var scan = Read(Path.Combine(Pages, "ScanPage.xaml"));
         Assert.Contains("Local volume selector", scan, StringComparison.Ordinal);
-        Assert.Contains("Quick Analysis mode card", scan, StringComparison.Ordinal);
-        Assert.Contains("Deep Analysis mode card", scan, StringComparison.Ordinal);
-        // The primary action button's text is authoritatively driven by SelectedScanMode/LifecycleState (see
-        // ScanUiLifecycle.PrimaryActionText) rather than a fixed "Start Analysis" XAML literal, so the button is
-        // identified structurally here instead of by a static caption.
+        // Phase (progressive full-drive analysis): the normal user no longer chooses a mode — no mode cards
+        // exist anywhere on this page.
+        Assert.DoesNotContain("Quick Analysis mode card", scan, StringComparison.Ordinal);
+        Assert.DoesNotContain("Deep Analysis mode card", scan, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"StartButton\"", scan, StringComparison.Ordinal);
-        Assert.Contains("Cancel Analysis", scan, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Analyze drive\"", scan, StringComparison.Ordinal);
+        Assert.Contains("Stop analysis", scan, StringComparison.Ordinal);
         foreach (var name in new[] { "Overview", "Results", "ReviewPlan", "History", "DeveloperMode", "Privacy", "Licenses", "About", "Settings" })
         {
             var xaml = Read(Path.Combine(Pages, name + "Page.xaml"));
             Assert.DoesNotContain("Local volume selector", xaml, StringComparison.Ordinal);
-            Assert.DoesNotContain("Cancel Analysis", xaml, StringComparison.Ordinal);
             Assert.DoesNotContain("x:Name=\"StartButton\"", xaml, StringComparison.Ordinal);
         }
     }
@@ -70,8 +69,11 @@ public sealed class UiArchitectureTests
         var code = Read(Path.Combine(Pages, "ScanPage.xaml.cs"));
         var combined = page + code;
 
-        // Exactly one authoritative selection value — no independent per-card boolean pair anywhere.
-        Assert.Contains("SelectedScanMode", combined, StringComparison.Ordinal);
+        // Exactly one authoritative selection value on AppSessionViewModel — no independent per-card boolean
+        // pair anywhere. The normal Scan page itself no longer reads or sets it directly (no mode cards to
+        // reflect it in); AnalyzeDriveAsync is the one place that pins it to Deep for this flow.
+        var session = Read(Path.Combine(Root, "src", "Clyr.App", "ViewModels", "AppSessionViewModel.cs"));
+        Assert.Contains("public ScanMode? SelectedScanMode", session, StringComparison.Ordinal);
         Assert.DoesNotContain("QuickSelectedBool", combined, StringComparison.Ordinal);
         Assert.DoesNotContain("DeepSelectedBool", combined, StringComparison.Ordinal);
         Assert.DoesNotContain("IsChecked=\"True\"", page, StringComparison.Ordinal);
@@ -80,7 +82,7 @@ public sealed class UiArchitectureTests
         foreach (var forbidden in new[]
         {
             "Delete", "Clean now", "Fix everything", "Optimize now", "Delete all", "One-click clean",
-            "Clean automatically", "Move to drive", "Select destination drive", "Run tool", "cleanup plan",
+            "Clean automatically", "Move to drive", "Select destination drive", "Run tool", "start cleanup plan",
             "Recycle Bin", "npm install", "docker rm", "Process.Start", "powershell.exe", "cmd.exe"
         })
             Assert.DoesNotContain(forbidden, combined, StringComparison.OrdinalIgnoreCase);

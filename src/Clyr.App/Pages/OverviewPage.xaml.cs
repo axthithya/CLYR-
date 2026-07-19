@@ -56,13 +56,17 @@ public sealed partial class OverviewPage : Page
     {
         var drive = ViewModel.Session.Drives.FirstOrDefault(item => item.IsSystemVolume) ?? ViewModel.Session.SelectedDrive;
         var result = ViewModel.Session.Result;
+        var scanning = ViewModel.Session.IsScanning;
         RenderDrive(drive, result);
         RenderRecentActivity();
 
         var hasResult = result is not null;
-        FirstRunPanel.Visibility = hasResult ? Visibility.Collapsed : Visibility.Visible;
-        ResultActionPanel.Visibility = hasResult ? Visibility.Visible : Visibility.Collapsed;
-        LatestAnalysisSection.Visibility = hasResult ? Visibility.Visible : Visibility.Collapsed;
+        FirstRunPanel.Visibility = !scanning && !hasResult ? Visibility.Visible : Visibility.Collapsed;
+        RunningPanel.Visibility = scanning ? Visibility.Visible : Visibility.Collapsed;
+        ResultActionPanel.Visibility = !scanning && hasResult ? Visibility.Visible : Visibility.Collapsed;
+        LatestAnalysisSection.Visibility = !scanning && hasResult ? Visibility.Visible : Visibility.Collapsed;
+
+        if (scanning) RenderRunning();
 
         if (result is null)
         {
@@ -80,6 +84,18 @@ public sealed partial class OverviewPage : Page
         Reflow(PageHost.LayoutMode);
     }
 
+    private void RenderRunning()
+    {
+        var progress = ViewModel.Session.Progress;
+        var snapshot = ViewModel.Session.ProvisionalSnapshot;
+        var elapsed = progress?.Elapsed.ToString(@"mm\:ss", System.Globalization.CultureInfo.InvariantCulture) ?? "00:00";
+        var drive = ViewModel.Session.SelectedDrive;
+        var driveText = drive is null ? "the selected drive" : drive.Root.TrimEnd('\\');
+        var coverageText = snapshot?.ProvisionalCoveragePercentage is { } coverage ? $"{coverage:F1}% provisional coverage" : "gathering insights";
+        RunningSummaryText.Text = $"Analyzing {driveText} - elapsed {elapsed} - {coverageText}.";
+        ViewCurrentInsightsFromOverview.IsEnabled = snapshot?.EarlyInsightsReady ?? false;
+    }
+
     private void RenderDrive(DriveSummary? drive, ScanResult? result)
     {
         var label = drive is null || string.IsNullOrWhiteSpace(drive.Label) ? "System drive" : drive.Label.Trim();
@@ -87,7 +103,7 @@ public sealed partial class OverviewPage : Page
         DriveIdentity.Text = drive is null ? "System drive unavailable" : $"{label} ({root})";
         DriveLatestState.Text = result is null
             ? "No analysis has been completed for this session."
-            : $"Latest: {result.Mode} Analysis - {Friendly(result.Status)}";
+            : $"Latest: Drive Analysis - {Friendly(result.Status)}";
 
         var percentage = drive?.CapacityBytes is > 0 && drive.UsedBytes is { } used
             ? Math.Clamp(used * 100d / drive.CapacityBytes.Value, 0, 100)
@@ -120,7 +136,7 @@ public sealed partial class OverviewPage : Page
     {
         var accounting = ScanAccounting.Summarize(result);
         var duration = result.EndedAt >= result.StartedAt ? result.EndedAt - result.StartedAt : TimeSpan.Zero;
-        LatestIdentity.Text = $"{result.Mode} Analysis - completed {result.EndedAt.LocalDateTime:g} - {FormatDuration(duration)}";
+        LatestIdentity.Text = $"Drive Analysis - completed {result.EndedAt.LocalDateTime:g} - {FormatDuration(duration)}";
         LatestQuality.Text = accounting.Quality switch
         {
             ScanQuality.Excellent => "Excellent coverage",
@@ -208,7 +224,6 @@ public sealed partial class OverviewPage : Page
         Position(DriveTotalMetric, narrow ? 0 : 2, narrow ? 1 : 0);
         Position(DriveReadyMetric, narrow ? 1 : 3, narrow ? 1 : 0);
 
-        Position(DeepAnalysisDescription, narrow ? 0 : 1, narrow ? 1 : 0);
         FirstRunActions.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal;
         ResultActions.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal;
 
@@ -233,17 +248,9 @@ public sealed partial class OverviewPage : Page
         Grid.SetRow(element, row);
     }
 
-    private void RunQuick(object sender, RoutedEventArgs args)
-    {
-        ViewModel.Session.SelectedScanMode = ScanMode.Quick;
-        ViewModel.Navigate("Scan");
-    }
-
-    private void RunDeep(object sender, RoutedEventArgs args)
-    {
-        ViewModel.Session.SelectedScanMode = ScanMode.Deep;
-        ViewModel.Navigate("Scan");
-    }
+    private void AnalyzeDrive(object sender, RoutedEventArgs args) => ViewModel.Navigate("Scan");
+    private void ViewScanProgress(object sender, RoutedEventArgs args) => ViewModel.Navigate("Scan");
+    private void ViewCurrentInsights(object sender, RoutedEventArgs args) => ViewModel.Navigate("Results");
 
     private void ViewResults(object sender, RoutedEventArgs args) => ViewModel.Navigate("Results");
     private void ViewHistory(object sender, RoutedEventArgs args) => ViewModel.Navigate("History");

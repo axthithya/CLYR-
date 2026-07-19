@@ -95,6 +95,11 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
         // the same order of magnitude as the scan itself, not an independent unbounded growth.
         var seenFileIdentities = new HashSet<ulong>();
         var lastProgress = DateTimeOffset.MinValue;
+        var lastProgressiveSnapshot = DateTimeOffset.MinValue;
+        var stage = ScanStage.Preparing;
+        // Generated here (not inside Finish) so a caller's ProgressiveScanSnapshot.ScanId can correlate with the
+        // eventual final ScanResult.ScanId while the scan is still running — the same random identity either way.
+        var scanId = Guid.NewGuid();
         var policyBoundaryHit = false;
         // Phase 7.2.6G2: bounded per-top-level-root accounting, Deep Analysis only (see RunDeep). Never one
         // record per directory — only the same depth-1 roots already ranked in TopLevelDirectories, capped at
@@ -346,11 +351,42 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
         void ReportProgress(string currentPath)
         {
             var now = clock.UtcNow;
+            if (stage == ScanStage.Preparing) stage = ScanStage.DiscoveringMajorStorageAreas;
+            // Truthful, not time-based: once at least one top-level area has actually finished being measured,
+            // this is genuinely no longer "discovering what the major areas even are."
+            if (stage == ScanStage.DiscoveringMajorStorageAreas && topLevel.Items.Count > 0) stage = ScanStage.InspectingFilesAndFolders;
             if (now - lastProgress < TimeSpan.FromMilliseconds(250)) return;
             lastProgress = now;
             progress?.Report(new(ScanStatus.Scanning, now - started, files, directories, bytes,
                 inaccessible + reparse + changed + skipped, RedactPath(currentPath), "Observing filesystem metadata.",
                 inaccessible, reparse, WarningCount()));
+            ReportProgressiveSnapshot(now);
+        }
+
+        // Section 5 (performance): gated entirely behind request.ProgressiveProgress — zero cost for every
+        // existing caller (CLI, tests, the fixture service) that never supplies one. Throttled separately, and
+        // more coarsely (~750ms), than the scalar ScanProgress channel above, since building this snapshot does
+        // real (if bounded) work: projecting the classification session's already-accumulated counters via
+        // Complete(...), which is a non-mutating, rule-count-bounded read — never proportional to file count —
+        // safe to call repeatedly at this cadence (see IClassificationSession.Complete's own documentation).
+        void ReportProgressiveSnapshot(DateTimeOffset now)
+        {
+            if (request.ProgressiveProgress is not { } progressiveProgress) return;
+            if (now - lastProgressiveSnapshot < TimeSpan.FromMilliseconds(750)) return;
+            lastProgressiveSnapshot = now;
+            var provisionalCoverage = new ScanCoverage(files, directories, inaccessible, reparse, cloud, changed, skipped, false, false, false);
+            var provisionalUnaccounted = drive.UsedBytes.HasValue ? drive.UsedBytes.Value - bytes : (long?)null;
+            var provisionalClassification = classification?.Complete(provisionalCoverage, provisionalUnaccounted);
+            // Mirrors ScanAccounting's own rule: a percentage is suppressed, never clamped to a reassuring 100%,
+            // when observed bytes already exceed the drive's used-bytes basis (hard links, sparse files, or a
+            // basis difference measured mid-scan).
+            double? coveragePercentage = drive.UsedBytes is { } used && used > 0 && bytes <= used ? bytes * 100d / used : null;
+            var limitationCount = issues.Values.Where(x => x.Severity == ScanIssueSeverity.PolicyBoundary).Sum(x => x.Count);
+            var contributors = provisionalClassification?.Categories ?? [];
+            var earlyInsightsReady = topLevel.Items.Count > 0 || contributors.Count > 0 || topFiles.Items.Count > 0;
+            progressiveProgress.Report(new(scanId, root, now - started, files, directories, bytes, drive.UsedBytes,
+                coveragePercentage, WarningCount(), limitationCount, contributors, topDirectories.Items, topFiles.Items,
+                stage, earlyInsightsReady));
         }
 
         DirectoryFrame Open(string path, int depth, DirectoryFrame? parent)
@@ -413,6 +449,12 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
             ? ScanStatus.Completed : ScanStatus.CompletedWithWarnings;
         ScanResult Finish(ScanStatus status, string? failureCode = null, string? failureMessage = null)
         {
+            // A real, brief, final phase — the same accounting/classification aggregation this method performs
+            // below is what "Finalizing" describes. Forces one last progressive snapshot regardless of the
+            // coarser throttle above, so a caller watching the stage never misses it entirely.
+            stage = ScanStage.Finalizing;
+            lastProgressiveSnapshot = DateTimeOffset.MinValue;
+            ReportProgressiveSnapshot(clock.UtcNow);
             var ended = clock.UtcNow;
             var observed = Math.Max(0, bytes);
             // Never silently clamped to zero (Phase 7.2.5): observed logical bytes can legitimately exceed the
@@ -436,7 +478,7 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
             var allocation = new AllocationAccounting(allocatedBytes, uniqueAllocatedBytes, filesWithUnavailableAllocatedSize,
                 sparseFiles, compressedFiles, visibleHardLinkEntries, seenFileIdentities.Count, allocationConsistency);
 
-            var result = new ScanResult(Guid.NewGuid(), status, request.Mode, root, drive.FileSystem, started, ended, observed,
+            var result = new ScanResult(scanId, status, request.Mode, root, drive.FileSystem, started, ended, observed,
                 drive.UsedBytes, unaccounted, MeasurementPrecision.Estimated,
                 "Logical metadata bytes (namespace size); see Allocation for real on-disk consumption. Hard-linked " +
                 "content is de-duplicated in unique allocated bytes but still counted once per visible path in logical bytes.",
