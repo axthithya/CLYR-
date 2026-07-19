@@ -51,6 +51,37 @@ public sealed class SqliteSnapshotStore : ISnapshotStore
         catch (SqliteException exception) { throw Translate(exception); }
     }
 
+    /// <summary>Updates the existing row for <paramref name="snapshot"/>.ScanId in place — same stored Id, same
+    /// original CapturedAtUtc — replacing its aggregate figures and child category/finding/warning rows with the
+    /// enriched values. Never inserts a second row for the same ScanId (see <see cref="SaveAsync"/>'s own
+    /// ScanId-uniqueness guard), and never touches any other snapshot's record.</summary>
+    public async Task<SnapshotSaveResult> UpdateAsync(StorageSnapshot snapshot, CancellationToken cancellationToken = default)
+    {
+        if (snapshot.State is not (SnapshotState.Complete or SnapshotState.Partial or SnapshotState.Cancelled))
+            return new(false, null, "snapshot.state-ineligible", "Failed or transient snapshots are not persisted.");
+        try
+        {
+            await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            var existingId = await ExistingIdAsync(connection, transaction, snapshot.ScanId, cancellationToken).ConfigureAwait(false);
+            if (existingId is not { } id)
+            { await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false); return new(false, null, "snapshot.not-found", "No existing analysis was found to update."); }
+            await UpdateRowAsync(connection, transaction, id, snapshot, cancellationToken).ConfigureAwait(false);
+            await DeleteChildrenAsync(connection, transaction, id, cancellationToken).ConfigureAwait(false);
+            foreach (var item in snapshot.Categories)
+                await ChildAsync(connection, transaction, "INSERT INTO SnapshotCategory VALUES($id,$a,$b,$c,$d,$e);", id, cancellationToken,
+                    item.Category, item.LogicalBytes, item.FileCount, item.Precision, item.Status).ConfigureAwait(false);
+            foreach (var item in snapshot.Findings)
+                await ChildAsync(connection, transaction, "INSERT INTO SnapshotFinding VALUES($id,$a,$b,$c,$d,$e,$f,$g);", id, cancellationToken,
+                    item.RuleId, item.RuleVersion, item.Category, item.Confidence, item.Status, item.LogicalBytes, item.FileCount).ConfigureAwait(false);
+            for (var index = 0; index < snapshot.Warnings.Count; index++)
+                await ChildAsync(connection, transaction, "INSERT INTO SnapshotWarning VALUES($id,$a,$b);", id, cancellationToken, index, snapshot.Warnings[index]).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return new(true, id, "snapshot.updated", "Aggregate snapshot updated locally.");
+        }
+        catch (SqliteException exception) { throw Translate(exception); }
+    }
+
     public async Task<IReadOnlyList<SnapshotSummary>> ListAsync(int limit = 100, CancellationToken cancellationToken = default)
     {
         if (limit is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(limit));
@@ -103,6 +134,33 @@ public sealed class SqliteSnapshotStore : ISnapshotStore
     { SqliteRuntime.Initialize(); var c = new SqliteConnection(connectionString); await c.OpenAsync(token).ConfigureAwait(false); await using var cmd = c.CreateCommand(); cmd.CommandText = "PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;"; await cmd.ExecuteNonQueryAsync(token).ConfigureAwait(false); return c; }
     private static async Task<bool> ExistsAsync(SqliteConnection c, System.Data.Common.DbTransaction t, Guid scan, CancellationToken token)
     { await using var cmd = c.CreateCommand(); cmd.Transaction = (SqliteTransaction)t; cmd.CommandText = "SELECT EXISTS(SELECT 1 FROM Snapshot WHERE ScanId=$id);"; Add(cmd, "$id", scan.ToString("D")); return Convert.ToInt32(await cmd.ExecuteScalarAsync(token).ConfigureAwait(false), CultureInfo.InvariantCulture) != 0; }
+    private static async Task<Guid?> ExistingIdAsync(SqliteConnection c, System.Data.Common.DbTransaction t, Guid scan, CancellationToken token)
+    { await using var cmd = c.CreateCommand(); cmd.Transaction = (SqliteTransaction)t; cmd.CommandText = "SELECT Id FROM Snapshot WHERE ScanId=$id;"; Add(cmd, "$id", scan.ToString("D")); var result = await cmd.ExecuteScalarAsync(token).ConfigureAwait(false); return result is string text ? Guid.Parse(text) : null; }
+    private static async Task DeleteChildrenAsync(SqliteConnection c, System.Data.Common.DbTransaction t, Guid id, CancellationToken token)
+    {
+        foreach (var table in new[] { "SnapshotCategory", "SnapshotFinding", "SnapshotWarning" })
+        { await using var cmd = c.CreateCommand(); cmd.Transaction = (SqliteTransaction)t; cmd.CommandText = $"DELETE FROM {table} WHERE SnapshotId=$id;"; Add(cmd, "$id", id.ToString("D")); await cmd.ExecuteNonQueryAsync(token).ConfigureAwait(false); }
+    }
+    private static async Task UpdateRowAsync(SqliteConnection c, System.Data.Common.DbTransaction t, Guid id, StorageSnapshot s, CancellationToken token)
+    {
+        // Keeps Id, ScanId, SchemaVersion and CapturedAtUtc exactly as originally stored — this is a refinement of
+        // the same captured analysis, never a new capture event — and refreshes every figure the enriched result
+        // actually carries.
+        await using var cmd = c.CreateCommand();
+        cmd.Transaction = (SqliteTransaction)t;
+        cmd.CommandText = "UPDATE Snapshot SET ApplicationVersion=$app,Mode=$mode,State=$state,DriveFingerprint=$finger,IdentityQuality=$quality," +
+            "Root=$root,FileSystem=$fs,CapacityBytes=$capacity,UsedBytes=$used,FreeBytes=$free,LogicalBytesObserved=$observed," +
+            "ClassifiedBytes=$classified,UnknownBytes=$unknown,UnaccountedBytes=$unaccounted,CoverageJson=$coverage," +
+            "RulePackId=$pack,RulePackVersion=$packver,RulePackDigest=$digest WHERE Id=$id;";
+        object?[] v = [s.ApplicationVersion, s.Mode, s.State, s.Drive.Fingerprint, s.Drive.IdentityQuality, s.Drive.Root, s.Drive.FileSystem,
+            s.Drive.CapacityBytes, s.Drive.UsedBytes, s.Drive.FreeBytes, s.LogicalBytesObserved, s.ClassifiedBytes, s.UnknownBytes,
+            s.UnaccountedBytes, JsonSerializer.Serialize(s.Coverage, JsonOptions), s.RulePackId, s.RulePackVersion, s.RulePackDigest];
+        string[] n = ["$app", "$mode", "$state", "$finger", "$quality", "$root", "$fs", "$capacity", "$used", "$free", "$observed",
+            "$classified", "$unknown", "$unaccounted", "$coverage", "$pack", "$packver", "$digest"];
+        for (var i = 0; i < n.Length; i++) Add(cmd, n[i], v[i] is Enum ? v[i]!.ToString() : v[i]);
+        Add(cmd, "$id", id.ToString("D"));
+        await cmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+    }
     private static async Task InsertAsync(SqliteConnection c, System.Data.Common.DbTransaction t, StorageSnapshot s, CancellationToken token)
     { await using var cmd = c.CreateCommand(); cmd.Transaction = (SqliteTransaction)t; cmd.CommandText = "INSERT INTO Snapshot VALUES($id,$scan,$schema,$app,$time,$mode,$state,$finger,$quality,$root,$fs,$capacity,$used,$free,$observed,$classified,$unknown,$unaccounted,$coverage,$pack,$packver,$digest);"; object?[] v = [s.Id.ToString("D"), s.ScanId.ToString("D"), s.SchemaVersion, s.ApplicationVersion, s.CapturedAtUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture), s.Mode, s.State, s.Drive.Fingerprint, s.Drive.IdentityQuality, s.Drive.Root, s.Drive.FileSystem, s.Drive.CapacityBytes, s.Drive.UsedBytes, s.Drive.FreeBytes, s.LogicalBytesObserved, s.ClassifiedBytes, s.UnknownBytes, s.UnaccountedBytes, JsonSerializer.Serialize(s.Coverage, JsonOptions), s.RulePackId, s.RulePackVersion, s.RulePackDigest]; string[] n = ["$id", "$scan", "$schema", "$app", "$time", "$mode", "$state", "$finger", "$quality", "$root", "$fs", "$capacity", "$used", "$free", "$observed", "$classified", "$unknown", "$unaccounted", "$coverage", "$pack", "$packver", "$digest"]; for (var i = 0; i < n.Length; i++) Add(cmd, n[i], v[i] is Enum ? v[i]!.ToString() : v[i]); await cmd.ExecuteNonQueryAsync(token).ConfigureAwait(false); }
     private static async Task ChildAsync(SqliteConnection c, System.Data.Common.DbTransaction t, string sql, Guid id, CancellationToken token, params object[] values)

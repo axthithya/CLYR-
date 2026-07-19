@@ -62,6 +62,7 @@ public partial class App : Application
             services.AddSingleton<ISnapshotStore, UiFixtureSnapshotStore>();
             services.AddSingleton<IScanService, UiFixtureScanService>();
             services.AddSingleton<IElevatedScanRetryService, UiFixtureElevatedScanRetryService>();
+            services.AddSingleton<IDriveIdentityProvider, UiFixtureDriveIdentityProvider>();
         }
         else
         {
@@ -79,6 +80,10 @@ public partial class App : Application
                 provider.GetRequiredService<IDriveDiscovery>(), provider.GetRequiredService<IDriveIdentityProvider>()));
         }
         services.AddSingleton<IApplicationVersion>(_ => ApplicationVersion.Current);
+        // Registered unconditionally (both fixture and real modes now register an IDriveIdentityProvider) so
+        // ResultsViewModel can persist an Administrator-Retry-enriched result back over its original History
+        // record — see ISnapshotStore.UpdateAsync and ResultsViewModel.PersistEnrichedResultAsync.
+        services.AddSingleton<SnapshotFactory>();
         services.AddSingleton<ICleanupPlanStore, InMemoryCleanupPlanStore>();
         services.AddSingleton<ICleanupExecutor, PhaseFiveDisabledCleanupExecutor>();
         services.AddSingleton<IExecutionTokenService, ExecutionTokenService>();

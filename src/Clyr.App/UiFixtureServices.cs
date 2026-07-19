@@ -145,6 +145,15 @@ internal sealed class UiFixtureScanService : IScanService
     }
 }
 
+/// <summary>Trivial fixture identity so <see cref="SnapshotFactory"/> can be constructed identically in both
+/// fixture and real modes — fixture mode never needs a genuinely stable per-drive identity, only a non-throwing
+/// one.</summary>
+internal sealed class UiFixtureDriveIdentityProvider : IDriveIdentityProvider
+{
+    public SnapshotDrive Identify(string root, string fileSystem, long? usedBytes) =>
+        new("fixture-drive", DriveIdentityQuality.Stable, root, fileSystem, null, usedBytes, null);
+}
+
 internal sealed class UiFixtureSnapshotStore : ISnapshotStore
 {
     private readonly List<StorageSnapshot> snapshots;

@@ -149,11 +149,6 @@ public sealed class CleanupCandidateFactory
     private static string SnapshotFindingId(Guid id, string ruleId) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{id:D}|{ruleId}"))).ToLowerInvariant()[..24];
 
-    private static string Humanize(string value)
-    {
-        var text = value.Replace('.', ' ').Replace('_', ' ');
-        return string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Select(part => char.ToUpperInvariant(part[0]) + part[1..]));
-    }
+    private static string Humanize(string value) => DisplayNames.FromDottedIdentifier(value);
 }
 

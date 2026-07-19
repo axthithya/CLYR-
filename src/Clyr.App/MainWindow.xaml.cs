@@ -25,14 +25,14 @@ public sealed partial class MainWindow : Window
         ICleanupPlanStore cleanupPlans, IExecutionTokenService executionTokens, IExecutionReceiptStore? executionReceipts,
         IClock clock, ExecutionSessionContext executionSession, ExecutionFixtureRoot fixtureRoot,
         TrustedExecutableLocator developerLocator, DeveloperToolProbeRunner developerProbeRunner,
-        IElevatedScanRetryService elevatedRetryService)
+        IElevatedScanRetryService elevatedRetryService, SnapshotFactory snapshotFactory)
     {
         InitializeComponent();
         ConfigureShell();
         session = new(scanService, drives, rules, version);
         var overview = new OverviewPage(new(session, history));
         var scan = new ScanPage(new(session));
-        var results = new ResultsPage(new(session, exporter, elevatedRetryService));
+        var results = new ResultsPage(new(session, exporter, elevatedRetryService, history, snapshotFactory));
         var reviewPlan = new ReviewPlanPage(new(session, cleanupPlans, executionTokens, executionReceipts, clock,
             executionSession.Value, fixtureRoot.Path));
         var historyPage = new HistoryPage(new(session, history));

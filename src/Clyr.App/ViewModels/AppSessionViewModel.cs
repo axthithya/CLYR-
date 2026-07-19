@@ -190,7 +190,8 @@ public sealed class OverviewViewModel(AppSessionViewModel session, ISnapshotStor
     }
 }
 public sealed class ScanViewModel(AppSessionViewModel session) : PageViewModel(session);
-public sealed class ResultsViewModel(AppSessionViewModel session, IScanReportExporter exporter, IElevatedScanRetryService elevatedRetryService)
+public sealed class ResultsViewModel(AppSessionViewModel session, IScanReportExporter exporter, IElevatedScanRetryService elevatedRetryService,
+    ISnapshotStore snapshotStore, SnapshotFactory snapshotFactory)
     : PageViewModel(session), IDisposable
 {
     public string? CreatePrivacySafeReport() => Session.Result is null ? null : exporter.Serialize(Session.Result);
@@ -228,7 +229,33 @@ public sealed class ResultsViewModel(AppSessionViewModel session, IScanReportExp
         if (lastAppliedReconciliationId == combined.Attempt.ReconciliationExecutionId) return;
         if (!ReferenceEquals(combined.OriginalResult, Session.Result)) return;
         lastAppliedReconciliationId = combined.Attempt.ReconciliationExecutionId;
-        Session.ApplyEnrichedResult(ElevatedScanResultEnricher.Build(combined));
+        var enriched = ElevatedScanResultEnricher.Build(combined);
+        Session.ApplyEnrichedResult(enriched);
+        PersistEnrichedResult(enriched);
+    }
+
+    /// <summary>
+    /// Best-effort: persists the retry-enriched result over its original History record (same ScanId, same
+    /// stored Id — see <see cref="ISnapshotStore.UpdateAsync"/>) so History and a future application restart show
+    /// the enriched figures instead of the pre-retry ones, without ever creating a second, misleading record for
+    /// the same Drive Analysis. Fire-and-forget on purpose: the in-memory enriched <see cref="AppSessionViewModel.Result"/>
+    /// the user is already looking at is applied unconditionally above, regardless of whether this background
+    /// persistence step succeeds — a failure here is never surfaced to the user and never retried automatically.
+    /// </summary>
+    private void PersistEnrichedResult(ScanResult enriched) => _ = PersistEnrichedResultAsync(enriched);
+
+    private async Task PersistEnrichedResultAsync(ScanResult enriched)
+    {
+        try
+        {
+            var settings = await snapshotStore.GetSettingsAsync().ConfigureAwait(false);
+            if (!settings.IsEnabled) return;
+            await snapshotStore.UpdateAsync(snapshotFactory.Create(enriched)).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // Best-effort only — the in-memory enriched result the user sees is unaffected either way.
+        }
     }
 
     public void Dispose() => AdministratorRetry.Dispose();

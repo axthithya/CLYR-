@@ -60,7 +60,11 @@ public static class AdministratorRetryUx
     public static TimeSpan SafetyLimit => ElevatedScanRetryTimeoutPolicy.Default.OperationBudget;
 
     public const string ButtonText = "Retry restricted areas as administrator";
-    public const string RetryAgainButtonText = "Retry administrator scan";
+    // Section 15/16 correction: the initial-eligible and retry-after-completion states previously used two
+    // different labels ("Retry restricted areas as administrator" vs. "Retry administrator scan") for the exact
+    // same action, which read as an inconsistency rather than a deliberate distinction. One label is used
+    // everywhere the action can be started; only the running-state text ("Retrying restricted areas…") differs.
+    public const string RetryAgainButtonText = ButtonText;
     public const string SupportingText =
         "Some folders could not be fully inspected. CLYR can retry only those scan areas with administrator access.";
 

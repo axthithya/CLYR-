@@ -16,6 +16,22 @@ public interface ISnapshotStore
     Task<int> ClearAsync(CancellationToken cancellationToken = default);
     Task<HistorySettings> GetSettingsAsync(CancellationToken cancellationToken = default);
     Task SetSettingsAsync(HistorySettings settings, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates the existing saved record for <paramref name="snapshot"/>'s <see cref="StorageSnapshot.ScanId"/> in
+    /// place (same stored Id, same original capture time) rather than inserting a second row — this is how a
+    /// successful Administrator Retry's enriched figures reach History and survive an application restart without
+    /// ever creating a second, misleading analysis record for the same Drive Analysis. A no-op, safely-failing
+    /// default is provided so every pre-existing <see cref="ISnapshotStore"/> implementation (fixtures, test
+    /// doubles) keeps compiling and behaving exactly as before without needing to implement this; only
+    /// <see cref="Clyr.Persistence.SqliteSnapshotStore"/> currently overrides it with a real implementation. The
+    /// original evidence is never destructively discarded by this: <paramref name="snapshot"/> is expected to be
+    /// built from the enriched <see cref="Clyr.Contracts.ScanResult"/>, which itself is the original result plus
+    /// safely-reconciled retry deltas — never a fabricated substitute.
+    /// </summary>
+    Task<SnapshotSaveResult> UpdateAsync(StorageSnapshot snapshot, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new SnapshotSaveResult(false, null, "snapshot.update-unsupported",
+            "Updating a saved analysis is not supported by this snapshot store."));
 }
 
 public interface IUsnChangeSource

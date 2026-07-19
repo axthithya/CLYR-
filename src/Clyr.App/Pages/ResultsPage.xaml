@@ -143,7 +143,7 @@
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                                     <TextBlock x:Name="AccountedPercentValue" Style="{StaticResource MetricValueStyle}" HorizontalAlignment="Right" />
-                                    <TextBlock Text="accounted" Style="{StaticResource MetricLabelStyle}" HorizontalAlignment="Right" />
+                                    <TextBlock x:Name="AccountedPercentCaptionText" Text="accounted" Style="{StaticResource MetricLabelStyle}" HorizontalAlignment="Right" />
                                 </StackPanel>
                             </Grid>
                             <Grid x:Name="StorageVisualization" Height="16" Background="{ThemeResource SurfaceSecondary}"
@@ -228,6 +228,8 @@
                                     <TextBlock x:Name="UnobservedValueText" Style="{StaticResource BodyStyle}" />
                                 </StackPanel>
                             </Grid>
+                            <TextBlock x:Name="ClassificationRetryNoteText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}"
+                                       TextWrapping="Wrap" AutomationProperties.Name="Why classification changed after administrator retry" />
                         </StackPanel>
                     </Border>
 
@@ -316,12 +318,14 @@
                         </ItemsControl>
                         <TextBlock x:Name="NoFindingsText" Style="{StaticResource BodySecondaryStyle}" Visibility="Collapsed"
                                    Text="No findings match the selected filter." />
+                        <TextBlock x:Name="FindingsProvenanceText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
                     </StackPanel>
 
                     <!-- 7. Largest directories and files -->
                     <StackPanel x:Name="DirectoriesSection" Spacing="14" Visibility="Collapsed" AutomationProperties.Name="Largest directories">
-                        <controls:SectionHeader Title="Largest directories" Description="Top-level storage by folder, ranked by observed size." />
-                        <ItemsControl x:Name="DirectoryList" AutomationProperties.Name="Largest directories list">
+                        <controls:SectionHeader Title="Largest top-level folders"
+                            Description="Direct children of the drive root, ranked by observed size. These rows do not overlap and can be compared directly." />
+                        <ItemsControl x:Name="DirectoryList" AutomationProperties.Name="Largest top-level folders list">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Grid MinHeight="44" ColumnSpacing="12" AutomationProperties.Name="{Binding AccessibleText}"
@@ -342,10 +346,40 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <Expander x:Name="NestedDirectoriesExpander" Header="Largest nested folders" Visibility="Collapsed"
+                                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                  AutomationProperties.Name="Largest nested folders, deeper than the drive root">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Nested folders can overlap with parent folders shown above and should not be added together."
+                                           Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
+                                <ItemsControl x:Name="NestedDirectoryList" AutomationProperties.Name="Largest nested folders list">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid MinHeight="44" ColumnSpacing="12" AutomationProperties.Name="{Binding AccessibleText}"
+                                                  ToolTipService.ToolTip="{Binding FullPath}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="24" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <FontIcon Glyph="&#xE8B7;" FontSize="15" Foreground="{ThemeResource TextSecondary}" VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="1" MinWidth="0" VerticalAlignment="Center" Spacing="2">
+                                                    <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStyle}" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding ShortPath}" Style="{StaticResource CaptionStyle}" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                                    <TextBlock Text="{Binding Size}" Style="{StaticResource StatusTextStyle}" HorizontalAlignment="Right" />
+                                                    <TextBlock Text="{Binding Percentage}" Style="{StaticResource CaptionStyle}" HorizontalAlignment="Right" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Expander>
+                        <TextBlock x:Name="DirectoriesProvenanceText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
                     </StackPanel>
 
                     <StackPanel x:Name="FilesSection" Spacing="14" Visibility="Collapsed" AutomationProperties.Name="Largest files">
-                        <controls:SectionHeader Title="Largest files" Description="Individual files observed with the largest logical size." />
+                        <controls:SectionHeader Title="Largest files" Description="Individual files observed with the largest logical size. Percentages show share of observed logical storage." />
                         <ItemsControl x:Name="FileList" AutomationProperties.Name="Largest files list">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -367,6 +401,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <TextBlock x:Name="FilesProvenanceText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
                     </StackPanel>
 
                     <!-- 8. Administrator retry -->

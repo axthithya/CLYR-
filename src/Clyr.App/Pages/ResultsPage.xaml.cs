@@ -187,7 +187,9 @@ public sealed partial class ResultsPage : Page
         WarningBadgeControl.Visibility = warningCount > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (warningCount > 0)
         {
-            WarningBadgeControl.Text = $"{warningCount:N0} {(warningCount == 1 ? "warning" : "warnings")}";
+            // Section 6/14: name the actual warning category rather than a generic count — these are access
+            // warnings (permission-limited or access-denied areas), never an unqualified "N warnings".
+            WarningBadgeControl.Text = $"{warningCount:N0} access {(warningCount == 1 ? "warning" : "warnings")}";
             WarningBadgeControl.Glyph = "";
         }
 
@@ -210,7 +212,11 @@ public sealed partial class ResultsPage : Page
         // used-bytes basis (hard links, sparse files, compression, filesystem-managed storage).
         var basisDiffers = summary.Consistency.HasFlag(AccountingConsistency.LogicalExceedsDriveUsed);
 
-        AccountedPercentValue.Text = summary.AccountedPercentage is { } accounted ? $"{accounted:F1}%" : "Unavailable";
+        // Section 4/7 correction: a bare large "Unavailable" over a small "accounted" caption reads as
+        // "Unavailable accounted" — nonsensical. When the accounting basis is incompatible, collapse both into
+        // one neutral, self-contained phrase and hide the now-redundant caption entirely.
+        AccountedPercentValue.Text = summary.AccountedPercentage is { } accounted ? $"{accounted:F1}%" : "Coverage unavailable";
+        AccountedPercentCaptionText.Visibility = summary.AccountedPercentage is not null ? Visibility.Visible : Visibility.Collapsed;
         AccountedDescriptionText.Text = summary.AccountedPercentage is not null
             ? "of this drive's used storage was observed by this analysis."
             : basisDiffers
@@ -272,6 +278,29 @@ public sealed partial class ResultsPage : Page
         UnobservedValueText.Text = summary.PresentableUnaccountedDriveBytes is { } notObserved
             ? OverviewPage.FormatSigned(notObserved)
             : "Not available";
+
+        // Section 8 correction: administrator retry only carries aggregate per-root byte counts, never per-file
+        // classification evidence — every retried byte lands in Unknown, which can lower the classification
+        // percentage even though coverage improved. Explain that truthfully rather than leaving it unexplained.
+        var (retryApplied, uninspectedUnclassified) = RetryUninspectedUnclassifiedBytes();
+        ClassificationRetryNoteText.Visibility = retryApplied && uninspectedUnclassified > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (retryApplied && uninspectedUnclassified > 0)
+            ClassificationRetryNoteText.Text = "Administrator Retry added storage-accounting evidence without enough per-file/category " +
+                $"information to classify it. This storage remains unclassified. Administrator-inspected logical storage remaining " +
+                $"unclassified: {OverviewPage.Format(uninspectedUnclassified)}.";
+    }
+
+    /// <summary>Truthful, bounded estimate of how much of the currently active result's observed logical bytes
+    /// came from a successfully applied administrator retry without any per-file/category evidence — never a
+    /// fabricated category assignment, only a plain byte count. Additive bytes are always uninspected; a positive
+    /// replacement net change is also uninspected (the replaced root grew without new classification evidence); a
+    /// negative replacement net change removed bytes rather than adding unclassified ones, so it contributes
+    /// nothing here.</summary>
+    private (bool retryApplied, long uninspectedUnclassified) RetryUninspectedUnclassifiedBytes()
+    {
+        var state = ViewModel.AdministratorRetry.State;
+        if (state.Phase != AdministratorRetryPhase.Applied || state.CombinedResult?.Attempt is not { } attempt) return (false, 0);
+        return (true, Math.Max(0, attempt.AdditiveLogicalBytes) + Math.Max(0, attempt.ReplacementNetLogicalBytes));
     }
 
     private static string Rounded(double percentage) => percentage switch
@@ -343,7 +372,7 @@ public sealed partial class ResultsPage : Page
                 var name = OverviewPage.Humanize(item.Category);
                 var size = OverviewPage.Format(item.LogicalBytes);
                 return new ResultsContributorItem(index + 1, name, GlyphFor(item.Category), size, $"{percentage:F1}%", percentage,
-                    $"Rank {index + 1}, {name}, {size}, {percentage:F1}% of observed storage.");
+                    $"Rank {index + 1}, {name}, {size}, {percentage:F1}% share of observed logical storage.");
             })
             .ToArray() ?? [];
         ContributorsSection.Visibility = contributors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -351,10 +380,15 @@ public sealed partial class ResultsPage : Page
 
         var quality = ScanAccounting.Summarize(r).Quality;
         var limitedCoverage = quality is ScanQuality.Partial or ScanQuality.Insufficient or ScanQuality.AccountingBasisDiffers;
+        var (retryApplied, uninspectedUnclassified) = RetryUninspectedUnclassifiedBytes();
         ContributorsHeader.Title = limitedCoverage ? "Largest observed contributors" : "Why is this drive full?";
-        ContributorsHeader.Description = limitedCoverage
-            ? "These rankings describe only the storage observed by this analysis. Ranked contributors include exact sizes so the ranking never relies on color alone."
-            : "Ranked contributors include exact sizes so the ranking never relies on color alone.";
+        // Section 9 correction: after a retry that added storage the classification protocol cannot categorize,
+        // contributor rankings must say so — they never claim to explain every observed byte in that case.
+        ContributorsHeader.Description = retryApplied && uninspectedUnclassified > 0
+            ? "Rankings use classified logical storage observed by CLYR. Administrator-inspected storage without category evidence remains unclassified. Percentages show share of observed logical storage."
+            : limitedCoverage
+                ? "These rankings describe only the storage observed by this analysis. Percentages show share of observed logical storage."
+                : "Ranked contributors include exact sizes so the ranking never relies on color alone. Percentages show share of observed logical storage.";
 
         RenderContributorList();
     }
@@ -380,11 +414,26 @@ public sealed partial class ResultsPage : Page
             var size = OverviewPage.Format(item.LogicalBytes);
             var category = OverviewPage.Humanize(item.Category);
             var confidence = item.Confidence.ToString();
-            var safety = OverviewPage.Humanize(item.Explanation.SafetyStatus.Length > 0 ? item.Explanation.SafetyStatus : item.Status.ToString());
+            // Section 1/13 correction: SafetyStatus is already a complete, correctly-cased prose sentence (it may
+            // contain the CLYR brand name or another acronym) — running it through the PascalCase-word-splitting
+            // humanizer here letter-spaced that embedded text into a broken, spaced-out rendering of the brand
+            // name. Only the enum-name fallback is a single PascalCase token that legitimately needs humanizing.
+            var safety = item.Explanation.SafetyStatus.Length > 0
+                ? item.Explanation.SafetyStatus
+                : OverviewPage.Humanize(item.Status.ToString());
             return new ResultsFindingItem(item.Title, size, category, confidence, safety, item.Explanation.WhatItMeans, item.Confidence,
                 $"{item.Title}, {size}, {category}, {confidence} confidence, {safety}. {item.Explanation.WhatItMeans}");
         }).ToArray() ?? [];
         FindingsSection.Visibility = findings.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // Section 11 correction: administrator retry never regenerates per-file findings — say so truthfully
+        // rather than letting a successful retry imply findings were newly verified.
+        var (retryApplied, uninspectedUnclassified) = RetryUninspectedUnclassifiedBytes();
+        FindingsProvenanceText.Visibility = retryApplied ? Visibility.Visible : Visibility.Collapsed;
+        if (retryApplied)
+            FindingsProvenanceText.Text = uninspectedUnclassified > 0
+                ? "Findings remain based on classification evidence from the original Drive Analysis. Retry-added storage without category evidence remains unclassified."
+                : "Findings remain based on classification evidence from the original Drive Analysis.";
         ApplyFindingFilter();
     }
 
@@ -405,10 +454,30 @@ public sealed partial class ResultsPage : Page
 
     private void RenderDirectoriesAndFiles(ScanResult r)
     {
-        DirectoryList.ItemsSource = r.LargestDirectories.Select(item => ToPathItem(item, r, "")).ToArray();
-        DirectoriesSection.Visibility = r.LargestDirectories.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        // Section 12 correction: the main list must contain only non-overlapping rows - TopLevelDirectories is
+        // exactly that (depth-1 children of the drive root). LargestDirectories can include deeper, overlapping
+        // descendants, which must never be summed against the top-level rows above them; those go into a
+        // clearly-labelled, overlap-explained secondary view instead (see below).
+        DirectoryList.ItemsSource = r.TopLevelDirectories.Select(item => ToPathItem(item, r, "")).ToArray();
+        DirectoriesSection.Visibility = r.TopLevelDirectories.Count > 0 || r.LargestDirectories.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        var topLevelPaths = new HashSet<string>(r.TopLevelDirectories.Select(item => NormalizedAncestryKey(item.DisplayPath)), StringComparer.OrdinalIgnoreCase);
+        var nested = r.LargestDirectories.Where(item => !topLevelPaths.Contains(NormalizedAncestryKey(item.DisplayPath))).ToArray();
+        NestedDirectoryList.ItemsSource = nested.Select(item => ToPathItem(item, r, "")).ToArray();
+        NestedDirectoriesExpander.Visibility = nested.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        var (retryApplied, _) = RetryUninspectedUnclassifiedBytes();
+        DirectoriesProvenanceText.Visibility = retryApplied ? Visibility.Visible : Visibility.Collapsed;
+        if (retryApplied)
+            DirectoriesProvenanceText.Text = "Top-level folder totals were refreshed by Administrator Retry where a retried area " +
+                "corresponds to one of these folders. Deeper nested folders below were not individually re-scanned.";
+
         FileList.ItemsSource = r.LargestFiles.Select(item => ToPathItem(item, r, "")).ToArray();
         FilesSection.Visibility = r.LargestFiles.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        FilesProvenanceText.Visibility = retryApplied ? Visibility.Visible : Visibility.Collapsed;
+        if (retryApplied)
+            FilesProvenanceText.Text = "Individual-file rankings remain based on the original Drive Analysis. " +
+                "Administrator Retry updates storage accounting and directory coverage only.";
     }
 
     private static ResultsPathItem ToPathItem(RankedPath item, ScanResult r, string glyph)
@@ -418,8 +487,13 @@ public sealed partial class ResultsPage : Page
         var shortPath = ShortenPath(item.DisplayPath);
         var percentage = r.LogicalBytesObserved > 0 ? Math.Clamp(item.LogicalBytes * 100d / r.LogicalBytesObserved, 0, 100) : 0;
         return new ResultsPathItem(name, shortPath, item.DisplayPath, size, $"{percentage:F1}%", glyph,
-            $"{name}, {shortPath}, {size}, {percentage:F1}% of observed storage.");
+            $"{name}, {shortPath}, {size}, {percentage:F1}% share of observed logical storage.");
     }
+
+    /// <summary>Normalizes a Windows path for case-insensitive ancestry comparison only (trailing separator and
+    /// case differences must never make the same folder appear as both a top-level and a "nested" row) — never
+    /// used for identity/security decisions, only for this display-grouping choice.</summary>
+    private static string NormalizedAncestryKey(string path) => path.TrimEnd('\\').ToUpperInvariant();
 
     /// <summary>The last path segment only — the full, un-truncated path always remains available through the
     /// row's tooltip and accessible name, never discarded, only not shown as the primary line.</summary>

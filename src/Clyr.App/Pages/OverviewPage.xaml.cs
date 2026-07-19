@@ -281,8 +281,7 @@ public sealed partial class OverviewPage : Page
         return (bytes.Value < 0 ? "-" : string.Empty) + Format(absolute);
     }
 
-    internal static string Humanize(object value) => System.Text.RegularExpressions.Regex.Replace(
-        value.ToString() ?? string.Empty, "(?<!^)([A-Z])", " $1");
+    internal static string Humanize(object value) => Clyr.Core.DisplayNames.FromPascalCase(value.ToString() ?? string.Empty);
 
     private static string Friendly(ScanStatus status) => status == ScanStatus.CompletedWithWarnings
         ? "Complete with warnings"

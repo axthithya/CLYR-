@@ -29,7 +29,7 @@ public sealed class Phase7DeveloperModeCliTests
         Assert.Equal(DeveloperToolRegistry.Descriptors.Length,
             System.Text.Json.JsonDocument.Parse(text).RootElement.GetArrayLength());
         Assert.Contains("\"node-npm\"", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Developer Npm Cache", text, StringComparison.Ordinal);
+        Assert.Contains("Developer npm Cache", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class Phase7DeveloperModeCliTests
         var app = Create(store, new InMemoryCleanupPlanStore());
         var output = new StringWriter();
         Assert.Equal(0, app.Run(["developer", "findings", "--snapshot", store.Snapshot.Id.ToString(), "--json"], output, TextWriter.Null));
-        Assert.Contains("Developer Npm Cache", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Developer npm Cache", output.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
