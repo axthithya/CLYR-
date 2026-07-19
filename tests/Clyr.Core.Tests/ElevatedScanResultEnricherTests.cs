@@ -140,14 +140,38 @@ public sealed class ElevatedScanResultEnricherTests
     }
 
     [Fact]
-    public void ARootReportingFewerBytesThanAlreadyObservedIsGenuinelyImpossibleAndRemainsRejected()
+    public void ACompleteRootReportingFewerBytesThanAlreadyObservedIsALegitimateReplacementNotARejection()
     {
-        // Alpha was PartiallyObserved with 400 bytes already counted; the elevated engine reports only 100 for
-        // the same root — fewer than what was already certainly there. Unlike a logical-vs-physical basis
-        // difference, this is not explainable by any legitimate accounting distinction and must stay rejected.
+        // Phase (root-reconciliation correction): Alpha was PartiallyObserved with 400 bytes already counted;
+        // the elevated engine's Completed (fully, authoritatively re-enumerated) result now reports only 100 for
+        // the same root — fewer than before. This is a legitimate Replacement (files deleted, a cache cleared,
+        // logs rotated between the original scan and this retry), never a rejection: Completed already proves
+        // the elevated figure is the current, authoritative truth for this root.
         var request = BuildRequest(RootFixture(RootPath));
         var original = OriginalResult(1000, [Contribution(RootPath, ScanRootEnumerationState.PartiallyObserved, 400, 300)], driveUsed: 5000);
         var response = ResponseFor(request, [RootResult(RootPath, ElevatedRootRetryOutcome.Completed, 100, 50)]);
+        var reconciliation = ElevatedScanResultReconciler.Reconcile(original, request, Completed(response), new FixedClock(Now));
+
+        Assert.Equal(ElevatedReconciliationOutcome.Applied, reconciliation.Outcome);
+        Assert.True(reconciliation.IsApplied);
+        // 1000 (whole original, including Alpha's partial 400) - 400 (Alpha's own partial contribution) + 100
+        // (the elevated engine's complete, authoritative figure for Alpha) = 700.
+        Assert.Equal(700, reconciliation.CombinedLogicalBytesObserved);
+        Assert.Equal(RootReconciliationMode.Replacement, Assert.Single(reconciliation.AppliedRootDeltas).Mode);
+        Assert.Equal(-300, reconciliation.Attempt.ReplacementNetLogicalBytes);
+        Assert.Equal(0, reconciliation.Attempt.AdditiveLogicalBytes);
+        Assert.Equal(1000, original.LogicalBytesObserved); // original genuinely untouched
+    }
+
+    [Fact]
+    public void AnAdditiveRootReportingNegativeBytesRemainsRejectedAsGenuinelyImpossible()
+    {
+        // Unlike Replacement, an Additive root (InaccessibleAtRoot originally — contributed zero by construction)
+        // can never legitimately report negative bytes; the elevated engine's own counters are never negative.
+        // This defensive guard only ever fires against a malformed/hostile response, but must still hold.
+        var request = BuildRequest(RootFixture(RootPath));
+        var original = OriginalResult(1000, [Contribution(RootPath, ScanRootEnumerationState.InaccessibleAtRoot, 0, 0)], driveUsed: 5000);
+        var response = ResponseFor(request, [RootResult(RootPath, ElevatedRootRetryOutcome.Completed, -100, -50)]);
         var reconciliation = ElevatedScanResultReconciler.Reconcile(original, request, Completed(response), new FixedClock(Now));
 
         Assert.Equal(ElevatedReconciliationOutcome.AccountingBasisMismatch, reconciliation.Outcome);

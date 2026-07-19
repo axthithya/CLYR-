@@ -500,24 +500,37 @@ public sealed partial class ResultsPage : Page
             };
         }
 
-        // Phase (Administrator Retry result-integration correction): the completion wording must distinguish
-        // areas inspected, unique newly accounted bytes (never raw/overlapping retry output — state.AdditionalLogicalBytes
-        // is already the reconciler's own deduplicated delta, see ElevatedScanResultReconciler), and remaining
-        // inaccessible areas — and must say so truthfully, including when zero unique bytes were added.
+        // Phase (root-reconciliation correction): the completion wording must distinguish areas that safely
+        // added previously-unobserved storage (Additive) from areas that changed and were safely replaced
+        // (Replacement, whose net change may be negative) from areas that found no new evidence (Overlap) — and
+        // must never call a replacement's net change "newly accounted" bytes (section 8/9).
         var showSummary = state.Phase == AdministratorRetryPhase.Applied;
         AdministratorRetrySummary.Visibility = showSummary ? Visibility.Visible : Visibility.Collapsed;
         AdministratorRetryComparison.Visibility = showSummary ? Visibility.Visible : Visibility.Collapsed;
         if (showSummary)
         {
-            var addedBytes = state.AdditionalLogicalBytes ?? 0;
-            var inspectedText = $"{state.RootsCompleted} restricted area{(state.RootsCompleted == 1 ? "" : "s")} were inspected.";
-            var addedText = addedBytes > 0
-                ? $" {OverviewPage.Format(addedBytes)} of previously unobserved storage was added to this result."
-                : " No previously unobserved storage was added to this result.";
+            var attempt = state.CombinedResult?.Attempt;
+            var additiveBytes = attempt?.AdditiveLogicalBytes ?? 0;
+            var replacementNet = attempt?.ReplacementNetLogicalBytes ?? 0;
+            var rootsAdditive = attempt?.RootsAdditive ?? 0;
+            var rootsReplaced = attempt?.RootsReplaced ?? 0;
+            var rootsOverlapped = attempt?.RootsOverlapped ?? 0;
+
+            var inspectedText = $"{state.RootsCompleted} restricted area{(state.RootsCompleted == 1 ? "" : "s")} were safely reconciled.";
+            var parts = new List<string>();
+            if (rootsAdditive > 0)
+                parts.Add($" {rootsAdditive} area{(rootsAdditive == 1 ? "" : "s")} added {OverviewPage.Format(additiveBytes)} of previously unobserved storage.");
+            if (rootsReplaced > 0)
+                parts.Add($" {rootsReplaced} area{(rootsReplaced == 1 ? "" : "s")} changed while the retry was running and " +
+                    $"{(rootsReplaced == 1 ? "was" : "were")} safely replaced (net change {OverviewPage.FormatSigned(replacementNet)}).");
+            if (rootsOverlapped > 0)
+                parts.Add($" {rootsOverlapped} area{(rootsOverlapped == 1 ? "" : "s")} found no new evidence.");
+            if (parts.Count == 0 && state.RootsCompleted > 0)
+                parts.Add(" No previously unobserved storage was added to this result.");
             var remainingText = state.RootsStillInaccessible > 0
                 ? $" {state.RootsStillInaccessible} restricted area{(state.RootsStillInaccessible == 1 ? "" : "s")} remain unavailable."
                 : " No restricted areas remain unavailable.";
-            AdministratorRetrySummary.Text = inspectedText + addedText + remainingText;
+            AdministratorRetrySummary.Text = inspectedText + string.Concat(parts) + remainingText;
 
             // Section 7 correction: "before" is shown whenever it was ever valid, independent of whether "after"
             // is now unavailable — a retry that adds real logical-over-physical data is a success, never a
@@ -528,9 +541,12 @@ public sealed partial class ResultsPage : Page
             var beforeText = beforePercentage is { } before ? $"{before:F1}%" : "unavailable";
             var afterText = afterPercentage is { } after ? $"{after:F1}%" : "unavailable";
             AdministratorRetryCoverageText.Text = $"{beforeText} -> {afterText}";
-            AdministratorRetryNewlyAccountedText.Text = OverviewPage.Format(addedBytes);
+            // Never the old full-sum (additive + replacement net) figure — only genuinely additive bytes are
+            // safe to describe as "newly accounted".
+            AdministratorRetryNewlyAccountedText.Text = OverviewPage.Format(additiveBytes);
             AdministratorRetryAreasText.Text =
                 $"{state.RootsCompleted + state.RootsStillInaccessible} attempted - {state.RootsCompleted} inspected - {state.RootsStillInaccessible} remaining";
+
             // Never claimed as a retry failure — the after-percentage becoming unavailable is a truthful
             // accounting-basis fact, not an error, and must say so explicitly rather than leaving it unexplained.
             var afterBasisDiffers = ViewModel.Session.Result is { } activeResult

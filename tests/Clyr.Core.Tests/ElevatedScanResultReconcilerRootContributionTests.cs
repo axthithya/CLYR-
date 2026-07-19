@@ -48,19 +48,26 @@ public sealed class ElevatedScanResultReconcilerRootContributionTests
     [Fact]
     public void CompletedOriginalRootIsNotEligibleForRetryReplacement()
     {
+        // Phase (root-reconciliation correction): this anomaly is now a per-root skip (section 7 partial
+        // application), not a whole-response-shaped outcome of its own — with only one requested root and
+        // nothing else to apply, the reconciliation as a whole reports the same "nothing could be safely
+        // reconciled" outcome as any other per-root anomaly.
         var request = BuildRequest(ImmutableArray.Create(RootFixture(RootPath)));
         var original = OriginalResult(5000, [Contribution(RootPath, ScanRootEnumerationState.Completed, 5000, 3000)]);
         var response = ResponseFor(request, ElevatedScanRetryOutcome.Completed, [RootResult(RootPath, ElevatedRootRetryOutcome.Completed, 500, 300)]);
 
         var result = ElevatedScanResultReconciler.Reconcile(original, request, Completed(response), new FixedClock(Now));
 
-        Assert.Equal(ElevatedReconciliationOutcome.RootSetMismatch, result.Outcome);
+        Assert.Equal(ElevatedReconciliationOutcome.AccountingBasisMismatch, result.Outcome);
         Assert.False(result.IsApplied);
     }
 
     [Fact]
-    public void MissingOriginalContributionReturnsRequiresReplacementData()
+    public void MissingOriginalContributionSkipsThatRootRatherThanAbortingTheWholeResponse()
     {
+        // Phase (root-reconciliation correction): with only one requested root and no original contribution for
+        // it, nothing can be safely applied — reported the same as any other per-root anomaly when it leaves
+        // zero roots reconciled, rather than the old whole-response RequiresReplacementData outcome.
         var request = BuildRequest(ImmutableArray.Create(RootFixture(RootPath)));
         // Contributions exist (proving this scan does carry per-root data) but none for the retried root itself.
         var original = OriginalResult(5000, [Contribution("C:\\Data\\Other", ScanRootEnumerationState.Completed, 100, 50)]);
@@ -68,9 +75,37 @@ public sealed class ElevatedScanResultReconcilerRootContributionTests
 
         var result = ElevatedScanResultReconciler.Reconcile(original, request, Completed(response), new FixedClock(Now));
 
-        Assert.Equal(ElevatedReconciliationOutcome.RequiresReplacementData, result.Outcome);
+        Assert.Equal(ElevatedReconciliationOutcome.AccountingBasisMismatch, result.Outcome);
         Assert.False(result.IsApplied);
         Assert.Null(result.CombinedLogicalBytesObserved);
+    }
+
+    [Fact]
+    public void AValidRootStillAppliesWhenAnotherRootInTheSameResponseHasNoOriginalContribution()
+    {
+        // Phase (root-reconciliation correction), section 7: partial application — Alpha has no original
+        // contribution record (an anomaly, skipped) but Beta is a genuine, valid PartiallyObserved root; Beta's
+        // safe contribution must still apply rather than being discarded because Alpha, elsewhere in the same
+        // response, could not be reconciled.
+        const string alphaPath = "C:\\Data\\Alpha";
+        const string betaPath = "C:\\Data\\Beta";
+        var roots = ImmutableArray.Create(RootFixture(alphaPath), RootFixture(betaPath));
+        var request = BuildRequest(roots);
+        var original = OriginalResult(1000, [Contribution(betaPath, ScanRootEnumerationState.PartiallyObserved, 200, 100)]);
+        var response = ResponseFor(request, ElevatedScanRetryOutcome.Completed,
+        [
+            RootResult(alphaPath, ElevatedRootRetryOutcome.Completed, 500, 300),
+            RootResult(betaPath, ElevatedRootRetryOutcome.Completed, 600, 400),
+        ]);
+
+        var result = ElevatedScanResultReconciler.Reconcile(original, request, Completed(response), new FixedClock(Now));
+
+        Assert.True(result.IsApplied);
+        // 1000 (original, including Beta's partial 200) - 200 (Beta's own partial contribution) + 600 (Beta's
+        // complete elevated figure) = 1400. Alpha contributes nothing (skipped, no original contribution).
+        Assert.Equal(1400, result.CombinedLogicalBytesObserved);
+        Assert.Single(result.RemainingInaccessibleRoots, root => root.NormalizedRootPath == alphaPath);
+        Assert.Single(result.AppliedRootDeltas, delta => delta.CanonicalRootIdentity == ElevatedScanManifestBuilder.NormalizePath(betaPath));
     }
 
     [Fact]

@@ -804,7 +804,7 @@ public sealed class RepositorySafetyTests
     {
         var codeBehind = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml.cs"));
         Assert.Contains("state.RootsCompleted", codeBehind, StringComparison.Ordinal);
-        Assert.Contains("state.AdditionalLogicalBytes", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("attempt?.AdditiveLogicalBytes", codeBehind, StringComparison.Ordinal);
         Assert.Contains("state.RootsStillInaccessible", codeBehind, StringComparison.Ordinal);
     }
 

@@ -27,26 +27,68 @@ public enum ElevatedReconciliationOutcome
 /// retry request's own correlation), so a caller can tell two separate reconciliation attempts against the same
 /// original scan apart even if both otherwise look identical.
 /// </summary>
+/// <param name="AdditionalLogicalBytes">The full net logical-byte change across every applied root (additive
+/// plus replacement, replacement can be negative) — the exact amount already folded into the enriched result's
+/// combined total. Never presented to a user as "newly accounted"/"added" on its own; see
+/// <see cref="AdditiveLogicalBytes"/> for the byte figure that is actually safe to describe that way.</param>
+/// <param name="AdditiveLogicalBytes">Sum of only <see cref="RootReconciliationMode.Additive"/> roots' logical
+/// bytes — storage genuinely proven previously unobserved. This, not <see cref="AdditionalLogicalBytes"/>, is
+/// the figure safe to describe as "newly accounted" or "added".</param>
+/// <param name="ReplacementNetLogicalBytes">Sum of only <see cref="RootReconciliationMode.Replacement"/> roots'
+/// net logical-byte change — legitimately negative when a replaced root's authoritative current size is smaller
+/// than what the original scan had partially observed there (deleted files, cleared caches, log rotation).
+/// Never described as "added" or "newly accounted"; described as a net change instead.</param>
+/// <param name="RootsAdditive">Count of roots applied in <see cref="RootReconciliationMode.Additive"/> mode.</param>
+/// <param name="RootsReplaced">Count of roots applied in <see cref="RootReconciliationMode.Replacement"/> mode
+/// (excluding <see cref="RootReconciliationMode.Overlap"/>, reported separately).</param>
+/// <param name="RootsOverlapped">Count of roots applied in <see cref="RootReconciliationMode.Overlap"/> mode —
+/// safely reconciled but contributing no unique new evidence either way.</param>
 public sealed record ElevatedRetryAttempt(
     Guid ReconciliationExecutionId, Guid OriginalScanExecutionId, string DriveIdentity, string RequestNonce,
     DateTimeOffset StartedAtUtc, DateTimeOffset CompletedAtUtc, ElevatedScannerLauncherOutcome LauncherOutcome,
     ElevatedScanRetryOutcome? ResponseOutcome, int RootsRequested, int RootsCompleted, int RootsStillInaccessible,
-    long AdditionalLogicalBytes, long AdditionalAllocatedBytes, ImmutableArray<string> AccountingLimitations, bool Applied);
+    long AdditionalLogicalBytes, long AdditionalAllocatedBytes, ImmutableArray<string> AccountingLimitations, bool Applied,
+    long AdditiveLogicalBytes = 0, long AdditiveAllocatedBytes = 0,
+    long ReplacementNetLogicalBytes = 0, long ReplacementNetAllocatedBytes = 0,
+    int RootsAdditive = 0, int RootsReplaced = 0, int RootsOverlapped = 0);
 
 /// <summary>
-/// One successfully-applied retried root's already-deduplicated accounting delta — the exact amount that root
-/// contributes on top of whatever the original scan already counted for it, never the elevated engine's raw
-/// per-root totals. <see cref="ElevatedScanResultReconciler.Reconcile"/> computes this once, per root, by
-/// subtracting the original scan's own <see cref="ScanRootContribution"/> figures (when the root was
-/// <see cref="ScanRootEnumerationState.PartiallyObserved"/>) from the elevated engine's figures for that same
-/// root — the same subtraction already used for <see cref="ElevatedRetryAttempt.AdditionalLogicalBytes"/>, now
-/// exposed per root (rather than only as one pre-summed total) so a caller — see
-/// <c>ElevatedScanResultEnricher</c> — can truthfully recompute coverage, issue counts, and per-root rankings
-/// without re-deriving this same subtraction independently and risking drift.
+/// How one retried root's contribution relates to the original scan's own contribution for that same root.
+/// <see cref="ElevatedRootRetryOutcome.Completed"/> is required before any of these apply — the elevated engine
+/// (<see cref="ElevatedMetadataRetryEngine"/>) only ever reports that outcome when the root's entire subtree was
+/// walked to exhaustion with zero enumeration failures anywhere, which is already a complete, authoritative
+/// snapshot of that root's current state; no separate "traversal complete" protocol field is needed.
+/// </summary>
+public enum RootReconciliationMode
+{
+    /// <summary>The original root contributed zero bytes (<see cref="ScanRootEnumerationState.InaccessibleAtRoot"/>)
+    /// — the elevated figure is added outright, and can never legitimately be negative.</summary>
+    Additive,
+    /// <summary>The original root already contributed a truthful-but-incomplete amount
+    /// (<see cref="ScanRootEnumerationState.PartiallyObserved"/>) — the elevated engine's complete, authoritative
+    /// figure for this root replaces it entirely. The net change can legitimately be negative: files may have
+    /// been deleted, caches cleared, or logs rotated in the time between the original scan and this retry: the
+    /// elevated figure is still the current, authoritative truth for this root, not a rejected anomaly.</summary>
+    Replacement,
+    /// <summary>A <see cref="Replacement"/> whose net byte change came out to exactly zero — the retry
+    /// re-confirmed the same content, contributing no unique new evidence either way.</summary>
+    Overlap
+}
+
+/// <summary>
+/// One successfully-applied retried root's already-deduplicated accounting delta — the exact net change that
+/// root contributes to the global totals, never the elevated engine's raw per-root totals presented as though
+/// they were all newly discovered. <see cref="ElevatedScanResultReconciler.Reconcile"/> computes this once, per
+/// root, from the original scan's own <see cref="ScanRootContribution"/> figures and the elevated engine's
+/// figures for that same root — exposed per root (rather than only as one pre-summed total) so a caller — see
+/// <c>ElevatedScanResultEnricher</c> — can truthfully recompute coverage, issue counts, and per-root rankings,
+/// and can truthfully distinguish <see cref="RootReconciliationMode.Additive"/> ("newly accounted") bytes from
+/// <see cref="RootReconciliationMode.Replacement"/> (a net change that must never be called "newly accounted"),
+/// without re-deriving this same computation independently and risking drift.
 /// </summary>
 public sealed record AppliedRootAccountingDelta(
     string CanonicalRootIdentity, string DisplayRootPath, string? StableRootIdentifier, ElevatedRootRetryResult RootResult,
-    long DeltaLogicalBytes, long DeltaAllocatedBytes, long DeltaFilesExamined, long DeltaDirectoriesExamined,
+    RootReconciliationMode Mode, long DeltaLogicalBytes, long DeltaAllocatedBytes, long DeltaFilesExamined, long DeltaDirectoriesExamined,
     long DeltaHardLinkEntriesDetected, long DeltaAllocationUnavailableCount, long DeltaSparseFileCount,
     long DeltaCompressedFileCount, long OriginalInaccessibleEntryCount);
 
@@ -127,14 +169,19 @@ public static class ElevatedScanResultReconciler
                 startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
                 ["The response's per-root results do not correspond exactly, one-to-one, to the requested roots."]);
 
-        // Phase 7.2.6G2: validate every completed retry root's safety BEFORE applying any of them — one
-        // unsafe root aborts the whole reconciliation (never a partial application), matching Phase 7.2.6G1's
-        // established "return NotApplied, change nothing" pattern.
+        // Phase (root-reconciliation correction): each root is now judged independently — a per-root anomaly
+        // (no original contribution record, or one already-Completed by the original scan) excludes only that
+        // root from this reconciliation (it remains "still inaccessible" for a future retry) rather than
+        // aborting every other root's safely-reconcilable contribution. Only response-level problems (identity,
+        // digest, staleness, protocol — all validated above, before this loop) still reject the whole response.
         var deltas = new List<AppliedRootAccountingDelta>();
+        var skippedUnsafeRoots = 0;
         foreach (var requestRoot in request.PermissionLimitedRoots)
         {
             var normalized = ElevatedScanManifestBuilder.NormalizePath(requestRoot.NormalizedRootPath);
             var rootResult = resultsByPath[normalized];
+            // Not authoritative — StillInaccessible/Cancelled/Failed for this specific root — left in "remaining"
+            // for a future retry, never treated as a reconciliation problem in its own right.
             if (rootResult.Outcome != ElevatedRootRetryOutcome.Completed) continue;
 
             if (originalResult.RootContributions.Count > 0)
@@ -142,34 +189,25 @@ public static class ElevatedScanResultReconciler
                 // Phase 7.2.6G2: a real per-root signal exists — use it instead of the coarser Phase 7.2.6G1
                 // whole-scan heuristic below.
                 var contribution = FindContribution(originalResult, normalized);
-                if (contribution is null)
-                    return NotApplied(ElevatedReconciliationOutcome.RequiresReplacementData, originalResult, request, reconciliationId,
-                        startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
-                        ["No original root-level contribution record exists for a retried root; exact replacement requires it."]);
-                if (contribution.EnumerationState == ScanRootEnumerationState.Completed)
-                    return NotApplied(ElevatedReconciliationOutcome.RootSetMismatch, originalResult, request, reconciliationId,
-                        startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
-                        ["A retried root was already fully Completed by the original scan and should never have been in the retry manifest."]);
+                if (contribution is null) { skippedUnsafeRoots++; continue; } // section 7: per-root skip, not a whole-response abort
+                if (contribution.EnumerationState == ScanRootEnumerationState.Completed) { skippedUnsafeRoots++; continue; }
 
-                // InaccessibleAtRoot contributed zero of every figure by construction, so nothing needs
-                // subtracting. PartiallyObserved contributed a truthful-but-incomplete amount of every figure
-                // that must be subtracted before the elevated figure is added, so the original's partial
-                // contribution is never double-counted — the same rule applied uniformly across bytes, file/
-                // directory counts, and every other per-root descriptive count this reconciler now tracks.
+                // InaccessibleAtRoot contributed zero of every figure by construction (Additive: the elevated
+                // figure is added outright and can never legitimately be negative — see RootReconciliationMode).
+                // PartiallyObserved contributed a truthful-but-incomplete amount that the elevated engine's own
+                // complete, authoritative re-enumeration of this root now replaces entirely (Replacement): the
+                // net change can legitimately be negative (files deleted, caches cleared, logs rotated between
+                // the original scan and this retry) without that being any kind of anomaly.
                 var partial = contribution.EnumerationState == ScanRootEnumerationState.PartiallyObserved;
+                var mode = partial ? RootReconciliationMode.Replacement : RootReconciliationMode.Additive;
                 var deltaLogical = rootResult.LogicalBytesObserved - (partial ? contribution.LogicalBytesObserved : 0);
                 var deltaAllocated = rootResult.AllocatedBytesObserved - (partial ? contribution.AllocatedBytesObserved : 0);
-                // Genuinely impossible under normal operation (not merely a basis difference): the elevated
-                // engine reporting fewer bytes for this exact root than the original scan already certainly
-                // observed there. A legitimate basis difference (logical namespace bytes vs. physical
-                // drive-used bytes — hard links, sparse files, compression) is handled separately below via
-                // AccountingConsistency.LogicalExceedsDriveUsed, never by rejecting the whole reconciliation.
-                if (deltaLogical < 0 || deltaAllocated < 0)
-                    return NotApplied(ElevatedReconciliationOutcome.AccountingBasisMismatch, originalResult, request, reconciliationId,
-                        startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
-                        ["A retried root reported fewer bytes than the original scan had already observed there; " +
-                         "the retry response could not be safely reconciled."]);
-                deltas.Add(new(normalized, contribution.RootPath, requestRoot.StableRootIdentifier, rootResult,
+                // Only an Additive delta going negative is genuinely impossible (the elevated engine's own byte
+                // counters are never negative) — a defensive, never-expected guard against a malformed response,
+                // not a real-world condition. A Replacement going negative is legitimate and never rejected here.
+                if (mode == RootReconciliationMode.Additive && (deltaLogical < 0 || deltaAllocated < 0)) { skippedUnsafeRoots++; continue; }
+                if (deltaLogical == 0 && deltaAllocated == 0) mode = RootReconciliationMode.Overlap;
+                deltas.Add(new(normalized, contribution.RootPath, requestRoot.StableRootIdentifier, rootResult, mode,
                     deltaLogical, deltaAllocated,
                     rootResult.FilesExamined - (partial ? contribution.FilesExamined : 0),
                     rootResult.DirectoriesExamined - (partial ? contribution.DirectoriesExamined : 0),
@@ -186,19 +224,30 @@ public static class ElevatedScanResultReconciler
                 // "this root contributed zero bytes" condition is the whole original scan having observed
                 // literally nothing. Anything short of that means the elevated bytes cannot be safely added
                 // without risking double-counting whatever the original scan already attributed to part of
-                // this root.
+                // this root. This scan-wide (not per-root) heuristic still rejects the whole response — there is
+                // no per-root contribution data at all to reason about individually.
                 if (originalResult.LogicalBytesObserved > 0)
                     return NotApplied(ElevatedReconciliationOutcome.RequiresReplacementData, originalResult, request, reconciliationId,
                         startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
                         ["The original scan may already have observed part of one or more retried roots, and carries no " +
                          "root-level contribution records; exact replacement cannot be proven safe."]);
                 deltas.Add(new(normalized, requestRoot.NormalizedRootPath, requestRoot.StableRootIdentifier, rootResult,
+                    RootReconciliationMode.Additive,
                     Math.Max(0, rootResult.LogicalBytesObserved), Math.Max(0, rootResult.AllocatedBytesObserved),
                     Math.Max(0, rootResult.FilesExamined), Math.Max(0, rootResult.DirectoriesExamined),
                     Math.Max(0, rootResult.HardLinkEntriesDetected), Math.Max(0, rootResult.AllocationUnavailableCount),
                     Math.Max(0, rootResult.SparseFileCount), Math.Max(0, rootResult.CompressedFileCount), 0));
             }
         }
+
+        // Only when every Completed root hit a genuine per-root safety problem (never when some roots simply
+        // remained StillInaccessible/Cancelled, which is already ordinary, expected "Applied with 0 completed"
+        // behavior) — nothing could be safely reconciled at all, so this reports as not-applied rather than a
+        // hollow "Applied" with zero effect.
+        if (deltas.Count == 0 && skippedUnsafeRoots > 0)
+            return NotApplied(ElevatedReconciliationOutcome.AccountingBasisMismatch, originalResult, request, reconciliationId,
+                startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
+                ["The returned root data changed or could not be reconciled safely with this analysis."]);
 
         var appliedPaths = deltas.Select(delta => delta.CanonicalRootIdentity).ToHashSet(StringComparer.Ordinal);
         var remaining = ImmutableArray.CreateBuilder<PermissionLimitedRoot>();
@@ -208,7 +257,26 @@ public static class ElevatedScanResultReconciler
 
         var applied = ImmutableArray.CreateBuilder<ElevatedRootRetryResult>(deltas.Count);
         long additionalLogical = 0, additionalAllocated = 0;
-        foreach (var delta in deltas) { applied.Add(delta.RootResult); additionalLogical += delta.DeltaLogicalBytes; additionalAllocated += delta.DeltaAllocatedBytes; }
+        long additiveLogical = 0, additiveAllocated = 0, replacementNetLogical = 0, replacementNetAllocated = 0;
+        int rootsAdditive = 0, rootsReplaced = 0, rootsOverlapped = 0;
+        foreach (var delta in deltas)
+        {
+            applied.Add(delta.RootResult);
+            additionalLogical += delta.DeltaLogicalBytes;
+            additionalAllocated += delta.DeltaAllocatedBytes;
+            switch (delta.Mode)
+            {
+                case RootReconciliationMode.Additive:
+                    additiveLogical += delta.DeltaLogicalBytes; additiveAllocated += delta.DeltaAllocatedBytes; rootsAdditive++;
+                    break;
+                case RootReconciliationMode.Replacement:
+                    replacementNetLogical += delta.DeltaLogicalBytes; replacementNetAllocated += delta.DeltaAllocatedBytes; rootsReplaced++;
+                    break;
+                default: // Overlap
+                    rootsOverlapped++;
+                    break;
+            }
+        }
         var rootsCompleted = deltas.Count;
 
         // Section 3/4 correction: logical (namespace) bytes legitimately and routinely exceed the drive's
@@ -241,7 +309,9 @@ public static class ElevatedScanResultReconciler
         var completedAtUtc = effectiveClock.UtcNow;
         var attempt = new ElevatedRetryAttempt(reconciliationId, originalResult.ScanId, request.DriveIdentity, request.Nonce,
             startedAtUtc, completedAtUtc, launcherResult.Outcome, response.Outcome, request.PermissionLimitedRoots.Length,
-            rootsCompleted, remaining.Count, additionalLogical, additionalAllocated, limitations, true);
+            rootsCompleted, remaining.Count, additionalLogical, additionalAllocated, limitations, true,
+            additiveLogical, additiveAllocated, replacementNetLogical, replacementNetAllocated,
+            rootsAdditive, rootsReplaced, rootsOverlapped);
 
         long? combinedAllocated = originalResult.Allocation is null && additionalAllocated == 0
             ? null

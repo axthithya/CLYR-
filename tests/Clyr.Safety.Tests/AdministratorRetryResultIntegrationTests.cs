@@ -89,7 +89,7 @@ public sealed class AdministratorRetryResultIntegrationTests
     {
         var text = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml.cs"));
         Assert.Contains("restricted area{(state.RootsCompleted == 1", text, StringComparison.Ordinal);
-        Assert.Contains("of previously unobserved storage was added to this result", text, StringComparison.Ordinal);
+        Assert.Contains("added {OverviewPage.Format(additiveBytes)} of previously unobserved storage.", text, StringComparison.Ordinal);
         Assert.Contains("No previously unobserved storage was added to this result", text, StringComparison.Ordinal);
         Assert.Contains("remain unavailable", text, StringComparison.Ordinal);
         // Never a bare "added {bytes}" without the "previously unobserved" qualifier — that qualifier is what
