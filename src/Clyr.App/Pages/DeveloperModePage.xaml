@@ -5,45 +5,197 @@
     xmlns:controls="using:Clyr.App.Controls"
     Background="{ThemeResource AppBackgroundBrush}"
     AutomationProperties.Name="Developer Mode page">
-    <controls:ResponsivePageHost x:Name="PageHost" Title="Developer Mode"
-        Subtitle="Understand storage used by development tools and local environments. Nothing is changed automatically."
+    <controls:ResponsivePageHost x:Name="PageHost"
+        Title="Developer Mode"
+        Subtitle="Inspect advanced scan, accounting and diagnostic information."
         AutomationProperties.Name="Developer Mode responsive page host">
         <controls:ResponsivePageHost.PageContent>
             <StackPanel Spacing="24">
-                <Border Style="{StaticResource CardStyle}" Background="{ThemeResource PrivacyBannerBrush}" AutomationProperties.Name="Developer Mode boundary notice">
-                    <TextBlock TextWrapping="Wrap" Text="Developer Mode reports storage for a narrow set of developer tools using read-only detection only. It never adds, updates, or removes tool data on its own. Any eligible finding routes through the same plan review used everywhere else in CLYR."/>
-                </Border>
-
-                <Grid x:Name="SnapshotGrid" ColumnSpacing="12" RowSpacing="10">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                    <ComboBox x:Name="SnapshotPicker" Header="Local analysis to inspect" HorizontalAlignment="Stretch"
-                        AutomationProperties.Name="Local analysis to inspect" SelectionChanged="SnapshotSelectionChanged"/>
-                    <Button x:Name="DetectButton" Grid.Column="1" VerticalAlignment="Bottom" Content="Detect developer tools"
-                        Click="DetectClick" Style="{StaticResource PrimaryActionStyle}" AutomationProperties.Name="Detect developer tools"/>
-                </Grid>
-                <TextBlock x:Name="DeveloperStatus" Style="{StaticResource BodyMutedStyle}" AutomationProperties.LiveSetting="Polite"/>
-
-                <StackPanel x:Name="DeveloperEmpty" Spacing="16" AutomationProperties.Name="Developer Mode empty state">
-                    <controls:EmptyState Title="No developer tool detection yet" Message="Run or select a local analysis, then choose Detect developer tools."
-                        Glyph="&#xE943;"/>
+                <StackPanel Spacing="12">
+                    <Border Style="{StaticResource StatusBadgeStyle}" HorizontalAlignment="Left"
+                            AutomationProperties.Name="Advanced mode">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <FontIcon Glyph="&#xE943;" FontSize="13" />
+                            <TextBlock Text="Advanced" Style="{StaticResource StatusTextStyle}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource CompactCardStyle}"
+                            AutomationProperties.Name="Developer Mode safety explanation">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xE946;" FontSize="18" Foreground="{ThemeResource WarmAccentBrush}"
+                                      VerticalAlignment="Top" Margin="0,2,0,0" />
+                            <TextBlock Grid.Column="1" TextWrapping="Wrap"
+                                Text="Developer Mode exposes technical information intended for troubleshooting and verification. It does not enable unsafe cleanup or unrestricted system access." />
+                        </Grid>
+                    </Border>
                 </StackPanel>
 
-                <StackPanel x:Name="DeveloperContent" Visibility="Collapsed" Spacing="18">
-                    <TextBlock Text="Detected developer tools" Style="{StaticResource SectionTitleStyle}"/>
-                    <Grid x:Name="ToolGrid" ColumnSpacing="14" RowSpacing="14" AutomationProperties.Name="Developer tool cards">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                    </Grid>
+                <StackPanel x:Name="LoadingPanel" Spacing="10" Visibility="Collapsed"
+                            AutomationProperties.Name="Developer Mode loading state">
+                    <ProgressRing IsActive="True" Width="28" Height="28" HorizontalAlignment="Center" />
+                    <TextBlock Text="Loading local diagnostic data…" TextAlignment="Center"
+                               Style="{StaticResource BodyMutedStyle}" />
                 </StackPanel>
 
-                <Border x:Name="DetailPanel" Style="{StaticResource CardStyle}" Visibility="Collapsed" AutomationProperties.Name="Developer tool detail">
-                    <StackPanel Spacing="12">
-                        <TextBlock x:Name="DetailTitle" Style="{StaticResource SectionTitleStyle}"/>
-                        <TextBlock x:Name="DetailExplanation" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
-                        <StackPanel x:Name="DetailDiagnosticsStack" Spacing="6"/>
-                        <StackPanel x:Name="DetailStack" Spacing="10"/>
-                        <Button Content="Close details" Click="CloseDetails" AutomationProperties.Name="Close developer tool details"/>
+                <StackPanel x:Name="NoDataState" Spacing="12" Visibility="Collapsed"
+                            HorizontalAlignment="Center" MaxWidth="520" Margin="0,42,0,20"
+                            AutomationProperties.Name="Developer Mode no diagnostic data state">
+                    <FontIcon Glyph="&#xE9D9;" FontSize="32" Foreground="{ThemeResource MutedTextBrush}"
+                              HorizontalAlignment="Center" />
+                    <TextBlock Text="No diagnostic data available" Style="{StaticResource SectionTitleStyle}"
+                               TextAlignment="Center" />
+                    <TextBlock Text="Run an analysis to populate Developer Mode."
+                               Style="{StaticResource BodyMutedStyle}" TextAlignment="Center" TextWrapping="Wrap" />
+                    <Button x:Name="RunAnalysisButton" Content="Run an analysis"
+                            Style="{StaticResource PrimaryActionStyle}" HorizontalAlignment="Center"
+                            AutomationProperties.Name="Run an analysis from Developer Mode" />
+                </StackPanel>
+
+                <StackPanel x:Name="UnavailableState" Spacing="12" Visibility="Collapsed"
+                            HorizontalAlignment="Center" MaxWidth="520" Margin="0,42,0,20"
+                            AutomationProperties.Name="Developer Mode unavailable state">
+                    <FontIcon Glyph="&#xEA39;" FontSize="30" Foreground="{ThemeResource Error}"
+                              HorizontalAlignment="Center" />
+                    <TextBlock Text="Diagnostic data is temporarily unavailable"
+                               Style="{StaticResource SectionTitleStyle}" TextAlignment="Center" />
+                    <TextBlock Text="Your analyses were not changed. Leave Developer Mode and try again later."
+                               Style="{StaticResource BodyMutedStyle}" TextAlignment="Center" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <StackPanel x:Name="DeveloperContent" Visibility="Collapsed" Spacing="22">
+                    <Border Style="{StaticResource StandardCardStyle}"
+                            AutomationProperties.Name="Developer Mode analysis source">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Analysis source" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Choose a saved aggregate analysis. Developer Mode reads its existing diagnostic data without rescanning the drive."
+                                       Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                            <Grid x:Name="SnapshotGrid" ColumnSpacing="12" RowSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <ComboBox x:Name="SnapshotPicker" Header="Local analysis to inspect"
+                                          HorizontalAlignment="Stretch" MinWidth="0"
+                                          AutomationProperties.Name="Local analysis to inspect"
+                                          SelectionChanged="SnapshotSelectionChanged" />
+                                <Button x:Name="DetectButton" Grid.Column="1" VerticalAlignment="Bottom"
+                                        Content="Detect developer tools" Click="DetectClick"
+                                        Style="{StaticResource PrimaryActionStyle}"
+                                        AutomationProperties.Name="Detect developer tools from selected analysis" />
+                            </Grid>
+                            <TextBlock x:Name="DeveloperStatus" Style="{StaticResource BodyMutedStyle}"
+                                       TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource StandardCardStyle}"
+                            AutomationProperties.Name="Current diagnostic summary">
+                        <StackPanel Spacing="16">
+                            <Grid x:Name="SummaryHeaderGrid" ColumnSpacing="12" RowSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel x:Name="SummaryHeading" Spacing="3">
+                                    <TextBlock Text="Current diagnostic summary" Style="{StaticResource SectionTitleStyle}" />
+                                    <TextBlock Text="Recorded facts from the selected local analysis."
+                                               Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel x:Name="SummaryActions" Grid.Column="1" Orientation="Horizontal"
+                                            Spacing="8" VerticalAlignment="Center" />
+                            </Grid>
+                            <Grid x:Name="SummaryGrid" ColumnSpacing="20" RowSpacing="14"
+                                  AutomationProperties.Name="Selected analysis diagnostic facts" />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel x:Name="TechnicalSections" Spacing="12"
+                                AutomationProperties.Name="Developer Mode technical sections">
+                        <Border Style="{StaticResource CompactCardStyle}">
+                            <Expander x:Name="ScanExecutionSection" Header="Scan execution" IsExpanded="True"
+                                      AutomationProperties.Name="Scan execution technical section">
+                                <StackPanel x:Name="ScanExecutionRows" Spacing="0" Padding="0,12,0,0" />
+                            </Expander>
+                        </Border>
+
+                        <Border Style="{StaticResource CompactCardStyle}">
+                            <Expander x:Name="StorageAccountingSection" Header="Storage accounting"
+                                      AutomationProperties.Name="Storage accounting technical section">
+                                <StackPanel x:Name="StorageAccountingRows" Spacing="0" Padding="0,12,0,0" />
+                            </Expander>
+                        </Border>
+
+                        <Border x:Name="ClassificationSection" Style="{StaticResource CompactCardStyle}"
+                                Visibility="Collapsed">
+                            <Expander Header="Classification" AutomationProperties.Name="Classification technical section">
+                                <StackPanel x:Name="ClassificationRows" Spacing="0" Padding="0,12,0,0" />
+                            </Expander>
+                        </Border>
+
+                        <Border x:Name="WarningsSection" Style="{StaticResource CompactCardStyle}"
+                                Visibility="Collapsed">
+                            <Expander Header="Warnings and limitations"
+                                      AutomationProperties.Name="Warnings and limitations technical section">
+                                <StackPanel x:Name="WarningRows" Spacing="0" Padding="0,12,0,0" />
+                            </Expander>
+                        </Border>
+
+                        <Border Style="{StaticResource CompactCardStyle}">
+                            <Expander Header="Report metadata" AutomationProperties.Name="Report metadata technical section">
+                                <StackPanel x:Name="MetadataRows" Spacing="0" Padding="0,12,0,0" />
+                            </Expander>
+                        </Border>
                     </StackPanel>
-                </Border>
+
+                    <Border Style="{StaticResource StandardCardStyle}"
+                            AutomationProperties.Name="Developer tool diagnostics">
+                        <StackPanel Spacing="14">
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="Developer tool diagnostics" Style="{StaticResource SectionTitleStyle}" />
+                                <TextBlock Text="Optional read-only detection combines the selected analysis with the existing bounded tool-status checks. It never installs, updates, removes, or cleans tool data."
+                                           Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel x:Name="ToolEmpty" Spacing="4">
+                                <TextBlock Text="No developer tool detection yet" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Choose Detect developer tools to evaluate the selected analysis."
+                                           Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel x:Name="DeveloperToolList" Spacing="0"
+                                        AutomationProperties.Name="Detected developer tool diagnostic rows" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="DetailPanel" Style="{StaticResource StandardCardStyle}"
+                            Visibility="Collapsed" AutomationProperties.Name="Developer tool detail">
+                        <StackPanel Spacing="14">
+                            <StackPanel Spacing="3">
+                                <TextBlock x:Name="DetailTitle" Style="{StaticResource SectionTitleStyle}" />
+                                <TextBlock x:Name="DetailExplanation" Style="{StaticResource BodyMutedStyle}"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel x:Name="DetailDiagnosticsStack" Spacing="0" />
+                            <StackPanel x:Name="DetailStack" Spacing="12" />
+                            <Button Content="Close details" Click="CloseDetails"
+                                    Style="{StaticResource QuietButtonStyle}" HorizontalAlignment="Left"
+                                    AutomationProperties.Name="Close developer tool details" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock x:Name="CopyStatus" Style="{StaticResource BodyMutedStyle}"
+                               TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
             </StackPanel>
         </controls:ResponsivePageHost.PageContent>
     </controls:ResponsivePageHost>

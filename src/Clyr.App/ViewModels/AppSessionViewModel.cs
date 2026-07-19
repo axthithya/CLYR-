@@ -284,6 +284,7 @@ public sealed class DeveloperModeViewModel : PageViewModel
 
     public IReadOnlyList<SnapshotSummary> Snapshots { get; private set; } = [];
     public Guid? SelectedSnapshotId { get; set; }
+    public StorageSnapshot? SelectedSnapshot { get; private set; }
     public IReadOnlyList<DeveloperToolReport> Reports { get; private set; } = [];
     public string? StatusMessage { get; private set; }
 
@@ -292,12 +293,27 @@ public sealed class DeveloperModeViewModel : PageViewModel
         Snapshots = await snapshots.ListAsync().ConfigureAwait(false);
         if (SelectedSnapshotId is null || Snapshots.All(item => item.Id != SelectedSnapshotId))
             SelectedSnapshotId = Snapshots.OrderByDescending(item => item.CapturedAtUtc).Select(item => (Guid?)item.Id).FirstOrDefault();
+        SelectedSnapshot = SelectedSnapshotId is { } id
+            ? await snapshots.GetAsync(id).ConfigureAwait(false)
+            : null;
+    }
+
+    public async Task SelectSnapshotAsync(Guid? id)
+    {
+        SelectedSnapshotId = id;
+        SelectedSnapshot = id is { } selectedId
+            ? await snapshots.GetAsync(selectedId).ConfigureAwait(false)
+            : null;
+        Reports = [];
+        StatusMessage = null;
     }
 
     public async Task DetectAsync()
     {
         if (SelectedSnapshotId is not { } id) { StatusMessage = "No local analysis is available yet. Run an analysis first."; Reports = []; return; }
-        var snapshot = await snapshots.GetAsync(id).ConfigureAwait(false);
+        var snapshot = SelectedSnapshot?.Id == id
+            ? SelectedSnapshot
+            : await snapshots.GetAsync(id).ConfigureAwait(false);
         if (snapshot is null) { StatusMessage = "The selected analysis could not be found."; Reports = []; return; }
         var classification = DeveloperToolReportBuilder.FromSnapshot(snapshot);
         Reports = await DeveloperToolRegistry.DetectAllAsync(classification, locator, probeRunner, CancellationToken.None).ConfigureAwait(false);
