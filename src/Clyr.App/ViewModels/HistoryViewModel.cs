@@ -6,13 +6,33 @@ namespace Clyr.App.ViewModels;
 public sealed class HistoryViewModel(AppSessionViewModel session, ISnapshotStore store) : PageViewModel(session)
 {
     public IReadOnlyList<SnapshotSummary> Items { get; private set; } = [];
+    public IReadOnlyDictionary<Guid, StorageSnapshot> Details { get; private set; } =
+        new Dictionary<Guid, StorageSnapshot>();
     public HistorySettings Settings { get; private set; } = HistorySettings.Default;
     public SnapshotComparison? Comparison { get; private set; }
 
     public async Task LoadAsync()
     {
         Items = await store.ListAsync();
+        var details = new Dictionary<Guid, StorageSnapshot>();
+        foreach (var item in Items)
+        {
+            var snapshot = await store.GetAsync(item.Id);
+            if (snapshot is not null) details[item.Id] = snapshot;
+        }
+        Details = details;
         Settings = await store.GetSettingsAsync();
+    }
+
+    public StorageSnapshot? Detail(Guid id) => Details.GetValueOrDefault(id);
+
+    public bool CanOpenResult(Guid id) => Detail(id)?.ScanId is { } scanId && Session.Result?.ScanId == scanId;
+
+    public bool OpenResult(Guid id)
+    {
+        if (!CanOpenResult(id)) return false;
+        Navigate("Results");
+        return true;
     }
 
     public async Task<SnapshotComparison?> CompareAsync(Guid first, Guid second)
