@@ -6,113 +6,203 @@
     Background="{ThemeResource AppBackgroundBrush}"
     AutomationProperties.Name="Review Plan page">
     <controls:ResponsivePageHost x:Name="PageHost" Title="Review Plan"
-        Subtitle="Choose eligible findings and preview an integrity-checked plan without changing any file."
+        Subtitle="Review potential actions before anything is changed."
         AutomationProperties.Name="Review Plan responsive page host">
         <controls:ResponsivePageHost.PageContent>
-            <StackPanel Spacing="20">
-                <Border Background="{ThemeResource PrivacyBannerBrush}" BorderBrush="{ThemeResource TrustBadgeBorderBrush}"
-                        BorderThickness="1" CornerRadius="12" Padding="18"
-                        AutomationProperties.Name="Dry-run only safety banner">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Dry-run only — no files will be changed." FontWeight="SemiBold" FontSize="17" TextWrapping="Wrap"/>
-                        <TextBlock Text="Estimated size is based on observed metadata and may not equal space recovered by a future action."
-                                   Style="{StaticResource BodyMutedStyle}"/>
-                    </StackPanel>
-                </Border>
-                <StackPanel x:Name="EmptyPanel" Spacing="16">
-                    <controls:EmptyState Title="No dry-run plan yet"
-                        Message="Select eligible findings from your latest analysis to preview what a future cleanup action would affect."
-                        Glyph="&#xE9D2;"/>
-                    <Button Content="Go to Results" Click="GoToResults" HorizontalAlignment="Center"/>
+            <StackPanel Spacing="24">
+                <StackPanel x:Name="EmptyPanel" Visibility="Collapsed" Spacing="12"
+                            HorizontalAlignment="Center" MaxWidth="520" Margin="0,44,0,20"
+                            AutomationProperties.Name="No Review Plan actions empty state">
+                    <FontIcon Glyph="&#xE9D2;" FontSize="32" Foreground="{ThemeResource MutedTextBrush}"
+                              HorizontalAlignment="Center" />
+                    <TextBlock Text="No actions to review" Style="{StaticResource SectionTitleStyle}"
+                               TextAlignment="Center" />
+                    <TextBlock Text="Run an analysis to find storage areas that may be worth reviewing."
+                               Style="{StaticResource BodyMutedStyle}" TextAlignment="Center" TextWrapping="Wrap" />
+                    <Button Content="Run analysis" Click="RunAnalysis" Style="{StaticResource PrimaryActionStyle}"
+                            HorizontalAlignment="Center" AutomationProperties.Name="Run analysis from empty Review Plan" />
                 </StackPanel>
-                <StackPanel x:Name="CandidatePanel" Visibility="Collapsed" Spacing="16">
-                    <TextBlock Text="Potential actions" Style="{StaticResource SectionTitleStyle}"/>
-                    <TextBlock Text="Nothing is selected by default. Protected, unsupported, and review-only findings cannot be added."
-                               Style="{StaticResource BodyMutedStyle}"/>
-                    <TextBlock Text="Protected by CLYR. Protected locations cannot be added to a cleanup plan."
-                               Style="{StaticResource BodyMutedStyle}"/>
-                    <StackPanel x:Name="CandidateStack" Spacing="12" AutomationProperties.Name="Cleanup candidate list"/>
-                    <StackPanel x:Name="PreviewActions" Orientation="Horizontal" Spacing="12">
-                        <Button Content="Preview plan" Click="PreviewPlan" Style="{StaticResource PrimaryActionStyle}"
-                                AutomationProperties.Name="Preview dry-run plan"/>
-                        <TextBlock x:Name="SelectionStatus" VerticalAlignment="Center" Style="{StaticResource BodyMutedStyle}"
-                                   AutomationProperties.LiveSetting="Polite"/>
-                    </StackPanel>
-                </StackPanel>
-                <StackPanel x:Name="PlanPanel" Visibility="Collapsed" Spacing="16"
-                            AutomationProperties.Name="Dry-run plan preview">
-                    <TextBlock Text="Plan preview" Style="{StaticResource SectionTitleStyle}"/>
-                    <Border Style="{StaticResource CardStyle}">
-                        <StackPanel Spacing="9">
-                            <TextBlock x:Name="PlanIdentity" Style="{StaticResource CardTitleStyle}"/>
-                            <TextBlock x:Name="PlanDigest" TextWrapping="WrapWholeWords" FontFamily="Consolas"/>
-                            <TextBlock x:Name="PlanTiming" Style="{StaticResource BodyMutedStyle}"/>
-                            <TextBlock x:Name="PlanImpact" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="PlanValidation" TextWrapping="Wrap"/>
-                            <TextBlock Text="Execution availability: ExecutionNotAvailableInPhase5" TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
-                    <StackPanel x:Name="PlanItemStack" Spacing="12" AutomationProperties.Name="Dry-run plan items"/>
-                    <StackPanel x:Name="PlanActions" Orientation="Horizontal" Spacing="12">
-                        <Button Content="Save dry-run report" Click="ExportPlan" Style="{StaticResource PrimaryActionStyle}"/>
-                        <Button Content="Discard plan" Click="DiscardPlan"/>
-                        <Button Content="Done" Click="Done"/>
-                    </StackPanel>
-                    <TextBox x:Name="ExportOutput" Visibility="Collapsed" IsReadOnly="True" AcceptsReturn="True"
-                             TextWrapping="Wrap" MaxHeight="260" AutomationProperties.Name="Privacy-safe dry-run report"/>
-                </StackPanel>
-                <StackPanel x:Name="ExecutionPanel" Visibility="Collapsed" Spacing="16"
-                            AutomationProperties.Name="Phase 6 execution panel">
-                    <TextBlock Text="Execute eligible items" Style="{StaticResource SectionTitleStyle}"/>
-                    <TextBlock Text="Nothing is selected by default. Some actions cannot be undone, and actual drive free-space change may differ from the estimate."
-                               Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
-                    <StackPanel x:Name="ExecutableItemStack" Spacing="12" AutomationProperties.Name="Executable item list"/>
-                    <StackPanel x:Name="ExecuteActions" Orientation="Horizontal" Spacing="12">
-                        <Button x:Name="RunCleanupButton" Content="Run selected cleanup" Click="RequestExecute"
-                                IsEnabled="False" Style="{StaticResource PrimaryActionStyle}"
-                                AutomationProperties.Name="Run selected cleanup"/>
-                        <TextBlock x:Name="ExecutionSelectionStatus" VerticalAlignment="Center"
-                                   Style="{StaticResource BodyMutedStyle}" AutomationProperties.LiveSetting="Polite"/>
-                    </StackPanel>
-                    <StackPanel x:Name="ExecutionProgressPanel" Visibility="Collapsed" Spacing="9"
-                                AutomationProperties.Name="Execution progress">
-                        <TextBlock x:Name="ExecutionStateText" Style="{StaticResource CardTitleStyle}"
-                                   AutomationProperties.LiveSetting="Assertive"/>
-                        <TextBlock x:Name="ExecutionCounters" TextWrapping="Wrap"/>
-                        <TextBlock x:Name="ExecutionCurrentItem" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
-                        <Button x:Name="CancelExecutionButton" Content="Cancel" Click="CancelExecution"
-                                AutomationProperties.Name="Cancel execution"/>
-                    </StackPanel>
-                    <Border x:Name="ExecutionResultPanel" Visibility="Collapsed" Style="{StaticResource CardStyle}"
-                            AutomationProperties.Name="Execution result">
-                        <StackPanel Spacing="9">
-                            <TextBlock x:Name="ExecutionResultState" Style="{StaticResource CardTitleStyle}"
-                                       AutomationProperties.LiveSetting="Assertive"/>
-                            <TextBlock x:Name="ExecutionResultCounts" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="ExecutionResultBytes" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="ExecutionResultWarnings" TextWrapping="Wrap"/>
-                            <StackPanel x:Name="ExecutionResultActions" Orientation="Horizontal" Spacing="12">
-                                <Button Content="View details" Click="ViewReceiptDetails"
-                                        AutomationProperties.Name="View execution receipt details"/>
-                                <Button Content="Export receipt" Click="ExportCurrentReceipt"
-                                        AutomationProperties.Name="Export execution receipt"/>
-                                <Button Content="Run a new analysis" Click="RunNewAnalysis"
-                                        AutomationProperties.Name="Run a new analysis"/>
-                                <Button Content="Done" Click="Done" AutomationProperties.Name="Execution done"/>
+
+                <StackPanel x:Name="ReviewStage" Visibility="Collapsed" Spacing="24"
+                            AutomationProperties.Name="Review Plan candidate stage">
+                    <Border Style="{StaticResource StandardCardStyle}" AutomationProperties.Name="Review Plan summary">
+                        <StackPanel Spacing="16">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Estimated potential" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock x:Name="TotalPotentialText" FontSize="30" FontWeight="SemiBold"
+                                           AutomationProperties.Name="Total estimated potential storage" />
+                                <TextBlock Text="Actual reclaimed space can differ because files may be shared, locked, compressed, hard-linked or changed before execution."
+                                           Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
                             </StackPanel>
-                            <TextBox x:Name="ExecutionReceiptOutput" Visibility="Collapsed" IsReadOnly="True" AcceptsReturn="True"
-                                     TextWrapping="Wrap" MaxHeight="260" AutomationProperties.Name="Execution receipt details"/>
+                            <Border Style="{StaticResource DividerStyle}" />
+                            <Grid x:Name="SummaryMetrics" ColumnSpacing="16" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2"><TextBlock Text="Candidates" Style="{StaticResource BodyMutedStyle}" /><TextBlock x:Name="CandidateCountText" Style="{StaticResource CardTitleStyle}" /></StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="2"><TextBlock Text="Selected" Style="{StaticResource BodyMutedStyle}" /><TextBlock x:Name="SelectedCountText" Style="{StaticResource CardTitleStyle}" /></StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="2"><TextBlock Text="Selected potential" Style="{StaticResource BodyMutedStyle}" /><TextBlock x:Name="SelectedPotentialText" Style="{StaticResource CardTitleStyle}" /></StackPanel>
+                                <StackPanel Grid.Column="3" Spacing="2"><TextBlock Text="Safety overview" Style="{StaticResource BodyMutedStyle}" /><TextBlock x:Name="SafetyCountsText" TextWrapping="Wrap" /></StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Spacing="10">
+                        <Grid x:Name="FilterBar" ColumnSpacing="12" RowSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="StatusFilter" Header="Show" SelectedIndex="0"
+                                      SelectionChanged="FilterChanged" MinWidth="220"
+                                      AutomationProperties.Name="Filter candidates by safety state">
+                                <ComboBoxItem Content="All" /><ComboBoxItem Content="Recommended" />
+                                <ComboBoxItem Content="Needs review" /><ComboBoxItem Content="Protected" />
+                                <ComboBoxItem Content="Unsupported" /><ComboBoxItem Content="Selected only" />
+                            </ComboBox>
+                            <ComboBox x:Name="SortOrder" Grid.Column="1" Header="Sort by" SelectedIndex="0"
+                                      SelectionChanged="FilterChanged" MinWidth="220"
+                                      AutomationProperties.Name="Sort Review Plan candidates">
+                                <ComboBoxItem Content="Largest potential first" /><ComboBoxItem Content="Safest first" />
+                                <ComboBoxItem Content="Category" /><ComboBoxItem Content="Name" />
+                            </ComboBox>
+                            <Button x:Name="SelectAllButton" Grid.Column="2" Content="Select all eligible"
+                                    Click="SelectAllEligible" VerticalAlignment="Bottom" Style="{StaticResource SecondaryActionStyle}" />
+                            <Button x:Name="FilterClearButton" Grid.Column="3" Content="Clear"
+                                    Click="ClearSelection" VerticalAlignment="Bottom" Style="{StaticResource QuietButtonStyle}" />
+                        </Grid>
+                        <TextBlock x:Name="FilterResultText" Style="{StaticResource BodyMutedStyle}"
+                                   AutomationProperties.LiveSetting="Polite" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Potential actions" Style="{StaticResource SectionTitleStyle}" />
+                        <TextBlock Text="Nothing is selected by default. Select only eligible items you want CLYR to place into a dry-run plan."
+                                   Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                        <StackPanel x:Name="CandidateStack" Spacing="10" AutomationProperties.Name="Cleanup candidate list" />
+                    </StackPanel>
+
+                    <Border x:Name="DetailsPanel" Style="{StaticResource CompactCardStyle}" Visibility="Collapsed"
+                            AutomationProperties.Name="Selected candidate details and evidence">
+                        <StackPanel Spacing="12">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel Spacing="3"><TextBlock Text="Item details" Style="{StaticResource BodyMutedStyle}" /><TextBlock x:Name="DetailTitle" Style="{StaticResource SectionTitleStyle}" TextWrapping="Wrap" /></StackPanel>
+                                <Button Grid.Column="1" Content="Close" Click="CloseDetails" Style="{StaticResource QuietButtonStyle}" />
+                            </Grid>
+                            <TextBlock x:Name="DetailSource" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                            <Grid x:Name="DetailMetrics" ColumnSpacing="16" RowSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0"><TextBlock Text="Category" Style="{StaticResource BodyMutedStyle}" /><TextBlock x:Name="DetailCategory" TextWrapping="Wrap" /></StackPanel>
+                                <StackPanel Grid.Column="1"><TextBlock Text="Estimated potential" Style="{StaticResource BodyMutedStyle}" /><TextBlock x:Name="DetailEstimate" TextWrapping="Wrap" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Safety level" Style="{StaticResource BodyMutedStyle}" /><TextBlock x:Name="DetailSafety" TextWrapping="Wrap" /></StackPanel>
+                                <StackPanel Grid.Column="3"><TextBlock Text="Evidence" Style="{StaticResource BodyMutedStyle}" /><TextBlock x:Name="DetailConfidence" TextWrapping="Wrap" /></StackPanel>
+                            </Grid>
+                            <Border Style="{StaticResource DividerStyle}" />
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Why CLYR suggested it" Style="{StaticResource CardTitleStyle}" /><TextBlock x:Name="DetailReason" TextWrapping="Wrap" />
+                                <TextBlock Text="What may happen" Style="{StaticResource CardTitleStyle}" Margin="0,6,0,0" /><TextBlock x:Name="DetailOutcome" TextWrapping="Wrap" />
+                                <TextBlock x:Name="DetailRecreation" TextWrapping="Wrap" /><TextBlock x:Name="DetailRollback" TextWrapping="Wrap" />
+                                <TextBlock x:Name="DetailAction" TextWrapping="Wrap" /><TextBlock x:Name="DetailWarnings" Foreground="{ThemeResource Warning}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource CompactCardStyle}" Background="{ThemeResource SurfaceSecondary}"
+                            AutomationProperties.Name="Review Plan selection summary">
+                        <StackPanel Spacing="14">
+                            <Grid x:Name="SelectionSummaryGrid" ColumnSpacing="20" RowSpacing="8">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0"><TextBlock Text="Selected items" Style="{StaticResource BodyMutedStyle}" /><TextBlock x:Name="SelectionCountSummary" Style="{StaticResource CardTitleStyle}" /></StackPanel>
+                                <StackPanel Grid.Column="1"><TextBlock Text="Estimated potential" Style="{StaticResource BodyMutedStyle}" /><TextBlock x:Name="SelectionPotentialSummary" Style="{StaticResource CardTitleStyle}" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Excluded by safety" Style="{StaticResource BodyMutedStyle}" /><TextBlock x:Name="ExcludedCountSummary" TextWrapping="Wrap" /></StackPanel>
+                            </Grid>
+                            <TextBlock x:Name="SelectionStatus" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                            <StackPanel x:Name="PreviewActions" Orientation="Horizontal" Spacing="12">
+                                <Button x:Name="ReviewSelectedButton" Content="Review selected actions" Click="PreviewPlan"
+                                        IsEnabled="False" Style="{StaticResource PrimaryActionStyle}"
+                                        AutomationProperties.HelpText="Preview plan for the selected eligible items." />
+                                <Button Content="Clear selection" Click="ClearSelection" Style="{StaticResource SecondaryActionStyle}" />
+                                <Button Content="Return to Results" Click="GoToResults" Style="{StaticResource QuietButtonStyle}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>
-                <StackPanel x:Name="ReceiptHistoryPanel" Visibility="Collapsed" Spacing="12"
-                            AutomationProperties.Name="Execution receipt history">
-                    <TextBlock Text="Execution receipt history" Style="{StaticResource SectionTitleStyle}"/>
-                    <TextBlock Text="Only CLYR's own local execution receipts are listed here." Style="{StaticResource BodyMutedStyle}"/>
-                    <StackPanel x:Name="ReceiptHistoryStack" Spacing="9" AutomationProperties.Name="Execution receipt list"/>
+
+                <StackPanel x:Name="PlanPanel" Visibility="Collapsed" Spacing="18" AutomationProperties.Name="Dry-run plan preview">
+                    <Border Style="{StaticResource SuccessBannerStyle}">
+                        <StackPanel Spacing="5"><TextBlock Text="Dry-run complete" Style="{StaticResource CardTitleStyle}" /><TextBlock Text="Dry-run only — no files will be changed." /></StackPanel>
+                    </Border>
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="Review selected actions" Style="{StaticResource SectionTitleStyle}" />
+                        <TextBlock x:Name="PlanImpact" TextWrapping="Wrap" />
+                        <TextBlock Text="Estimated potential is not guaranteed reclaimed space." Style="{StaticResource BodyMutedStyle}" />
+                    </StackPanel>
+                    <StackPanel x:Name="PlanItemStack" Spacing="10" AutomationProperties.Name="Selected dry-run plan items" />
+                    <Border Style="{StaticResource CompactCardStyle}" Background="{ThemeResource SurfaceSecondary}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Safety boundary" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="CLYR will act only on the validated eligible items listed above. Protected and unsupported locations remain excluded." TextWrapping="Wrap" />
+                            <TextBlock x:Name="PlanExcludedText" TextWrapping="Wrap" />
+                            <TextBlock x:Name="PlanWarnings" Foreground="{ThemeResource Warning}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <Expander Header="Advanced plan details">
+                        <StackPanel Spacing="6" Padding="0,10,0,0">
+                            <TextBlock x:Name="PlanIdentity" TextWrapping="Wrap" /><TextBlock x:Name="PlanTiming" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                            <TextBlock x:Name="PlanValidation" TextWrapping="Wrap" /><TextBlock Text="ExecutionNotAvailableInPhase5 is retained for report-only plan items." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                            <TextBlock x:Name="PlanDigest" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Expander>
+                    <StackPanel x:Name="PlanActions" Orientation="Horizontal" Spacing="12">
+                        <Button Content="Save dry-run report" Click="ExportPlan" Style="{StaticResource SecondaryActionStyle}" />
+                        <Button Content="Discard plan" Click="DiscardPlan" Style="{StaticResource QuietButtonStyle}" />
+                        <Button Content="Return to Results" Click="Done" Style="{StaticResource QuietButtonStyle}" />
+                    </StackPanel>
+                    <TextBox x:Name="ExportOutput" Visibility="Collapsed" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="260" />
+                </StackPanel>
+
+                <StackPanel x:Name="ExecutionPanel" Visibility="Collapsed" Spacing="16" AutomationProperties.Name="Cleanup execution selection">
+                    <Border Style="{StaticResource WarningBannerStyle}">
+                        <StackPanel Spacing="5"><TextBlock Text="Awaiting confirmation" Style="{StaticResource CardTitleStyle}" /><TextBlock Text="Nothing happens until you choose executable items and complete the deliberate confirmation step. Some actions cannot be undone." TextWrapping="Wrap" /></StackPanel>
+                    </Border>
+                    <TextBlock Text="Executable actions" Style="{StaticResource SectionTitleStyle}" />
+                    <TextBlock Text="Nothing is selected by default. Review each action before continuing." Style="{StaticResource BodyMutedStyle}" />
+                    <StackPanel x:Name="ExecutableItemStack" Spacing="10" />
+                    <StackPanel x:Name="ExecuteActions" Orientation="Horizontal" Spacing="12">
+                        <Button x:Name="RunCleanupButton" Content="Run selected cleanup" Click="RequestExecute" IsEnabled="False" Style="{StaticResource PrimaryActionStyle}" />
+                        <TextBlock x:Name="ExecutionSelectionStatus" VerticalAlignment="Center" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                    </StackPanel>
+                    <StackPanel x:Name="ExecutionProgressPanel" Visibility="Collapsed" Spacing="9" AutomationProperties.Name="Execution progress">
+                        <TextBlock x:Name="ExecutionStateText" Style="{StaticResource CardTitleStyle}" AutomationProperties.LiveSetting="Assertive" />
+                        <ProgressBar IsIndeterminate="True" /><TextBlock x:Name="ExecutionCounters" TextWrapping="Wrap" /><TextBlock x:Name="ExecutionCurrentItem" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                        <Button x:Name="CancelExecutionButton" Content="Cancel" Click="CancelExecution" HorizontalAlignment="Left" AutomationProperties.Name="Cancel execution" />
+                    </StackPanel>
+                    <Border x:Name="ExecutionResultPanel" Visibility="Collapsed" Style="{StaticResource CompactCardStyle}" AutomationProperties.Name="Execution result">
+                        <StackPanel Spacing="9">
+                            <TextBlock x:Name="ExecutionResultState" Style="{StaticResource SectionTitleStyle}" AutomationProperties.LiveSetting="Assertive" />
+                            <TextBlock x:Name="ExecutionResultCounts" TextWrapping="Wrap" /><TextBlock x:Name="ExecutionResultBytes" TextWrapping="Wrap" />
+                            <TextBlock x:Name="ExecutionResultWarnings" Foreground="{ThemeResource Warning}" TextWrapping="Wrap" />
+                            <StackPanel x:Name="ExecutionResultActions" Orientation="Horizontal" Spacing="12">
+                                <Button Content="View details" Click="ViewReceiptDetails" AutomationProperties.Name="View execution receipt details" />
+                                <Button Content="Export receipt" Click="ExportCurrentReceipt" AutomationProperties.Name="Export execution receipt" />
+                                <Button Content="Run a new analysis" Click="RunNewAnalysis" /><Button Content="Done" Click="Done" />
+                            </StackPanel>
+                            <TextBox x:Name="ExecutionReceiptOutput" Visibility="Collapsed" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="260" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel x:Name="ReceiptHistoryPanel" Visibility="Collapsed" Spacing="12" AutomationProperties.Name="Execution receipt history">
+                    <TextBlock Text="Execution receipt history" Style="{StaticResource SectionTitleStyle}" />
+                    <TextBlock Text="Only CLYR's own local execution receipts are listed here." Style="{StaticResource BodyMutedStyle}" />
+                    <StackPanel x:Name="ReceiptHistoryStack" Spacing="9" />
                 </StackPanel>
             </StackPanel>
         </controls:ResponsivePageHost.PageContent>
     </controls:ResponsivePageHost>
 </Page>
-
