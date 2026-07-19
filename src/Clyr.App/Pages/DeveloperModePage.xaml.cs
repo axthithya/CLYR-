@@ -648,7 +648,7 @@ public sealed partial class DeveloperModePage : Page
         DeveloperToolStatus.FullyDetected => "Success",
         DeveloperToolStatus.PartiallyDetected or DeveloperToolStatus.PermissionLimited => "Warning",
         DeveloperToolStatus.UnsupportedVersion or DeveloperToolStatus.ProbeFailed => "Error",
-        _ => "MutedTextBrush"
+        _ => "TextMuted"
     });
 
     private static string DiagnosticSeverity(string code) =>

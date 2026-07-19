@@ -148,7 +148,7 @@ public sealed partial class ResultsPage : Page
     {
         var summary = ScanAccounting.Summarize(r);
         CoverageHeadlineText.Text = summary.AccountedPercentage is { } accounted
-            ? $"{accounted:F1}% accounted - CLYR observed most of the drive's used storage."
+            ? $"{accounted:F1}% accounted - CLYR observed {AccountedPortion(accounted)} of the drive's used storage."
             : "Accounted percentage unavailable for this scan.";
         ClassificationHeadlineText.Text = summary.ClassificationPercentage is { } classified
             ? $"{classified:F1}% classified - about {Rounded(classified)}% of the observed storage matched known categories."
@@ -164,6 +164,15 @@ public sealed partial class ResultsPage : Page
         >= 95 => "all",
         >= 45 and <= 55 => "half",
         _ => $"{percentage:F0}"
+    };
+
+    private static string AccountedPortion(double percentage) => percentage switch
+    {
+        >= 90 => "nearly all",
+        >= 60 => "most",
+        >= 25 => "part",
+        > 0 => "a small portion",
+        _ => "none"
     };
 
     private void RenderQualityAndLimitations(ScanResult r)

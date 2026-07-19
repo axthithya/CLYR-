@@ -523,7 +523,7 @@ public sealed partial class HistoryPage : Page
         SnapshotState.Complete => "Success",
         SnapshotState.Partial or SnapshotState.Cancelled => "Warning",
         SnapshotState.Failed or SnapshotState.Corrupted => "Error",
-        _ => "MutedTextBrush"
+        _ => "TextMuted"
     });
 
     private static string WarningCountText(StorageSnapshot? detail) => detail is null

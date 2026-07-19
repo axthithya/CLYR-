@@ -8,12 +8,14 @@
             <FontIcon
                 FontSize="{StaticResource IconSizeSmall}"
                 Foreground="{ThemeResource PrivacySafe}"
-                Glyph="&#xE72E;" />
+                Glyph="&#xE72E;"
+                AutomationProperties.AccessibilityView="Raw" />
             <TextBlock
                 FontSize="12"
                 FontWeight="SemiBold"
                 Foreground="{ThemeResource TextSecondary}"
-                Text="Private · Local · Read-only" />
+                Text="Private · Local · Read-only"
+                AutomationProperties.AccessibilityView="Raw" />
         </StackPanel>
     </Border>
 </UserControl>

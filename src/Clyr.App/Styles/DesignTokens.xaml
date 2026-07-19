@@ -31,18 +31,6 @@
             <SolidColorBrush x:Key="PrivacySafeSurface" Color="#17231F" />
             <SolidColorBrush x:Key="FocusStroke" Color="#FFFFFF" />
 
-            <!-- Compatibility aliases keep Phase 7.2 pages visually unchanged. -->
-            <SolidColorBrush x:Key="AppBackgroundBrush" Color="#111315" />
-            <SolidColorBrush x:Key="CardBackgroundBrush" Color="#1B1E21" />
-            <SolidColorBrush x:Key="CardBorderBrush" Color="#34383D" />
-            <SolidColorBrush x:Key="MutedTextBrush" Color="#AEB5BC" />
-            <SolidColorBrush x:Key="WarmAccentBrush" Color="#F27A5A" />
-            <SolidColorBrush x:Key="SubtleAccentBrush" Color="#34231F" />
-            <SolidColorBrush x:Key="SelectedCardBorderBrush" Color="#FA8B6D" />
-            <SolidColorBrush x:Key="TrustBadgeBackgroundBrush" Color="#17231F" />
-            <SolidColorBrush x:Key="TrustBadgeBorderBrush" Color="#477663" />
-            <SolidColorBrush x:Key="PrivacyBannerBrush" Color="#17231F" />
-            <SolidColorBrush x:Key="DisabledReadableBrush" Color="#91979D" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Light">
             <SolidColorBrush x:Key="AppBackground" Color="#F5F7F9" />
@@ -73,17 +61,6 @@
             <SolidColorBrush x:Key="PrivacySafeSurface" Color="#EDF7F2" />
             <SolidColorBrush x:Key="FocusStroke" Color="#000000" />
 
-            <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F5F7F9" />
-            <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FFFFFF" />
-            <SolidColorBrush x:Key="CardBorderBrush" Color="#D7DDE3" />
-            <SolidColorBrush x:Key="MutedTextBrush" Color="#59656F" />
-            <SolidColorBrush x:Key="WarmAccentBrush" Color="#B94729" />
-            <SolidColorBrush x:Key="SubtleAccentBrush" Color="#FFF0EA" />
-            <SolidColorBrush x:Key="SelectedCardBorderBrush" Color="#C64E2F" />
-            <SolidColorBrush x:Key="TrustBadgeBackgroundBrush" Color="#EAF6F0" />
-            <SolidColorBrush x:Key="TrustBadgeBorderBrush" Color="#79A38F" />
-            <SolidColorBrush x:Key="PrivacyBannerBrush" Color="#EDF7F2" />
-            <SolidColorBrush x:Key="DisabledReadableBrush" Color="#68737D" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
             <SolidColorBrush x:Key="AppBackground" Color="{ThemeResource SystemColorWindowColor}" />
@@ -113,17 +90,6 @@
             <SolidColorBrush x:Key="InformationSurface" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="PrivacySafeSurface" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FocusStroke" Color="{ThemeResource SystemColorWindowTextColor}" />
-            <SolidColorBrush x:Key="AppBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="CardBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="CardBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
-            <SolidColorBrush x:Key="MutedTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
-            <SolidColorBrush x:Key="WarmAccentBrush" Color="{ThemeResource SystemColorHighlightColor}" />
-            <SolidColorBrush x:Key="SubtleAccentBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="SelectedCardBorderBrush" Color="{ThemeResource SystemColorHighlightColor}" />
-            <SolidColorBrush x:Key="TrustBadgeBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="TrustBadgeBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
-            <SolidColorBrush x:Key="PrivacyBannerBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="DisabledReadableBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
     <x:Double x:Key="Spacing4">4</x:Double>

@@ -2,7 +2,7 @@
     x:Class="Clyr.App.Pages.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Background="{ThemeResource AppBackgroundBrush}"
+    Background="{ThemeResource AppBackground}"
     AutomationProperties.Name="Settings page">
     <controls:ResponsivePageHost
         xmlns:controls="using:Clyr.App.Controls"

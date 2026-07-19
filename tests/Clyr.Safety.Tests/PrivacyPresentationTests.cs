@@ -18,7 +18,7 @@ public sealed class PrivacyPresentationTests
         foreach (var required in new[]
         {
             "Your storage analysis stays on this device", "Analysis runs on this PC.", "Metadata only",
-            "Read-only by default", "does not upload your scan data", "Analysis never deletes, moves or changes files."
+            "Read-only analysis", "does not upload your scan data", "Analysis never deletes, moves or changes files."
         })
             Assert.Contains(required, xaml, StringComparison.Ordinal);
     }

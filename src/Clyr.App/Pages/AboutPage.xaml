@@ -3,7 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Clyr.App.Controls"
-    Background="{ThemeResource AppBackgroundBrush}"
+    Background="{ThemeResource AppBackground}"
     AutomationProperties.Name="About page">
     <controls:ResponsivePageHost x:Name="PageHost" Title="About"
         Subtitle="Application, version and project information."

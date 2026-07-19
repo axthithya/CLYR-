@@ -8,8 +8,10 @@
             <FontIcon
                 FontSize="{StaticResource IconSizeSmall}"
                 Glyph="{x:Bind Glyph, Mode=OneWay}"
-                IsHitTestVisible="False" />
-            <TextBlock Style="{StaticResource StatusTextStyle}" Text="{x:Bind Text, Mode=OneWay}" />
+                IsHitTestVisible="False"
+                AutomationProperties.AccessibilityView="Raw" />
+            <TextBlock Style="{StaticResource StatusTextStyle}" Text="{x:Bind Text, Mode=OneWay}"
+                       AutomationProperties.AccessibilityView="Raw" />
         </StackPanel>
     </Border>
 </UserControl>

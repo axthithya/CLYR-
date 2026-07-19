@@ -3,7 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Clyr.App.Controls"
-    Background="{ThemeResource AppBackgroundBrush}"
+    Background="{ThemeResource AppBackground}"
     AutomationProperties.Name="Review Plan page">
     <controls:ResponsivePageHost x:Name="PageHost" Title="Review Plan"
         Subtitle="Review potential actions before anything is changed."
@@ -13,14 +13,14 @@
                 <StackPanel x:Name="EmptyPanel" Visibility="Collapsed" Spacing="12"
                             HorizontalAlignment="Center" MaxWidth="520" Margin="0,44,0,20"
                             AutomationProperties.Name="No Review Plan actions empty state">
-                    <FontIcon Glyph="&#xE9D2;" FontSize="32" Foreground="{ThemeResource MutedTextBrush}"
+                    <FontIcon Glyph="&#xE9D2;" FontSize="32" Foreground="{ThemeResource TextMuted}"
                               HorizontalAlignment="Center" />
                     <TextBlock Text="No actions to review" Style="{StaticResource SectionTitleStyle}"
                                TextAlignment="Center" />
                     <TextBlock Text="Run an analysis to find storage areas that may be worth reviewing."
                                Style="{StaticResource BodyMutedStyle}" TextAlignment="Center" TextWrapping="Wrap" />
-                    <Button Content="Run analysis" Click="RunAnalysis" Style="{StaticResource PrimaryActionStyle}"
-                            HorizontalAlignment="Center" AutomationProperties.Name="Run analysis from empty Review Plan" />
+                    <Button Content="Run an analysis" Click="RunAnalysis" Style="{StaticResource PrimaryActionStyle}"
+                            HorizontalAlignment="Center" AutomationProperties.Name="Run an analysis from empty Review Plan" />
                 </StackPanel>
 
                 <StackPanel x:Name="ReviewStage" Visibility="Collapsed" Spacing="24"

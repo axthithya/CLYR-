@@ -1,3 +1,4 @@
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -28,7 +29,27 @@ public sealed partial class ResponsivePageHost : UserControl
     public object PageContent { get => GetValue(PageContentProperty); set => SetValue(PageContentProperty, value); }
     public ResponsivePageWidth LayoutMode { get; private set; } = ResponsivePageWidth.Wide;
 
-    public void ResetScroll() => PageScroll.ChangeView(null, 0, null, true);
+    public void ResetScroll()
+    {
+        _ = PageScroll.ChangeView(null, 0, null, true);
+        if (IsLoaded)
+        {
+            QueueScrollReset();
+            return;
+        }
+
+        RoutedEventHandler? loaded = null;
+        loaded = (_, _) =>
+        {
+            Loaded -= loaded;
+            QueueScrollReset();
+        };
+        Loaded += loaded;
+    }
+
+    private void QueueScrollReset() =>
+        _ = DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low,
+            () => _ = PageScroll.ChangeView(null, 0, null, true));
 
     private void ViewportSizeChanged(object sender, SizeChangedEventArgs args)
     {

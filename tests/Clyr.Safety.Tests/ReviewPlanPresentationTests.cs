@@ -16,7 +16,7 @@ public sealed class ReviewPlanPresentationTests
         var review = Named(document, "ReviewStage");
         Assert.Equal("Collapsed", Attribute(empty, "Visibility"));
         Assert.Contains("No actions to review", empty.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Run analysis", empty.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Run an analysis", empty.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("StatusFilter", empty.ToString(), StringComparison.Ordinal);
         Assert.Equal("Collapsed", Attribute(review, "Visibility"));
     }

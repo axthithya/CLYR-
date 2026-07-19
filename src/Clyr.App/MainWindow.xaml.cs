@@ -73,7 +73,7 @@ public sealed partial class MainWindow : Window
             settingsItem.Style = (Style)Application.Current.Resources["ShellNavigationItemStyle"];
             ToolTipService.SetToolTip(settingsItem, "Settings");
             AutomationProperties.SetName(settingsItem, "Settings");
-            AutomationProperties.SetHelpText(settingsItem, "Configure CLYR appearance, privacy and local history settings.");
+            AutomationProperties.SetHelpText(settingsItem, "Configure CLYR appearance and local history settings.");
         }
 
         ApplyTitleBarColors();

@@ -1,8 +1,7 @@
 <UserControl
     x:Class="Clyr.App.Controls.ListItemRow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    AutomationProperties.Name="{x:Bind Title, Mode=OneWay}">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Grid MinHeight="48" Padding="4,8" ColumnSpacing="12">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
@@ -14,7 +13,8 @@
             VerticalAlignment="Center"
             FontSize="{StaticResource IconSizeStandard}"
             Foreground="{ThemeResource TextSecondary}"
-            Glyph="{x:Bind Glyph, Mode=OneWay}" />
+            Glyph="{x:Bind Glyph, Mode=OneWay}"
+            AutomationProperties.AccessibilityView="Raw" />
         <StackPanel Grid.Column="1" MinWidth="0" VerticalAlignment="Center" Spacing="2">
             <TextBlock Style="{StaticResource BodyStyle}" Text="{x:Bind Title, Mode=OneWay}" />
             <TextBlock Style="{StaticResource CaptionStyle}" Text="{x:Bind Detail, Mode=OneWay}" />

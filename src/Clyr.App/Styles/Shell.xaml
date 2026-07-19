@@ -4,22 +4,22 @@
 
     <!-- Keep the native NavigationView template and accessibility behavior, but
          redirect every shell state to the Phase 7.3A semantic palette. -->
-    <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="NavigationBackground" />
-    <StaticResource x:Key="NavigationViewExpandedPaneBackground" ResourceKey="NavigationBackground" />
-    <StaticResource x:Key="NavigationViewItemBackground" ResourceKey="NavigationBackground" />
-    <StaticResource x:Key="NavigationViewItemBackgroundPointerOver" ResourceKey="SurfaceHover" />
-    <StaticResource x:Key="NavigationViewItemBackgroundPressed" ResourceKey="SurfaceSecondary" />
-    <StaticResource x:Key="NavigationViewItemBackgroundSelected" ResourceKey="SurfaceSelected" />
-    <StaticResource x:Key="NavigationViewItemBackgroundSelectedPointerOver" ResourceKey="SurfaceHover" />
-    <StaticResource x:Key="NavigationViewItemBackgroundSelectedPressed" ResourceKey="SurfaceSelected" />
-    <StaticResource x:Key="NavigationViewItemForeground" ResourceKey="TextSecondary" />
-    <StaticResource x:Key="NavigationViewItemForegroundPointerOver" ResourceKey="TextPrimary" />
-    <StaticResource x:Key="NavigationViewItemForegroundPressed" ResourceKey="TextSecondary" />
-    <StaticResource x:Key="NavigationViewItemForegroundSelected" ResourceKey="TextPrimary" />
-    <StaticResource x:Key="NavigationViewItemForegroundSelectedPointerOver" ResourceKey="TextPrimary" />
-    <StaticResource x:Key="NavigationViewItemForegroundSelectedPressed" ResourceKey="TextPrimary" />
-    <StaticResource x:Key="NavigationViewSelectionIndicatorForeground" ResourceKey="AccentPrimary" />
-    <StaticResource x:Key="NavigationViewItemSeparatorForeground" ResourceKey="BorderSubtle" />
+    <ThemeResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="NavigationBackground" />
+    <ThemeResource x:Key="NavigationViewExpandedPaneBackground" ResourceKey="NavigationBackground" />
+    <ThemeResource x:Key="NavigationViewItemBackground" ResourceKey="NavigationBackground" />
+    <ThemeResource x:Key="NavigationViewItemBackgroundPointerOver" ResourceKey="SurfaceHover" />
+    <ThemeResource x:Key="NavigationViewItemBackgroundPressed" ResourceKey="SurfaceSecondary" />
+    <ThemeResource x:Key="NavigationViewItemBackgroundSelected" ResourceKey="SurfaceSelected" />
+    <ThemeResource x:Key="NavigationViewItemBackgroundSelectedPointerOver" ResourceKey="SurfaceHover" />
+    <ThemeResource x:Key="NavigationViewItemBackgroundSelectedPressed" ResourceKey="SurfaceSelected" />
+    <ThemeResource x:Key="NavigationViewItemForeground" ResourceKey="TextSecondary" />
+    <ThemeResource x:Key="NavigationViewItemForegroundPointerOver" ResourceKey="TextPrimary" />
+    <ThemeResource x:Key="NavigationViewItemForegroundPressed" ResourceKey="TextSecondary" />
+    <ThemeResource x:Key="NavigationViewItemForegroundSelected" ResourceKey="TextPrimary" />
+    <ThemeResource x:Key="NavigationViewItemForegroundSelectedPointerOver" ResourceKey="TextPrimary" />
+    <ThemeResource x:Key="NavigationViewItemForegroundSelectedPressed" ResourceKey="TextPrimary" />
+    <ThemeResource x:Key="NavigationViewSelectionIndicatorForeground" ResourceKey="AccentPrimary" />
+    <ThemeResource x:Key="NavigationViewItemSeparatorForeground" ResourceKey="BorderSubtle" />
 
     <!-- These native NavigationView template keys keep expanded and compact
          layouts on the same 56 px icon axis and the same light row language. -->

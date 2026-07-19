@@ -99,7 +99,7 @@ public sealed partial class ReviewPlanPage : Page
                 Text = source,
                 TextWrapping = TextWrapping.NoWrap,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                Foreground = ResourceBrush("MutedTextBrush")
+                Foreground = ResourceBrush("TextMuted")
             };
             ToolTipService.SetToolTip(sourceText, source);
             AutomationProperties.SetName(sourceText, "Source: " + source);
@@ -113,7 +113,7 @@ public sealed partial class ReviewPlanPage : Page
             {
                 Text = candidate.EligibilityReason,
                 TextWrapping = TextWrapping.Wrap,
-                Foreground = ResourceBrush("MutedTextBrush")
+                Foreground = ResourceBrush("TextMuted")
             };
             var details = new Button
             {
@@ -198,7 +198,7 @@ public sealed partial class ReviewPlanPage : Page
         if (!candidateRows.TryGetValue(findingId, out var row)) return;
         var selected = selectedFindingIds.Contains(findingId);
         row.Background = ResourceBrush(selected ? "SurfaceSelected" : "SurfacePrimary");
-        row.BorderBrush = ResourceBrush(selected ? "SelectedCardBorderBrush" : "BorderSubtle");
+        row.BorderBrush = ResourceBrush(selected ? "AccentPrimary" : "BorderSubtle");
         row.BorderThickness = selected ? new Thickness(2) : new Thickness(1);
         AutomationProperties.SetHelpText(row, selected ? "Selected for dry-run review." : "Not selected.");
     }
@@ -313,7 +313,7 @@ public sealed partial class ReviewPlanPage : Page
             {
                 Text = $"What may happen: {item.Consequence.PossibleOutcome} Rollback: {item.Consequence.RollbackStatement}",
                 TextWrapping = TextWrapping.Wrap,
-                Foreground = ResourceBrush("MutedTextBrush")
+                Foreground = ResourceBrush("TextMuted")
             });
             PlanItemStack.Children.Add(new Border { Style = (Style)Application.Current.Resources["CompactCardStyle"], Child = content });
         }
@@ -347,7 +347,7 @@ public sealed partial class ReviewPlanPage : Page
             {
                 Text = $"{item.Risk} risk · no elevation required\n{item.Consequence.WhyItExists}\n{item.Consequence.PossibleOutcome}",
                 TextWrapping = TextWrapping.Wrap,
-                Foreground = ResourceBrush("MutedTextBrush")
+                Foreground = ResourceBrush("TextMuted")
             };
             var content = new StackPanel { Spacing = 7 };
             content.Children.Add(choice);
@@ -627,7 +627,7 @@ public sealed partial class ReviewPlanPage : Page
         CleanupEligibility.DryRunEligible => "Success",
         CleanupEligibility.ManualReviewOnly or CleanupEligibility.InsufficientEvidence => "Warning",
         CleanupEligibility.Protected => "Information",
-        _ => "MutedTextBrush"
+        _ => "TextMuted"
     });
 
     private static string CandidateSource(CleanupCandidate candidate) => candidate.Targets.FirstOrDefault()?.DisplayLocation is { Length: > 0 } source

@@ -3,7 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Clyr.App.Controls"
-    Background="{ThemeResource AppBackgroundBrush}"
+    Background="{ThemeResource AppBackground}"
     AutomationProperties.Name="Developer Mode page">
     <controls:ResponsivePageHost x:Name="PageHost"
         Title="Developer Mode"
@@ -26,7 +26,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <FontIcon Glyph="&#xE946;" FontSize="18" Foreground="{ThemeResource WarmAccentBrush}"
+                            <FontIcon Glyph="&#xE946;" FontSize="18" Foreground="{ThemeResource AccentPrimary}"
                                       VerticalAlignment="Top" Margin="0,2,0,0" />
                             <TextBlock Grid.Column="1" TextWrapping="Wrap"
                                 Text="Developer Mode exposes technical information intended for troubleshooting and verification. It does not enable unsafe cleanup or unrestricted system access." />
@@ -44,7 +44,7 @@
                 <StackPanel x:Name="NoDataState" Spacing="12" Visibility="Collapsed"
                             HorizontalAlignment="Center" MaxWidth="520" Margin="0,42,0,20"
                             AutomationProperties.Name="Developer Mode no diagnostic data state">
-                    <FontIcon Glyph="&#xE9D9;" FontSize="32" Foreground="{ThemeResource MutedTextBrush}"
+                    <FontIcon Glyph="&#xE9D9;" FontSize="32" Foreground="{ThemeResource TextMuted}"
                               HorizontalAlignment="Center" />
                     <TextBlock Text="No diagnostic data available" Style="{StaticResource SectionTitleStyle}"
                                TextAlignment="Center" />
@@ -88,7 +88,7 @@
                                           SelectionChanged="SnapshotSelectionChanged" />
                                 <Button x:Name="DetectButton" Grid.Column="1" VerticalAlignment="Bottom"
                                         Content="Detect developer tools" Click="DetectClick"
-                                        Style="{StaticResource PrimaryActionStyle}"
+                                        Style="{StaticResource SecondaryActionStyle}"
                                         AutomationProperties.Name="Detect developer tools from selected analysis" />
                             </Grid>
                             <TextBlock x:Name="DeveloperStatus" Style="{StaticResource BodyMutedStyle}"
