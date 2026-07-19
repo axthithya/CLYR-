@@ -89,9 +89,15 @@ public sealed partial class ResultsPage : Page
         var r = ViewModel.Session.Result;
         var session = ViewModel.Session;
         var snapshot = session.ProvisionalSnapshot;
-        // A completed result is always authoritative once it exists — provisional data belongs strictly to the
-        // period before that, or to an attempt that never reached completion (cancelled/failed).
-        var showProvisional = r is null && snapshot is not null;
+        // Section 9 correction: provisional visibility must never be decided from "Session.Result is null" alone
+        // — a previous completed result can already exist when a second analysis starts. ProvisionalSnapshot is
+        // cleared at the start of every StartAsync attempt (see AppSessionViewModel), so while a scan is actively
+        // running, any non-null snapshot is guaranteed to belong to *this* run, not a stale earlier one — the
+        // provisional view must take visual priority over an old completed result in that case. Once the run
+        // stops being active, a completed result (new or restored-previous) is authoritative again; only a
+        // lingering snapshot with no completed result at all (a first run, or one that never completed) falls
+        // back to the provisional view.
+        var showProvisional = snapshot is not null && (session.IsScanning || r is null);
 
         EmptyPanel.Visibility = r is null && snapshot is null ? Visibility.Visible : Visibility.Collapsed;
         ProvisionalPanel.Visibility = showProvisional ? Visibility.Visible : Visibility.Collapsed;
@@ -152,7 +158,10 @@ public sealed partial class ResultsPage : Page
     private void RenderIdentity(ScanResult r)
     {
         var duration = r.EndedAt >= r.StartedAt ? r.EndedAt - r.StartedAt : TimeSpan.Zero;
-        ScanIdentityText.Text = $"{r.Root.TrimEnd('\\')} - {r.Mode} Analysis";
+        // Phase (progressive-analysis terminology correction): the normal app's Results page only ever shows a
+        // result produced by AnalyzeDriveAsync (always ScanMode.Deep internally) — never a loaded legacy record
+        // — so this is always the new "Drive Analysis" terminology, never the internal strategy name.
+        ScanIdentityText.Text = $"{r.Root.TrimEnd('\\')} · Drive Analysis";
         ScanTimingText.Text = $"Completed {r.EndedAt.LocalDateTime:g} - {OverviewPage.FormatDuration(duration)} - " +
             $"{r.Coverage.FilesObserved:N0} files - {r.Coverage.DirectoriesObserved:N0} folders";
 

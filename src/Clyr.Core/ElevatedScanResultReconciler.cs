@@ -157,9 +157,20 @@ public static class ElevatedScanResultReconciler
                 // contribution is never double-counted — the same rule applied uniformly across bytes, file/
                 // directory counts, and every other per-root descriptive count this reconciler now tracks.
                 var partial = contribution.EnumerationState == ScanRootEnumerationState.PartiallyObserved;
+                var deltaLogical = rootResult.LogicalBytesObserved - (partial ? contribution.LogicalBytesObserved : 0);
+                var deltaAllocated = rootResult.AllocatedBytesObserved - (partial ? contribution.AllocatedBytesObserved : 0);
+                // Genuinely impossible under normal operation (not merely a basis difference): the elevated
+                // engine reporting fewer bytes for this exact root than the original scan already certainly
+                // observed there. A legitimate basis difference (logical namespace bytes vs. physical
+                // drive-used bytes — hard links, sparse files, compression) is handled separately below via
+                // AccountingConsistency.LogicalExceedsDriveUsed, never by rejecting the whole reconciliation.
+                if (deltaLogical < 0 || deltaAllocated < 0)
+                    return NotApplied(ElevatedReconciliationOutcome.AccountingBasisMismatch, originalResult, request, reconciliationId,
+                        startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
+                        ["A retried root reported fewer bytes than the original scan had already observed there; " +
+                         "the retry response could not be safely reconciled."]);
                 deltas.Add(new(normalized, contribution.RootPath, requestRoot.StableRootIdentifier, rootResult,
-                    rootResult.LogicalBytesObserved - (partial ? contribution.LogicalBytesObserved : 0),
-                    rootResult.AllocatedBytesObserved - (partial ? contribution.AllocatedBytesObserved : 0),
+                    deltaLogical, deltaAllocated,
                     rootResult.FilesExamined - (partial ? contribution.FilesExamined : 0),
                     rootResult.DirectoriesExamined - (partial ? contribution.DirectoriesExamined : 0),
                     rootResult.HardLinkEntriesDetected - (partial ? contribution.HardLinkEntriesDetected : 0),
@@ -200,23 +211,18 @@ public static class ElevatedScanResultReconciler
         foreach (var delta in deltas) { applied.Add(delta.RootResult); additionalLogical += delta.DeltaLogicalBytes; additionalAllocated += delta.DeltaAllocatedBytes; }
         var rootsCompleted = deltas.Count;
 
-        // Section 3: retried bytes can never make observed bytes exceed the drive's own used-space basis — a
-        // real invariant, not merely a display nicety. The original scan's own reported "not observed" figure is
-        // an accounting-basis estimate (drive-used minus observed), not a precise measurement of exactly what
-        // lives inside these specific roots, so a genuinely small overshoot here is possible without either side
-        // being individually wrong; when it happens, this reconciliation is rejected outright (matching the
-        // established "one unsafe condition aborts the whole reconciliation, never a partial or silently clamped
-        // application" pattern above) rather than ever presenting an impossible combined total.
-        // Only guarded when the original scan's own basis was already consistent (observed at or under drive-used) —
-        // a scan that already reported LogicalExceedsDriveUsed has a pre-existing, independent basis difference
-        // unrelated to this retry, and rejecting an otherwise-correct retry over that pre-existing condition would
-        // be punishing the wrong cause.
-        if (originalResult.DriveUsedBytes is { } driveUsedBytes && originalResult.LogicalBytesObserved <= driveUsedBytes
-            && originalResult.LogicalBytesObserved + additionalLogical > driveUsedBytes)
-            return NotApplied(ElevatedReconciliationOutcome.AccountingBasisMismatch, originalResult, request, reconciliationId,
-                startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
-                ["The retried roots' combined contribution could not be safely applied because it would make observed " +
-                 "bytes exceed this drive's own used-space basis."]);
+        // Section 3/4 correction: logical (namespace) bytes legitimately and routinely exceed the drive's
+        // physical used-bytes basis — hard links (the same physical content counted once per visible path),
+        // sparse files (large logical size, tiny real allocation), and compression (larger logical than
+        // on-disk) are exactly this. The original scan itself never rejects on this condition (see
+        // AccountingConsistency.LogicalExceedsDriveUsed in ScanAccounting/Scanning.Finish — "a real, meaningful
+        // signal... not an error to be hidden"), so a retry must not apply a stricter, inconsistent rule and
+        // silently discard an otherwise-valid, already-deduplicated result over it. This is recorded as the same
+        // consistency flag instead — never a rejection — so the enriched result's own accounted-percentage
+        // display suppresses correctly (matching how the original scan already handles this) rather than either
+        // showing an impossible >100% figure or throwing away real coverage gains.
+        var combinedLogical = originalResult.LogicalBytesObserved + additionalLogical;
+        var logicalExceedsDriveUsed = originalResult.DriveUsedBytes is { } driveUsedBytes && combinedLogical > driveUsedBytes;
 
         // Never a falsely exact global-unique-allocation total: the elevated engine (and, per root,
         // ScanCoordinator) only de-duplicate hard links within their own attempt/root, and the original scan may
@@ -224,6 +230,7 @@ public static class ElevatedScanResultReconciler
         // is deliberately never computed here, regardless of whether per-root unique values exist.
         var consistency = AccountingConsistency.Consistent;
         var limitations = ImmutableArray<string>.Empty;
+        if (logicalExceedsDriveUsed) consistency |= AccountingConsistency.LogicalExceedsDriveUsed;
         if (applied.Count > 0)
         {
             consistency |= AccountingConsistency.CrossScanIdentityReconciliationUnavailable;
@@ -236,7 +243,6 @@ public static class ElevatedScanResultReconciler
             startedAtUtc, completedAtUtc, launcherResult.Outcome, response.Outcome, request.PermissionLimitedRoots.Length,
             rootsCompleted, remaining.Count, additionalLogical, additionalAllocated, limitations, true);
 
-        var combinedLogical = originalResult.LogicalBytesObserved + additionalLogical;
         long? combinedAllocated = originalResult.Allocation is null && additionalAllocated == 0
             ? null
             : (originalResult.Allocation?.AllocatedBytesObserved ?? 0) + additionalAllocated;

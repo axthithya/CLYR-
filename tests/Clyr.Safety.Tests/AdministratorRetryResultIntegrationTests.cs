@@ -36,12 +36,26 @@ public sealed class AdministratorRetryResultIntegrationTests
     }
 
     [Fact]
-    public void ReconcilerRejectsCombinedBytesThatWouldExceedDriveUsedBytes()
+    public void ReconcilerTreatsLogicalExceedingDriveUsedAsAConsistencyFlagNeverARejection()
+    {
+        // Phase (Administrator Retry validation correction): the earlier version of this reconciler rejected the
+        // whole retry outright whenever combined logical bytes exceeded the drive's physical used-bytes basis —
+        // a false rejection, since logical (namespace) bytes legitimately exceed physical used bytes for hard
+        // links, sparse files, and compression. This must now be recorded as AccountingConsistency.
+        // LogicalExceedsDriveUsed (the same flag the original scan itself already uses for this exact condition),
+        // never as a rejection reason.
+        var text = File.ReadAllText(Path.Combine(Root, "src", "Clyr.Core", "ElevatedScanResultReconciler.cs"));
+        Assert.Contains("AccountingConsistency.LogicalExceedsDriveUsed", text, StringComparison.Ordinal);
+        Assert.Contains("legitimately", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("exceed this drive's own used-space basis", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReconcilerStillRejectsAGenuinelyImpossibleNegativeDelta()
     {
         var text = File.ReadAllText(Path.Combine(Root, "src", "Clyr.Core", "ElevatedScanResultReconciler.cs"));
         Assert.Contains("AccountingBasisMismatch", text, StringComparison.Ordinal);
-        Assert.Contains("driveUsedBytes", text, StringComparison.Ordinal);
-        Assert.Contains("exceed this drive's own used-space basis", text, StringComparison.Ordinal);
+        Assert.Contains("deltaLogical < 0 || deltaAllocated < 0", text, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -9,10 +9,18 @@ namespace Clyr.Core;
 /// <see cref="ScanUiLifecycleState"/> pattern rather than inventing independent booleans. Phase 7.2.6H2E splits
 /// what was one coarse <c>TimedOut</c> value into three distinct phases so the UI can name the actual typed
 /// outcome truthfully (a helper that reached its own bounded operation budget is a materially different story
-/// from one that never even answered the pipe) rather than a single generic "did not respond in time".</summary>
+/// from one that never even answered the pipe) rather than a single generic "did not respond in time".
+/// <para/>
+/// Phase (Administrator Retry validation correction): a later pass found every remaining rejection reason
+/// (identity/root mismatches, an unreconcilable accounting response, and outright helper/launch failures) was
+/// still collapsed into one generic <c>Failed</c> phase/message — <see cref="ResponseMismatch"/>,
+/// <see cref="AccountingMismatch"/>, and <see cref="HelperValidationFailed"/> split that into the three bounded,
+/// truthful categories a user can actually reason about, per the same "name the real typed outcome" principle
+/// above. <c>Failed</c> itself remains only for the rare unexpected-exception boundary case.</summary>
 public enum AdministratorRetryPhase
 {
-    Hidden, Idle, Running, Applied, Denied, Cancelled, OperationTimedOut, ConnectionTimedOut, ResponseTimedOut, Failed, NotEligible
+    Hidden, Idle, Running, Applied, Denied, Cancelled, OperationTimedOut, ConnectionTimedOut, ResponseTimedOut,
+    ResponseMismatch, AccountingMismatch, HelperValidationFailed, Failed, NotEligible
 }
 
 /// <summary>
@@ -70,6 +78,12 @@ public static class AdministratorRetryUx
     public const string OperationTimedOutTitle = "Administrator retry reached its safety limit";
     public const string ConnectionTimedOutTitle = "Administrator helper did not connect";
     public const string ResponseTimedOutTitle = "Administrator helper stopped responding";
+    public const string ResponseMismatchTitle = "The helper response did not match this analysis";
+    public const string ResponseMismatchText = "CLYR did not apply the administrator result because the response did not correspond to this analysis. Your original scan is unchanged.";
+    public const string AccountingMismatchTitle = "The returned storage accounting could not be reconciled safely";
+    public const string AccountingMismatchText = "CLYR did not apply the administrator result because the returned figures could not be safely combined with this analysis. Your original scan is unchanged.";
+    public const string HelperValidationFailedTitle = "The administrator helper could not be validated";
+    public const string HelperValidationFailedText = "CLYR did not apply the administrator result because the helper could not be safely validated. Your original scan is unchanged.";
     public const string FailedTitle = "Administrator retry could not be completed";
     public const string FailedText = "CLYR did not apply the administrator result because it could not be safely validated. Your original scan is unchanged.";
 
@@ -155,9 +169,17 @@ public static class AdministratorRetryUx
         ElevatedScanRetryWorkflowOutcome.TimedOut => AdministratorRetryPhase.OperationTimedOut,
         ElevatedScanRetryWorkflowOutcome.ConnectionTimedOut => AdministratorRetryPhase.ConnectionTimedOut,
         ElevatedScanRetryWorkflowOutcome.ResponseTimedOut => AdministratorRetryPhase.ResponseTimedOut,
-        _ => AdministratorRetryPhase.Failed // HelperMissing, InvalidLaunchPlan, LaunchFailed, ProtocolRejected, ValidationRejected,
-                                            // InvalidResponse, RequiresReplacementData, AccountingBasisMismatch, RootSetMismatch,
-                                            // AlreadyRunning, Failed — every one of these is reported as the same calm, bounded message.
+        // The response did not correspond to this analysis — identity/shape mismatches, never a raw protocol dump.
+        ElevatedScanRetryWorkflowOutcome.InvalidResponse or ElevatedScanRetryWorkflowOutcome.ValidationRejected
+            or ElevatedScanRetryWorkflowOutcome.RootSetMismatch => AdministratorRetryPhase.ResponseMismatch,
+        // The response was well-formed and matched this analysis, but its accounting could not be safely combined.
+        ElevatedScanRetryWorkflowOutcome.RequiresReplacementData or ElevatedScanRetryWorkflowOutcome.AccountingBasisMismatch
+            => AdministratorRetryPhase.AccountingMismatch,
+        // The helper/launch itself could not be trusted or completed — never a raw exception, pipe name, or path.
+        ElevatedScanRetryWorkflowOutcome.HelperMissing or ElevatedScanRetryWorkflowOutcome.InvalidLaunchPlan
+            or ElevatedScanRetryWorkflowOutcome.LaunchFailed or ElevatedScanRetryWorkflowOutcome.ProtocolRejected
+            => AdministratorRetryPhase.HelperValidationFailed,
+        _ => AdministratorRetryPhase.Failed // AlreadyRunning, Failed, and any future unmapped outcome.
     };
 
     private static string TitleFor(AdministratorRetryPhase phase) => phase switch
@@ -168,6 +190,9 @@ public static class AdministratorRetryUx
         AdministratorRetryPhase.OperationTimedOut => OperationTimedOutTitle,
         AdministratorRetryPhase.ConnectionTimedOut => ConnectionTimedOutTitle,
         AdministratorRetryPhase.ResponseTimedOut => ResponseTimedOutTitle,
+        AdministratorRetryPhase.ResponseMismatch => ResponseMismatchTitle,
+        AdministratorRetryPhase.AccountingMismatch => AccountingMismatchTitle,
+        AdministratorRetryPhase.HelperValidationFailed => HelperValidationFailedTitle,
         AdministratorRetryPhase.NotEligible => string.Empty,
         _ => FailedTitle
     };
@@ -179,6 +204,9 @@ public static class AdministratorRetryUx
         AdministratorRetryPhase.Cancelled => CancelledText,
         AdministratorRetryPhase.OperationTimedOut => OperationTimedOutMessage(originalResult),
         AdministratorRetryPhase.ConnectionTimedOut or AdministratorRetryPhase.ResponseTimedOut => "Your original scan is unchanged.",
+        AdministratorRetryPhase.ResponseMismatch => ResponseMismatchText,
+        AdministratorRetryPhase.AccountingMismatch => AccountingMismatchText,
+        AdministratorRetryPhase.HelperValidationFailed => HelperValidationFailedText,
         AdministratorRetryPhase.NotEligible => string.Empty,
         _ => FailedText
     };

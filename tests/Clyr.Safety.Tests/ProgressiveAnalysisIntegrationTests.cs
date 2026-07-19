@@ -44,7 +44,11 @@ public sealed class ProgressiveAnalysisIntegrationTests
     {
         var code = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml.cs"));
         Assert.Contains("Dashboard.Visibility = r is not null ? Visibility.Visible : Visibility.Collapsed", code, StringComparison.Ordinal);
-        Assert.Contains("var showProvisional = r is null && snapshot is not null;", code, StringComparison.Ordinal);
+        // Section 9 correction: provisional visibility is never decided from "Session.Result is null" alone — a
+        // previous completed result can already exist when a second analysis starts. While actively scanning,
+        // any non-null snapshot belongs to the current run and must take visual priority over the old result.
+        Assert.Contains("var showProvisional = snapshot is not null && (session.IsScanning || r is null);", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("var showProvisional = r is null && snapshot is not null;", code, StringComparison.Ordinal);
     }
 
     [Fact]

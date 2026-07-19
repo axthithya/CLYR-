@@ -17,6 +17,7 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
     private int selectedDriveIndex;
     private ScanProgress? progress;
     private ProgressiveScanSnapshot? provisionalSnapshot;
+    private Guid? currentAttemptScanId;
     private ScanResult? result;
     private ScanResult? latestAttempt;
     private readonly string applicationVersion;
@@ -126,12 +127,22 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
         if (drive is null || !drive.IsSupported || IsScanning || SelectedScanMode is not { } mode) return null;
         cancellation = new CancellationTokenSource();
         ProvisionalSnapshot = null;
+        // Section 9/11: cleared for every new attempt, then pinned to the first snapshot's own ScanId — while
+        // only one attempt can ever be in flight per session (IsScanning already guarantees that), this is cheap
+        // defense-in-depth against a stale or foreign snapshot ever being displayed as belonging to this run.
+        currentAttemptScanId = null;
         Progress = new(ScanStatus.Preparing, TimeSpan.Zero, 0, 0, 0, 0, drive.Root, "Preparing private analysis.");
         Changed();
         try
         {
             var reporter = new Progress<ScanProgress>(value => { Progress = value; Changed(); });
-            var progressiveReporter = new Progress<ProgressiveScanSnapshot>(value => { ProvisionalSnapshot = value; Changed(); });
+            var progressiveReporter = new Progress<ProgressiveScanSnapshot>(value =>
+            {
+                currentAttemptScanId ??= value.ScanId;
+                if (value.ScanId != currentAttemptScanId) return;
+                ProvisionalSnapshot = value;
+                Changed();
+            });
             var outcome = await scanService.ScanAsync(new(drive.Root, mode,
                 ContinueFromCheckpoint: continueQuick && mode == ScanMode.Quick, ProgressiveProgress: progressiveReporter), reporter, cancellation.Token);
             LatestAttempt = outcome;

@@ -194,7 +194,12 @@ public sealed partial class OverviewPage : Page
             var coverage = item.UsedBytes is > 0
                 ? $"{Math.Clamp(item.LogicalBytesObserved * 100d / item.UsedBytes.Value, 0, 100):F1}% coverage"
                 : "Coverage unavailable";
-            var title = $"{item.Mode} Analysis";
+            // Phase (progressive-analysis terminology correction): Quick-mode history remains truthfully
+            // labelled (it genuinely was a bounded Quick pass, whether from the legacy dual-mode UI or the CLI);
+            // every Deep-mode record — old dual-mode-UI or new "Analyze drive" — is the same underlying
+            // full-drive strategy, so it is truthfully relabelled with current terminology rather than left
+            // showing the retired internal name.
+            var title = item.Mode == ScanMode.Quick ? "Quick Analysis" : "Drive Analysis";
             var status = Humanize(item.State);
             var detail = $"{item.CapturedAtUtc.LocalDateTime:g} - {coverage}";
             return new OverviewActivityItem(title, detail, status, $"{title}, {detail}, {status}.");

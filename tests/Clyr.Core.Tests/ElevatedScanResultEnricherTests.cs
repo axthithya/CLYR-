@@ -119,20 +119,41 @@ public sealed class ElevatedScanResultEnricherTests
     }
 
     [Fact]
-    public void ObservedBytesNeverExceedDriveUsedBytes()
+    public void LogicalBytesExceedingDriveUsedIsALegitimateBasisDifferenceNotARejection()
     {
+        // Original: 4900 observed of 5000 used (consistent). Retry root reports 500 new bytes, which pushes
+        // combined observed to 5400 — over the drive's own used-space basis. This is a legitimate logical-vs-
+        // physical basis difference (hard links, sparse files, compression) — exactly the same condition the
+        // original scan itself never rejects (see AccountingConsistency.LogicalExceedsDriveUsed) — so the retry
+        // must still apply, flagging the condition rather than discarding real, already-deduplicated coverage.
         var request = BuildRequest(RootFixture(RootPath));
-        // Original: 4900 observed of 5000 used (consistent). Retry root reports 500 new bytes, which would push
-        // combined observed to 5400 — over the drive's own used-space basis — so this must be rejected outright.
         var original = OriginalResult(4900, [Contribution(RootPath, ScanRootEnumerationState.InaccessibleAtRoot, 0, 0)], driveUsed: 5000);
         var response = ResponseFor(request, [RootResult(RootPath, ElevatedRootRetryOutcome.Completed, 500, 300)]);
+        var reconciliation = ElevatedScanResultReconciler.Reconcile(original, request, Completed(response), new FixedClock(Now));
+
+        Assert.Equal(ElevatedReconciliationOutcome.Applied, reconciliation.Outcome);
+        Assert.True(reconciliation.IsApplied);
+        Assert.Equal(5400, reconciliation.CombinedLogicalBytesObserved);
+        Assert.True(reconciliation.Consistency.HasFlag(AccountingConsistency.LogicalExceedsDriveUsed));
+        Assert.Same(original, reconciliation.OriginalResult);
+        Assert.Equal(4900, original.LogicalBytesObserved); // original genuinely untouched
+    }
+
+    [Fact]
+    public void ARootReportingFewerBytesThanAlreadyObservedIsGenuinelyImpossibleAndRemainsRejected()
+    {
+        // Alpha was PartiallyObserved with 400 bytes already counted; the elevated engine reports only 100 for
+        // the same root — fewer than what was already certainly there. Unlike a logical-vs-physical basis
+        // difference, this is not explainable by any legitimate accounting distinction and must stay rejected.
+        var request = BuildRequest(RootFixture(RootPath));
+        var original = OriginalResult(1000, [Contribution(RootPath, ScanRootEnumerationState.PartiallyObserved, 400, 300)], driveUsed: 5000);
+        var response = ResponseFor(request, [RootResult(RootPath, ElevatedRootRetryOutcome.Completed, 100, 50)]);
         var reconciliation = ElevatedScanResultReconciler.Reconcile(original, request, Completed(response), new FixedClock(Now));
 
         Assert.Equal(ElevatedReconciliationOutcome.AccountingBasisMismatch, reconciliation.Outcome);
         Assert.False(reconciliation.IsApplied);
         Assert.Null(reconciliation.CombinedLogicalBytesObserved);
-        Assert.Same(original, reconciliation.OriginalResult);
-        Assert.Equal(4900, original.LogicalBytesObserved); // original genuinely untouched
+        Assert.Equal(1000, original.LogicalBytesObserved); // original genuinely untouched
     }
 
     [Fact]

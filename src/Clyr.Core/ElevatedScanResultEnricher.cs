@@ -58,7 +58,7 @@ public static class ElevatedScanResultEnricher
         };
 
         var newIssues = ReduceAccessDeniedIssues(original.Issues, resolvedInaccessible);
-        var newAllocation = MergeAllocation(original.Allocation, attempt.AdditionalAllocatedBytes, deltas);
+        var newAllocation = MergeAllocation(original.Allocation, attempt.AdditionalAllocatedBytes, deltas, reconciliation.Consistency);
         var newClassification = MergeClassification(original.Classification, attempt.AdditionalLogicalBytes,
             deltaFiles, resolvedInaccessible, original.DriveUsedBytes, newLogicalBytes);
         var newRootContributions = MergeRootContributions(original.RootContributions, deltas);
@@ -113,7 +113,7 @@ public static class ElevatedScanResultEnricher
     }
 
     private static AllocationAccounting? MergeAllocation(AllocationAccounting? original, long additionalAllocated,
-        ImmutableArray<AppliedRootAccountingDelta> deltas)
+        ImmutableArray<AppliedRootAccountingDelta> deltas, AccountingConsistency reconciliationConsistency)
     {
         if (original is null) return null;
         return original with
@@ -129,7 +129,12 @@ public static class ElevatedScanResultEnricher
             SparseFileCount = original.SparseFileCount + deltas.Sum(delta => delta.DeltaSparseFileCount),
             CompressedFileCount = original.CompressedFileCount + deltas.Sum(delta => delta.DeltaCompressedFileCount),
             VisibleHardLinkEntries = original.VisibleHardLinkEntries + deltas.Sum(delta => delta.DeltaHardLinkEntriesDetected),
-            Consistency = original.Consistency | AccountingConsistency.CrossScanIdentityReconciliationUnavailable,
+            // Folds in the reconciler's own LogicalExceedsDriveUsed determination (a legitimate logical-vs-
+            // physical basis difference, never a rejection reason — see ElevatedScanResultReconciler.Reconcile)
+            // alongside CrossScanIdentityReconciliationUnavailable, so ScanAccounting.Summarize suppresses the
+            // accounted percentage the same truthful way it already would for an original scan in this state.
+            Consistency = original.Consistency | AccountingConsistency.CrossScanIdentityReconciliationUnavailable
+                | (reconciliationConsistency & AccountingConsistency.LogicalExceedsDriveUsed),
         };
     }
 
