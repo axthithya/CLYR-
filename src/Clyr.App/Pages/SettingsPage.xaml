@@ -2,25 +2,117 @@
     x:Class="Clyr.App.Pages.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:Clyr.App.Controls"
     Background="{ThemeResource AppBackgroundBrush}"
     AutomationProperties.Name="Settings page">
-    <controls:ResponsivePageHost x:Name="PageHost" Title="Settings"
-        Subtitle="Control appearance, local history, privacy defaults, and accessibility preferences."
+    <controls:ResponsivePageHost
+        xmlns:controls="using:Clyr.App.Controls"
+        x:Name="PageHost"
+        Title="Settings"
+        Subtitle="Manage CLYR preferences and application behavior."
         AutomationProperties.Name="Settings responsive page host">
         <controls:ResponsivePageHost.PageContent>
-            <StackPanel Spacing="20">
-                <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="Appearance settings"><StackPanel Spacing="10"><TextBlock Text="Appearance" Style="{StaticResource SectionTitleStyle}"/><ComboBox x:Name="ThemeSelector" Header="App theme" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="ThemeChanged"><ComboBoxItem Content="System"/><ComboBoxItem Content="Light"/><ComboBoxItem Content="Dark"/></ComboBox><TextBlock Text="Light mode uses a soft neutral canvas, crisp white cards, strong text, and a restrained warm accent. High contrast follows Windows." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="History settings">
-                    <StackPanel Spacing="12"><TextBlock Text="History" Style="{StaticResource SectionTitleStyle}"/><ToggleSwitch x:Name="HistoryEnabled" Header="Save scan history" AutomationProperties.Name="Settings history toggle"/><NumberBox x:Name="Retention" Header="Analyses retained per drive" Minimum="2" Maximum="1000" SpinButtonPlacementMode="Inline" HorizontalAlignment="Stretch" AutomationProperties.Name="Settings retention control"/><TextBlock x:Name="HistorySummary" Style="{StaticResource BodyMutedStyle}"/>
-                        <StackPanel x:Name="SettingsActions" Orientation="Horizontal" Spacing="12"><Button Content="Save History Settings" Click="SaveHistory" Style="{StaticResource PrimaryActionStyle}"/><Button Content="Clear History" Click="ClearHistory" AutomationProperties.Name="Clear History"/></StackPanel>
-                        <TextBlock Text="Clearing history deletes only CLYR’s local history. It does not delete files from your drive." Style="{StaticResource BodyMutedStyle}"/>
+            <StackPanel Spacing="28">
+                <StackPanel Spacing="12" AutomationProperties.Name="Appearance settings">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="Appearance" Style="{StaticResource SectionTitleStyle}"
+                                   AutomationProperties.HeadingLevel="Level2" />
+                        <TextBlock Text="Choose how CLYR looks in this window. The coral brand accent remains unchanged."
+                                   Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
                     </StackPanel>
+                    <Border Style="{StaticResource StandardCardStyle}">
+                        <Grid x:Name="ThemeSettingRow" ColumnSpacing="20" RowSpacing="12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <StackPanel x:Name="ThemeSettingCopy" Spacing="5" VerticalAlignment="Center">
+                                <TextBlock Text="App theme" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Follow Windows, or use Light or Dark for the current CLYR window. The change is immediate and does not require restart."
+                                           Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                                <TextBlock Text="Theme selection is not saved by this preview. High contrast is managed by Windows."
+                                           Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ComboBox x:Name="ThemeSelector" Grid.Column="1" MinWidth="220"
+                                      SelectedIndex="0" HorizontalAlignment="Stretch"
+                                      SelectionChanged="ThemeChanged"
+                                      AutomationProperties.Name="App theme"
+                                      AutomationProperties.HelpText="Applies immediately to this window and is not saved. No restart is required.">
+                                <ComboBoxItem Content="System" />
+                                <ComboBoxItem Content="Light" />
+                                <ComboBoxItem Content="Dark" />
+                            </ComboBox>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Spacing="12" AutomationProperties.Name="History and local data settings">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="History and local data" Style="{StaticResource SectionTitleStyle}"
+                                   AutomationProperties.HeadingLevel="Level2" />
+                        <TextBlock Text="History contains aggregate analysis summaries stored on this device. These preferences use an explicit Save action and do not require restart."
+                                   Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Border Style="{StaticResource StandardCardStyle}">
+                        <StackPanel Spacing="18">
+                            <Grid x:Name="HistoryEnabledRow" ColumnSpacing="20" RowSpacing="12">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <StackPanel x:Name="HistoryEnabledCopy" Spacing="5" VerticalAlignment="Center">
+                                    <TextBlock Text="Save analysis history" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Keep supported aggregate analysis summaries for later comparison. File contents are not stored in history."
+                                               Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="HistoryEnabled" Grid.Column="1" VerticalAlignment="Center"
+                                              AutomationProperties.Name="Save analysis history"
+                                              AutomationProperties.HelpText="This value is stored locally only after Save history settings is selected." />
+                            </Grid>
+                            <Border Style="{StaticResource DividerStyle}" />
+                            <Grid x:Name="RetentionSettingRow" ColumnSpacing="20" RowSpacing="12">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <StackPanel x:Name="RetentionSettingCopy" Spacing="5" VerticalAlignment="Center">
+                                    <TextBlock Text="History retained per drive" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Choose how many aggregate analyses CLYR keeps for each drive, from 2 through 1,000."
+                                               Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <NumberBox x:Name="Retention" Grid.Column="1" MinWidth="220"
+                                           Minimum="2" Maximum="1000" SmallChange="1"
+                                           SpinButtonPlacementMode="Inline" HorizontalAlignment="Stretch"
+                                           AutomationProperties.Name="Analyses retained per drive"
+                                           AutomationProperties.HelpText="Enter a value from 2 through 1,000. This value is stored locally only after Save history settings is selected." />
+                            </Grid>
+                            <Border Style="{StaticResource DividerStyle}" />
+                            <StackPanel Spacing="10">
+                                <TextBlock x:Name="HistorySummary" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                                <StackPanel x:Name="SettingsActions" Orientation="Horizontal" Spacing="10">
+                                    <Button x:Name="SaveHistoryButton" Content="Save history settings"
+                                            Click="SaveHistory" Style="{StaticResource PrimaryActionStyle}"
+                                            AutomationProperties.Name="Save history settings" />
+                                    <Button x:Name="ClearHistoryButton" Content="Clear local history"
+                                            Click="ClearHistory" Style="{StaticResource SecondaryButtonStyle}"
+                                            AutomationProperties.Name="Clear local history" />
+                                </StackPanel>
+                                <TextBlock Text="Clearing history removes only saved aggregate analysis history. It does not delete files, settings, Review Plans or execution receipts."
+                                           Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <Border Style="{StaticResource InfoBannerStyle}" AutomationProperties.Name="Fixed safety boundaries">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE72E;" FontSize="18" Foreground="{ThemeResource Information}"
+                                  AutomationProperties.AccessibilityView="Raw" />
+                        <StackPanel Grid.Column="1" Spacing="5">
+                            <TextBlock Text="Safety boundaries are not settings" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Read-only analysis, protected paths, Review Plan confirmation and administrator-retry eligibility remain fixed. CLYR does not provide preferences for automatic cleanup, automatic elevation or bypassing confirmation."
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
                 </Border>
-                <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="Privacy settings"><StackPanel Spacing="8"><TextBlock Text="Privacy" Style="{StaticResource SectionTitleStyle}"/><ToggleSwitch Header="Privacy-safe export by default" IsOn="True" IsEnabled="False"/><TextBlock Text="CLYR is local-only and never uploads reports automatically. Detailed export is not available in this preview." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="Accessibility settings"><StackPanel Spacing="8"><TextBlock Text="Accessibility" Style="{StaticResource SectionTitleStyle}"/><ToggleSwitch Header="Reduce nonessential motion" IsOn="True" IsEnabled="False"/><TextBlock Text="The interface uses restrained motion, keyboard-reachable controls, text alternatives for visual data, and Windows high-contrast colors where available." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                <Border Style="{StaticResource CardStyle}" AutomationProperties.Name="Application settings"><StackPanel Spacing="8"><TextBlock Text="Application" Style="{StaticResource SectionTitleStyle}"/><TextBlock Text="CLYR preview · diagnostics stay local · non-destructive settings only" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                <TextBlock x:Name="SettingsStatus" AutomationProperties.LiveSetting="Polite" Style="{StaticResource BodyMutedStyle}"/>
+
+                <TextBlock x:Name="SettingsStatus" Style="{StaticResource BodyMutedStyle}"
+                           TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"
+                           AutomationProperties.Name="Settings status" />
             </StackPanel>
         </controls:ResponsivePageHost.PageContent>
     </controls:ResponsivePageHost>

@@ -5,27 +5,132 @@
     xmlns:controls="using:Clyr.App.Controls"
     Background="{ThemeResource AppBackgroundBrush}"
     AutomationProperties.Name="About page">
-    <controls:ResponsivePageHost x:Name="PageHost" Title="About CLYR"
-        Subtitle="See what filled your C: drive. Understand it. Clear it safely."
+    <controls:ResponsivePageHost x:Name="PageHost" Title="About"
+        Subtitle="Application, version and project information."
         AutomationProperties.Name="About responsive page host">
         <controls:ResponsivePageHost.PageContent>
-            <StackPanel Spacing="22">
-                <Border Style="{StaticResource CardStyle}" Padding="28">
+            <StackPanel Spacing="28">
+                <Border Style="{StaticResource StandardCardStyle}" Padding="28"
+                        AutomationProperties.Name="CLYR application identity">
                     <Grid x:Name="IdentityGrid" ColumnSpacing="24" RowSpacing="16">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <Border x:Name="ProductMark" Width="72" Height="72" CornerRadius="18" Background="{ThemeResource WarmAccentBrush}"><TextBlock Text="C:" FontSize="28" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                        <StackPanel x:Name="ProductCopy" Grid.Column="1" Spacing="7" MinWidth="0"><TextBlock Text="CLYR" FontSize="30" FontWeight="SemiBold"/><TextBlock x:Name="VersionText" AutomationProperties.Name="About version text"/><TextBlock Text="A private Windows utility that explains storage pressure before any future action." Style="{StaticResource BodyMutedStyle}"/></StackPanel>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Border x:Name="ProductIconSurface" Width="96" Height="96" Padding="4"
+                                CornerRadius="22" Background="{ThemeResource SurfaceSecondary}">
+                            <Image Source="ms-appx:///Assets/Branding/CLYR-AppIcon-Master-1024.png"
+                                   Width="88" Height="88" Stretch="Uniform"
+                                   AutomationProperties.Name="CLYR application icon" />
+                        </Border>
+                        <StackPanel x:Name="ProductCopy" Grid.Column="1" Spacing="7" MinWidth="0"
+                                    VerticalAlignment="Center">
+                            <TextBlock Text="CLYR" FontSize="30" FontWeight="SemiBold" />
+                            <TextBlock x:Name="VersionText" FontFamily="{StaticResource FontFamilyMonospace}"
+                                       IsTextSelectionEnabled="True" AutomationProperties.Name="About version text" />
+                            <TextBlock Text="A private Windows utility that explains storage pressure before any future action."
+                                       Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <FontIcon Glyph="&#xE8D7;" FontSize="14" Foreground="{ThemeResource TextSecondary}"
+                                          AutomationProperties.AccessibilityView="Raw" />
+                                <TextBlock Text="Open-source project" Style="{StaticResource StatusTextStyle}" />
+                            </StackPanel>
+                        </StackPanel>
                     </Grid>
                 </Border>
-                <Grid x:Name="CapabilityGrid" ColumnSpacing="20" RowSpacing="20">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Current capabilities" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="Private read-only analysis · storage classification · local aggregate history · privacy-safe reports" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                    <Border x:Name="UnavailableCard" Grid.Column="1" Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Not available yet" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="Cleanup · file movement · tool-aware developer analysis · elevated operations" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+
+                <StackPanel Spacing="10" AutomationProperties.Name="What CLYR does">
+                    <TextBlock Text="What CLYR does" Style="{StaticResource SectionTitleStyle}"
+                               AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="CLYR helps you understand what is using storage on a Windows drive before you decide what to review. Quick and Deep Analysis use filesystem metadata for storage accounting, classifications and findings; Review Plan remains a separate step, and CLYR never performs silent cleanup."
+                               TextWrapping="Wrap" MaxWidth="900" HorizontalAlignment="Left" />
+                </StackPanel>
+
+                <Grid x:Name="AboutSummaryGrid" ColumnSpacing="20" RowSpacing="20">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Border x:Name="PrivacySummary" Style="{StaticResource StandardCardStyle}"
+                            AutomationProperties.Name="About privacy and safety summary">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="Private and safe by design" Style="{StaticResource SectionTitleStyle}" />
+                            <StackPanel Spacing="12">
+                                <Grid ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <FontIcon Glyph="&#xE770;" FontSize="17" Foreground="{ThemeResource PrivacySafe}" AutomationProperties.AccessibilityView="Raw" />
+                                    <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="Local" Style="{StaticResource StatusTextStyle}" /><TextBlock Text="Analysis runs on this computer." Style="{StaticResource BodyMutedStyle}" /></StackPanel>
+                                </Grid>
+                                <Grid ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <FontIcon Glyph="&#xE8A5;" FontSize="17" Foreground="{ThemeResource PrivacySafe}" AutomationProperties.AccessibilityView="Raw" />
+                                    <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="Metadata only" Style="{StaticResource StatusTextStyle}" /><TextBlock Text="CLYR examines filesystem metadata rather than file contents." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" /></StackPanel>
+                                </Grid>
+                                <Grid ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <FontIcon Glyph="&#xE72E;" FontSize="17" Foreground="{ThemeResource PrivacySafe}" AutomationProperties.AccessibilityView="Raw" />
+                                    <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="Read-only analysis" Style="{StaticResource StatusTextStyle}" /><TextBlock Text="Scanning does not delete, move, rename or change files." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" /></StackPanel>
+                                </Grid>
+                            </StackPanel>
+                            <Button Content="View Privacy details" Style="{StaticResource QuietButtonStyle}"
+                                    HorizontalAlignment="Left" MinWidth="0" Click="OpenPrivacy"
+                                    AutomationProperties.Name="View Privacy details" />
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="ProjectSummary" Grid.Column="1" Style="{StaticResource StandardCardStyle}"
+                            AutomationProperties.Name="Project and open-source information">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Project and open source" Style="{StaticResource SectionTitleStyle}" />
+                            <StackPanel Spacing="5"><TextBlock Text="Repository" Style="{StaticResource CaptionStyle}" /><TextBlock Text="CLYR" IsTextSelectionEnabled="True" /></StackPanel>
+                            <StackPanel Spacing="5"><TextBlock Text="Repository URL" Style="{StaticResource CaptionStyle}" /><TextBlock Text="Not recorded" Style="{StaticResource BodyMutedStyle}" /></StackPanel>
+                            <StackPanel Spacing="5"><TextBlock Text="Application license" Style="{StaticResource CaptionStyle}" /><TextBlock Text="Apache-2.0" FontFamily="{StaticResource FontFamilyMonospace}" IsTextSelectionEnabled="True" /></StackPanel>
+                            <StackPanel Spacing="5"><TextBlock Text="Copyright" Style="{StaticResource CaptionStyle}" /><TextBlock Text="Copyright 2026 CLYR contributors" TextWrapping="Wrap" IsTextSelectionEnabled="True" /></StackPanel>
+                            <TextBlock Text="Source is available in the repository. Third-party components retain their own license terms."
+                                       Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
                 </Grid>
-                <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Privacy promise" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="Analysis stays on this device. CLYR does not upload your scan, read file contents, or change your files." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Technical details" Style="{StaticResource CardTitleStyle}"/><TextBlock x:Name="TechnicalText" Style="{StaticResource BodyMutedStyle}"/><TextBlock Text="Open-source · Windows 10 and Windows 11 developer preview · repository link is not configured in this build." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+
+                <StackPanel Spacing="12" AutomationProperties.Name="About application details">
+                    <TextBlock Text="Application details" Style="{StaticResource SectionTitleStyle}"
+                               AutomationProperties.HeadingLevel="Level2" />
+                    <Border Style="{StaticResource CompactCardStyle}">
+                        <Grid x:Name="DetailsGrid" ColumnSpacing="20" RowSpacing="12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock x:Name="VersionLabel" Text="Version" Style="{StaticResource CaptionStyle}" />
+                            <TextBlock x:Name="VersionValue" Grid.Column="1" FontFamily="{StaticResource FontFamilyMonospace}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                            <TextBlock x:Name="ArchitectureLabel" Grid.Row="1" Text="Architecture" Style="{StaticResource CaptionStyle}" />
+                            <TextBlock x:Name="ArchitectureValue" Grid.Row="1" Grid.Column="1" FontFamily="{StaticResource FontFamilyMonospace}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                            <TextBlock x:Name="RuntimeLabel" Grid.Row="2" Text=".NET runtime" Style="{StaticResource CaptionStyle}" />
+                            <TextBlock x:Name="RuntimeValue" Grid.Row="2" Grid.Column="1" FontFamily="{StaticResource FontFamilyMonospace}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                            <TextBlock x:Name="LicenseLabel" Grid.Row="3" Text="License" Style="{StaticResource CaptionStyle}" />
+                            <TextBlock x:Name="LicenseValue" Grid.Row="3" Grid.Column="1" Text="Apache-2.0" FontFamily="{StaticResource FontFamilyMonospace}" IsTextSelectionEnabled="True" />
+                            <TextBlock x:Name="TechnicalLabel" Grid.Row="4" Text="Build details" Style="{StaticResource CaptionStyle}" />
+                            <TextBlock x:Name="TechnicalValue" Grid.Row="4" Grid.Column="1" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Learn more" Style="{StaticResource SectionTitleStyle}"
+                               AutomationProperties.HeadingLevel="Level2" />
+                    <Grid x:Name="NavigationGrid" ColumnSpacing="12" RowSpacing="12">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Button x:Name="PrivacyNavigation" Style="{StaticResource QuietButtonStyle}"
+                                HorizontalContentAlignment="Stretch" HorizontalAlignment="Stretch" Click="OpenPrivacy"
+                                AutomationProperties.Name="Open Privacy page">
+                            <StackPanel Spacing="4"><TextBlock Text="Privacy" Style="{StaticResource CardTitleStyle}" /><TextBlock Text="Understand what CLYR reads, stores and never sends." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" /></StackPanel>
+                        </Button>
+                        <Button x:Name="LicensesNavigation" Grid.Column="1" Style="{StaticResource QuietButtonStyle}"
+                                HorizontalContentAlignment="Stretch" HorizontalAlignment="Stretch" Click="OpenLicenses"
+                                AutomationProperties.Name="Open Licenses page">
+                            <StackPanel Spacing="4"><TextBlock Text="Licenses" Style="{StaticResource CardTitleStyle}" /><TextBlock Text="Review CLYR’s license and third-party notices." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" /></StackPanel>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+
+                <TextBlock Text="Copyright 2026 CLYR contributors. Open-source acknowledgements and exact third-party notices are available on the Licenses page."
+                           Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
             </StackPanel>
         </controls:ResponsivePageHost.PageContent>
     </controls:ResponsivePageHost>
