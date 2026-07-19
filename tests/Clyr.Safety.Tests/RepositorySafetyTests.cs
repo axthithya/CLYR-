@@ -862,6 +862,29 @@ public sealed class RepositorySafetyTests
         }
     }
 
+    [Fact]
+    public void UserFacingSourceContainsNoEncodingCorruption()
+    {
+        // Phase (Quick truthfulness correction): guards against the exact class of mojibake found and fixed in
+        // ResultsPage.xaml (a stray U+00C2 immediately preceding a middle-dot separator, the classic artifact of
+        // UTF-8 bytes reinterpreted as Latin-1) ever silently reappearing — in this file or anywhere else in the
+        // user-facing source tree. Checks the raw bytes-as-UTF8 text, not just what a viewer happens to render.
+        var extensions = new[] { ".xaml", ".cs" };
+        var checkedFiles = 0;
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(Root, "src"), "*.*", SearchOption.AllDirectories)
+                     .Where(path => extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                     .Where(path => !path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                     .Where(path => !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+        {
+            var text = File.ReadAllText(file);
+            checkedFiles++;
+            Assert.False(text.Contains('Â'), $"Mojibake character 'Â' (U+00C2) found in {file}.");
+            Assert.False(text.Contains('�'), $"Unicode replacement character found in {file}.");
+            Assert.False(text.Contains("C L Y R", StringComparison.Ordinal), $"Malformed spaced-out \"C L Y R\" text found in {file}.");
+        }
+        Assert.True(checkedFiles > 0, "Expected to check at least one .xaml/.cs file under src.");
+    }
+
     private static XDocument Project(string name) => XDocument.Load(Path.Combine(Root, "src", name, name + ".csproj"));
     private static IEnumerable<string> RepositoryFiles(string pattern) => Directory.EnumerateFiles(Root, pattern, SearchOption.AllDirectories)
         .Where(path => !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))

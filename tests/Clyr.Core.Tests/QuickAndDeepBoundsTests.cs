@@ -106,18 +106,22 @@ public sealed class QuickAndDeepBoundsTests
     }
 
     [Fact]
-    public async Task DeepReachesNestedDataThatQuicksDepthLimitIntentionallySkips()
+    public async Task QuickAndDeepBothReachDeeplyNestedDataNowThatQuicksFixedDepthCeilingIsRemoved()
     {
-        // Six levels deep — one level past Quick's documented depth-3 limit — a developer-cache-style file that
-        // Quick, by design, never reaches.
+        // Phase (Quick truthfulness correction): six levels deep — one level past Quick's OLD documented depth-3
+        // limit. That fixed ceiling was the confirmed root cause of Quick's low real-world coverage, so it was
+        // removed; Quick is now bounded only by its time/item/pending-frontier budget. With a small, six-directory
+        // tree well within the default budget, Quick must reach exactly as much data as Deep, and neither may
+        // report a "scan.depth-limit" policy boundary (that issue code, and the fixed ceiling it described, no
+        // longer exist).
         var fs = new NestedFileSystem();
         var quick = await new ScanCoordinator(fs, new FakeDrives(), new SystemClock()).ScanAsync(new("C:\\", ScanMode.Quick), null, default);
         var deep = await new ScanCoordinator(fs, new FakeDrives(), new SystemClock()).ScanAsync(new("C:\\", ScanMode.Deep), null, default);
 
         Assert.Equal(ScanStatus.Completed, quick.Status);
-        Assert.Contains(quick.Issues, item => item.Code == "scan.depth-limit" && item.Severity == ScanIssueSeverity.PolicyBoundary);
-        Assert.True(quick.LogicalBytesObserved < deep.LogicalBytesObserved,
-            "Deep must observe strictly more than Quick when data exists beyond Quick's depth limit.");
+        Assert.DoesNotContain(quick.Issues, item => item.Code == "scan.depth-limit");
+        Assert.DoesNotContain(deep.Issues, item => item.Code == "scan.depth-limit");
+        Assert.Equal(NestedFileSystem.DeepFileBytes, quick.LogicalBytesObserved);
         Assert.Equal(NestedFileSystem.DeepFileBytes, deep.LogicalBytesObserved);
         Assert.Equal(ScanStatus.Completed, deep.Status);
     }

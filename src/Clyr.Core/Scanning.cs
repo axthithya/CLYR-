@@ -175,21 +175,14 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
         // than descended into immediately. Known high-value roots (Windows, Program Files, ProgramData, Users,
         // AppData/Downloads/Documents, common developer caches) are dequeued far ahead of everything else, so
         // Quick reaches the areas most likely to explain drive usage before its budget runs out — never a plain
-        // alphabetical walk. Stage D is honest, bounded completion: time budget, item budget, depth policy,
-        // cancellation, or true exhaustion, each recorded as a distinct diagnostic.
+        // alphabetical walk. Stage D is honest, bounded completion: time budget, item budget, pending-frontier
+        // capacity, cancellation, or true exhaustion, each recorded as a distinct diagnostic — never a fixed
+        // depth ceiling, which no longer exists.
         void RunQuick(ScanCheckpoint? resumeFrom)
         {
             var pending = new PriorityQueue<PendingDirectory, (long NegBoost, long Order)>();
-            // Directories skipped only because Quick's depth policy was reached, not because of time/item
-            // pressure — these are real, known, high-priority gaps (the depth ceiling is what "Continue Quick
-            // Analysis" mainly exists to work around) and are worth persisting for the next continuation even
-            // when this run otherwise runs to exhaustion. Bounded for the same reason the pending queue is.
-            var depthDeferred = new List<string>();
             long order = 0;
             if (resumeFrom is not null)
-                // A continuation gets its own fresh depth budget starting from each resumed path (Depth 1, not
-                // that path's true filesystem depth) — otherwise a directory already at the depth ceiling could
-                // never be resumed into, and "Continue Quick Analysis" could never make progress past it.
                 foreach (var path in resumeFrom.PendingDirectories)
                     Enqueue(new(path, 1, null, PriorityBoostFor(Path.GetFileName(path.TrimEnd('\\'))), order++));
             else
@@ -202,20 +195,27 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                 {
                     if (CheckCancellation(() => current?.Path ?? root)) return;
                     if (policy.TimeBudget is { } timeBudget && clock.UtcNow - sessionStarted >= timeBudget)
-                    { SaveQuickCheckpoint(current, pending, depthDeferred); AddIssue(ScanIssueKind.ResourceLimit, "scan.quick-time-budget", $"Quick Analysis's {policy.TimeBudget.Value.TotalSeconds:F0}-second time budget was reached; remaining areas were not examined this run.", ScanIssueSeverity.PolicyBoundary); return; }
+                    {
+                        var unvisited = RemainingFrontierCount(current, pending);
+                        SaveQuickCheckpoint(current, pending);
+                        AddIssue(ScanIssueKind.ResourceLimit, "scan.quick-time-budget",
+                            $"Quick Analysis's {policy.TimeBudget.Value.TotalSeconds:F0}-second budget was reached; {unvisited:N0} subdirector{(unvisited == 1 ? "y was" : "ies were")} not examined this run.",
+                            ScanIssueSeverity.PolicyBoundary);
+                        return;
+                    }
                     if (policy.ItemBudget is { } itemBudget && files + directories >= itemBudget)
-                    { SaveQuickCheckpoint(current, pending, depthDeferred); AddIssue(ScanIssueKind.ResourceLimit, "scan.quick-item-budget", "Quick Analysis's item budget was reached; remaining areas were not examined this run.", ScanIssueSeverity.PolicyBoundary); return; }
+                    {
+                        var unvisited = RemainingFrontierCount(current, pending);
+                        SaveQuickCheckpoint(current, pending);
+                        AddIssue(ScanIssueKind.ResourceLimit, "scan.quick-item-budget",
+                            $"Quick Analysis's item budget was reached; {unvisited:N0} subdirector{(unvisited == 1 ? "y was" : "ies were")} not examined this run.",
+                            ScanIssueSeverity.PolicyBoundary);
+                        return;
+                    }
 
                     if (current is null)
                     {
-                        if (!pending.TryDequeue(out var next, out _))
-                        {
-                            // Stage D: the priority queue is exhausted. If depth-policy skips left real,
-                            // known areas unexplored, that is still continuation-worthy — only a run that left
-                            // nothing behind at all counts as true, final exhaustion.
-                            if (depthDeferred.Count > 0) SaveQuickCheckpoint(null, pending, depthDeferred);
-                            return;
-                        }
+                        if (!pending.TryDequeue(out var next, out _)) return; // true exhaustion: nothing left to explore anywhere.
                         try { current = Open(next.Path, next.Depth, next.Parent); }
                         catch (Exception exception) when (IsExpected(exception)) { CountException(exception); continue; }
                     }
@@ -231,18 +231,18 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                     { CountException(exception); CompleteQueueFrame(frame); current = null; continue; }
                     if (entry is null) continue;
 
+                    // Phase (Quick truthfulness correction): Quick no longer stops exploring a branch merely
+                    // because of a small fixed depth — every safely accessible directory is queued and may be
+                    // explored as long as the global time/item budget above permits, with well-known high-value
+                    // roots (Windows, Program Files, ProgramData, Users, AppData/Downloads/Documents, common
+                    // developer caches) dequeued first via PriorityBoostFor. Because each directory's own
+                    // children are enqueued (never immediately descended into) only once that directory itself
+                    // is dequeued, this priority queue already behaves as a fair, priority-boosted breadth-first
+                    // search: many top-level branches each get their shallow levels explored before any one
+                    // branch is walked deeply, so a single enormous subtree cannot silently consume the whole
+                    // budget the way a fixed-depth-then-abandon strategy could.
                     if (ObserveEntry(entry, frame, out var isDirectory) && isDirectory)
-                    {
-                        // policy.MaximumDepth is only ever null for Deep, which never calls RunQuick — so this
-                        // is always a real bound here, never treated as "no limit" by accident.
-                        if (policy.MaximumDepth is { } maxDepth && frame.Depth >= maxDepth)
-                        {
-                            skipped++;
-                            AddIssue(ScanIssueKind.ResourceLimit, "scan.depth-limit", "Quick Analysis depth policy reached; a subdirectory was not examined this run.", ScanIssueSeverity.PolicyBoundary);
-                            if (depthDeferred.Count < MaximumCheckpointDirectories) depthDeferred.Add(entry.FullPath);
-                        }
-                        else Enqueue(new(entry.FullPath, frame.Depth + 1, frame, PriorityBoostFor(Path.GetFileName(entry.FullPath)), order++));
-                    }
+                        Enqueue(new(entry.FullPath, frame.Depth + 1, frame, PriorityBoostFor(Path.GetFileName(entry.FullPath)), order++));
                     ReportProgress(entry.FullPath);
                 }
             }
@@ -254,7 +254,9 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                 { skipped++; AddIssue(ScanIssueKind.ResourceLimit, "scan.quick-pending-capacity", "Quick Analysis's pending-directory capacity was reached; a lower-priority area was not queued this run.", ScanIssueSeverity.PolicyBoundary); return; }
                 pending.Enqueue(item, (-item.Boost, item.Order));
             }
-            void SaveQuickCheckpoint(DirectoryFrame? openFrame, PriorityQueue<PendingDirectory, (long, long)> queue, List<string> deferred)
+            static long RemainingFrontierCount(DirectoryFrame? openFrame, PriorityQueue<PendingDirectory, (long, long)> queue) =>
+                queue.Count + (openFrame is null ? 0 : 1);
+            void SaveQuickCheckpoint(DirectoryFrame? openFrame, PriorityQueue<PendingDirectory, (long, long)> queue)
             {
                 policyBoundaryHit = true;
                 if (checkpoints is null) return;
@@ -262,8 +264,6 @@ public sealed class ScanCoordinator(IFileSystemEnumerator fileSystem, IDriveDisc
                 if (openFrame is not null) remaining.Add(openFrame.Path);
                 foreach (var item in queue.UnorderedItems.OrderBy(x => x.Priority).Select(x => x.Element))
                 { if (remaining.Count >= MaximumCheckpointDirectories) break; remaining.Add(item.Path); }
-                foreach (var path in deferred)
-                { if (remaining.Count >= MaximumCheckpointDirectories) break; remaining.Add(path); }
                 checkpoints.Save(new(root, ScanMode.Quick, policyVersion, started, clock.UtcNow, files, directories, bytes, remaining));
             }
         }
@@ -550,32 +550,26 @@ public sealed record QuickAnalysisPolicy(TimeSpan TargetDuration, long ItemBudge
 }
 
 /// <summary>
-/// The exact, documented bounds each mode runs under. Quick Analysis is deliberately bounded on three
-/// independent axes — depth, elapsed time, and item count — so a "fast first look" stays fast even against a
-/// pathologically large or deep subtree; hitting any one of them ends the scan honestly, tagged with
-/// <see cref="ScanIssueSeverity.PolicyBoundary"/>, never a silent truncation and never reported as
-/// <see cref="ScanStatus.CompletedWithWarnings"/> on its own (see <c>ScanCoordinator.DetermineStatus</c>). Deep
-/// Analysis has no depth, time, or item bound: it runs until every safely accessible entry has been processed,
-/// the caller cancels, or a fatal error occurs.
+/// The exact, documented bounds each mode runs under. Quick Analysis is bounded on elapsed time, item count, and
+/// pending-frontier capacity — never a fixed directory depth: a flat depth ceiling used to abandon every branch
+/// at the same shallow level regardless of how much of the time/item budget actually remained, which is exactly
+/// what previously produced a low-coverage result with thousands of "depth limit reached" events. Hitting any of
+/// Quick's real budgets ends the scan honestly, tagged with <see cref="ScanIssueSeverity.PolicyBoundary"/>, never
+/// a silent truncation and never reported as <see cref="ScanStatus.CompletedWithWarnings"/> on its own (see
+/// <c>ScanCoordinator.DetermineStatus</c>). Deep Analysis has no depth, time, or item bound: it runs until every
+/// safely accessible entry has been processed, the caller cancels, or a fatal error occurs.
+/// <see cref="MaximumDepth"/> is always <see langword="null"/> for both modes — retained only so a caller that
+/// still reads this field never sees a stale, no-longer-enforced depth number.
 /// </summary>
 internal sealed record ScanPolicy(int? MaximumDepth, int TopCount, int TopLevelCount, TimeSpan? TimeBudget, long? ItemBudget)
 {
-    /// <summary>Quick Analysis depth bound: root-level entries plus two further levels — enough to reach the
-    /// top-level contents of well-known high-value roots (Windows, ProgramData, Program Files, Users) and one
-    /// level into each, without an unbounded recursive walk.</summary>
-    private const int QuickMaximumDepth = 3;
-
     public static ScanPolicy For(ScanRequest request, QuickAnalysisPolicy? quickPolicy = null)
     {
         var defaultTop = request.Mode == ScanMode.Quick ? 25 : 100;
         var top = Math.Clamp(request.TopCount ?? defaultTop, 1, 1000);
-        // Phase 7.2.1: Deep Analysis has no depth-ceiling concept at all — MaximumDepth is null, not a large
-        // sentinel value standing in for "unlimited". RunDeep (see ScanCoordinator) never reads this field;
-        // only Quick's traversal does. There is nothing left in Deep's execution path that could be tightened
-        // into a limit by accident.
         if (request.Mode != ScanMode.Quick) return new(null, top, 1000, null, null);
         var effective = quickPolicy ?? QuickAnalysisPolicy.Default;
-        return new(QuickMaximumDepth, top, 256, effective.TargetDuration, effective.ItemBudget);
+        return new(null, top, 256, effective.TargetDuration, effective.ItemBudget);
     }
 }
 

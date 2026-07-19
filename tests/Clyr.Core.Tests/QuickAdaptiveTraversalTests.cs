@@ -119,11 +119,12 @@ public sealed class QuickAdaptiveTraversalTests
     }
 
     [Fact]
-    public async Task DepthLimitedAreasAreCheckpointedEvenWhenTheRunOtherwiseExhaustsItsQueue()
+    public async Task DeeplyNestedDataIsFoundInASingleRunWhenTheItemBudgetPermitsWithNoDepthLimitIssueOrCheckpoint()
     {
-        // A tall tree, four levels deep, with a generous time/item budget that lets Quick's priority queue fully
-        // drain (genuine Stage D exhaustion) well before either budget is reached. Depth-policy skips are still
-        // real, known gaps — Quick must not report this as final, nothing-left-to-continue completion.
+        // Phase (Quick truthfulness correction): a tall tree, four levels deep, that the OLD fixed-depth ceiling
+        // would have abandoned mid-tree and had to defer to a checkpoint/continuation round-trip. With that
+        // ceiling removed, a generous item budget must find this file in the very first run — no "scan.depth-
+        // limit" issue, and nothing meaningful left to checkpoint for this branch.
         var fs = new FakeFileSystem(new()
         {
             ["C:\\"] = [Dir("C:\\Program Files")],
@@ -134,20 +135,13 @@ public sealed class QuickAdaptiveTraversalTests
         });
         var store = new RecordingCheckpointStore();
         var policy = new QuickAnalysisPolicy(TimeSpan.FromSeconds(30), ItemBudget: 250_000, PolicyVersion: 2);
-        var first = await new ScanCoordinator(fs, new FakeDrives(), new SystemClock(), quickPolicy: policy, checkpoints: store)
+        var result = await new ScanCoordinator(fs, new FakeDrives(), new SystemClock(), quickPolicy: policy, checkpoints: store)
             .ScanAsync(new("C:\\", ScanMode.Quick), null, default);
 
-        Assert.Equal(ScanStatus.Completed, first.Status);
-        Assert.Contains(first.Issues, item => item.Code == "scan.depth-limit");
-        Assert.NotNull(store.Saved);
-        Assert.Contains("C:\\Program Files\\Vendor\\App\\data", store.Saved!.PendingDirectories);
-        Assert.DoesNotContain(first.LargestFiles, item => item.DisplayPath == "C:\\Program Files\\Vendor\\App\\data\\big.bin");
-
-        var continuation = await new ScanCoordinator(fs, new FakeDrives(), new SystemClock(), quickPolicy: policy, checkpoints: store)
-            .ScanAsync(new("C:\\", ScanMode.Quick, ContinueFromCheckpoint: true), null, default);
-        // Resuming gives the deferred directory a fresh depth budget, so the file beyond the original depth
-        // ceiling is finally reached — proof continuation makes real progress past a depth-only stopping point.
-        Assert.Contains(continuation.LargestFiles, item => item.DisplayPath == "C:\\Program Files\\Vendor\\App\\data\\big.bin");
+        Assert.Equal(ScanStatus.Completed, result.Status);
+        Assert.DoesNotContain(result.Issues, item => item.Code == "scan.depth-limit");
+        Assert.Contains(result.LargestFiles, item => item.DisplayPath == "C:\\Program Files\\Vendor\\App\\data\\big.bin");
+        Assert.DoesNotContain("C:\\Program Files\\Vendor\\App\\data", store.Saved?.PendingDirectories ?? []);
     }
 
     [Fact]

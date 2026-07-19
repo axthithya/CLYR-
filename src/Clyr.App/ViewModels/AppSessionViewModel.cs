@@ -45,6 +45,23 @@ public sealed class AppSessionViewModel : INotifyPropertyChanged, IDisposable
     /// regardless of outcome.</summary>
     public ScanResult? Result { get => result; private set => Set(ref result, value); }
 
+    /// <summary>
+    /// Replaces <see cref="Result"/> with an administrator-retry-enriched result — the correction for the retry
+    /// workflow computing a correct, deduplicated combined figure but never actually replacing what every page
+    /// reads. <paramref name="enriched"/> must share <see cref="ScanResult.ScanId"/> with the currently active
+    /// <see cref="Result"/>: this is a refinement of the same completed Deep Analysis, never a substitute for a
+    /// different or newer one (for example, one started while a retry was still in flight) — a mismatch is a
+    /// silent no-op rather than a stale overwrite. Reuses the same <see cref="Set{T}"/>/<see cref="Changed"/>
+    /// path every other session-state change already goes through, so every subscribed page (Results, Review
+    /// Plan, Overview) refreshes the same way a normal scan completion already does — no page-specific forced
+    /// refresh is needed.
+    /// </summary>
+    public void ApplyEnrichedResult(ScanResult enriched)
+    {
+        if (result is null || enriched.ScanId != result.ScanId) return;
+        Result = enriched;
+    }
+
     /// <summary>The most recently finished scan attempt, whatever its outcome — used by the Scan page itself to
     /// report a truthful Cancelled/Failed/Completed status for what just happened, independent of whether that
     /// attempt was successful enough to replace <see cref="Result"/>.</summary>
@@ -141,14 +158,39 @@ public sealed class ResultsViewModel(AppSessionViewModel session, IScanReportExp
 
     /// <summary>Owns the administrator-retry action's lifecycle for whatever completed result this page is
     /// currently showing. A session-scoped value, separate from <see cref="AppSessionViewModel.Result"/> itself
-    /// — see <see cref="AdministratorRetryUiState.CombinedResult"/> for why an applied retry's combined figures
-    /// are never written back into the original scan result.</summary>
+    /// — a successful attempt's combined figures reach <see cref="AppSessionViewModel.Result"/> only through
+    /// <see cref="ApplyAdministratorRetryResultIfPending"/>, never automatically.</summary>
     public AdministratorRetryController AdministratorRetry { get; } = new(elevatedRetryService);
+
+    /// <summary>Guards <see cref="ApplyAdministratorRetryResultIfPending"/> against re-applying the same already-
+    /// applied attempt on a later, unrelated render pass (for example, a subsequent page navigation).</summary>
+    private Guid? lastAppliedReconciliationId;
 
     /// <summary>Re-evaluates the administrator-retry action for the page's current result. Passes
     /// <see langword="null"/> while a new scan is running so the action is never shown against what would
     /// otherwise be a stale prior result mid-rescan.</summary>
     public void RefreshAdministratorRetry() => AdministratorRetry.Evaluate(Session.IsScanning ? null : Session.Result);
+
+    /// <summary>
+    /// The Administrator Retry result-integration correction: when <see cref="AdministratorRetry"/>'s current
+    /// state is a successful, not-yet-applied <see cref="AdministratorRetryPhase.Applied"/> outcome, builds the
+    /// enriched result (<see cref="ElevatedScanResultEnricher.Build"/>) and replaces
+    /// <see cref="AppSessionViewModel.Result"/> with it — the missing step that previously left every page
+    /// showing the original, unenriched result even after a successful retry. Idempotent: calling this again for
+    /// the same attempt (for example, from a later unrelated <c>Refresh()</c>) is a no-op. Safe to call from any
+    /// thread — it touches only plain view-model/session state, never a WinUI control; the caller (see
+    /// <c>ResultsPage.OnAdministratorRetryStateChanged</c>) is responsible for the pre-existing requirement that
+    /// anything touching WinUI controls happens only after marshaling onto the UI thread.
+    /// </summary>
+    public void ApplyAdministratorRetryResultIfPending()
+    {
+        var state = AdministratorRetry.State;
+        if (state.Phase != AdministratorRetryPhase.Applied || state.CombinedResult is not { } combined) return;
+        if (lastAppliedReconciliationId == combined.Attempt.ReconciliationExecutionId) return;
+        if (!ReferenceEquals(combined.OriginalResult, Session.Result)) return;
+        lastAppliedReconciliationId = combined.Attempt.ReconciliationExecutionId;
+        Session.ApplyEnrichedResult(ElevatedScanResultEnricher.Build(combined));
+    }
 
     public void Dispose() => AdministratorRetry.Dispose();
 }

@@ -59,7 +59,7 @@ public sealed partial class ResultsPage : Page
     {
         if (DispatcherQueue.HasThreadAccess)
         {
-            RenderAdministratorRetry();
+            HandleAdministratorRetryStateChanged();
             return;
         }
         if (administratorRetryRenderQueued) return;
@@ -67,9 +67,21 @@ public sealed partial class ResultsPage : Page
         var enqueued = DispatcherQueue.TryEnqueue(() =>
         {
             administratorRetryRenderQueued = false;
-            RenderAdministratorRetry();
+            HandleAdministratorRetryStateChanged();
         });
         if (!enqueued) administratorRetryRenderQueued = false;
+    }
+
+    /// <summary>Runs only after <see cref="OnAdministratorRetryStateChanged"/> has confirmed (or arranged, via the
+    /// dispatcher queue) that this is the UI thread. Applies a pending successful retry's enriched result to the
+    /// active session state first — via <see cref="AppSessionViewModel.ApplyEnrichedResult"/>, which this
+    /// triggers through <see cref="ResultsViewModel.ApplyAdministratorRetryResultIfPending"/> — so the resulting
+    /// <see cref="AppSessionViewModel.StateChanged"/> notification (already subscribed to <see cref="Refresh"/>)
+    /// refreshes every section of this page with the enriched data before the retry panel itself is rendered.</summary>
+    private void HandleAdministratorRetryStateChanged()
+    {
+        ViewModel.ApplyAdministratorRetryResultIfPending();
+        RenderAdministratorRetry();
     }
 
     public void Refresh()
@@ -98,15 +110,37 @@ public sealed partial class ResultsPage : Page
             $"{r.Coverage.FilesObserved:N0} files - {r.Coverage.DirectoriesObserved:N0} folders";
 
         var completedWithWarnings = r.Status == ScanStatus.CompletedWithWarnings;
-        StatusBadgeControl.Text = completedWithWarnings ? "Completed with warnings" : OverviewPage.Humanize(r.Status);
+        // Phase (Quick truthfulness correction): a Quick scan whose coverage is materially limited must not
+        // present as a plain, unqualified "Completed" success state — that reads as a confident, exhaustive
+        // result when in fact large portions of the drive were never observed within Quick's bounded budget.
+        var quickEstimateComplete = !completedWithWarnings && r.Mode == ScanMode.Quick
+            && ScanAccounting.Summarize(r).Quality is ScanQuality.Partial or ScanQuality.Insufficient;
+        StatusBadgeControl.Text = completedWithWarnings
+            ? "Completed with warnings"
+            : quickEstimateComplete ? "Quick estimate complete" : OverviewPage.Humanize(r.Status);
         StatusBadgeControl.Glyph = completedWithWarnings ? "" : "";
 
-        var warningCount = r.Issues.Sum(item => item.Count);
+        // Phase (Quick truthfulness correction): never a flat sum across every issue — genuine warnings (access
+        // denied, entries changing mid-scan, enumeration failures, fatal problems) are shown separately from
+        // scan-policy boundaries (Quick's time/item/pending-capacity budget being reached, an expected outcome
+        // of a bounded scan, not a warning about the scan itself). Informational notes (reparse skips, cloud
+        // placeholders, checkpoint resumption) are not badged at all; they remain in the limitations list below.
+        var warningCount = r.Issues.Where(item => item.Severity is
+            ScanIssueSeverity.AccessWarning or ScanIssueSeverity.PermissionLimited or ScanIssueSeverity.DataChanged or ScanIssueSeverity.Fatal)
+            .Sum(item => item.Count);
         WarningBadgeControl.Visibility = warningCount > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (warningCount > 0)
         {
             WarningBadgeControl.Text = $"{warningCount:N0} {(warningCount == 1 ? "warning" : "warnings")}";
             WarningBadgeControl.Glyph = "";
+        }
+
+        var scanLimitCount = r.Issues.Where(item => item.Severity == ScanIssueSeverity.PolicyBoundary).Sum(item => item.Count);
+        ScanLimitBadgeControl.Visibility = scanLimitCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (scanLimitCount > 0)
+        {
+            ScanLimitBadgeControl.Text = $"{scanLimitCount:N0} scan {(scanLimitCount == 1 ? "limit" : "limits")}";
+            ScanLimitBadgeControl.Glyph = "";
         }
     }
 
@@ -225,6 +259,14 @@ public sealed partial class ResultsPage : Page
             .ToArray() ?? [];
         ContributorsSection.Visibility = contributors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ContributorsExpandButton.Visibility = contributors.Length > InitialContributorCount ? Visibility.Visible : Visibility.Collapsed;
+
+        var quality = ScanAccounting.Summarize(r).Quality;
+        var limitedCoverage = quality is ScanQuality.Partial or ScanQuality.Insufficient;
+        ContributorsHeader.Title = limitedCoverage ? "Largest observed contributors" : "Why is this drive full?";
+        ContributorsHeader.Description = limitedCoverage
+            ? "These rankings describe only the storage observed by this analysis. Ranked contributors include exact sizes so the ranking never relies on color alone."
+            : "Ranked contributors include exact sizes so the ranking never relies on color alone.";
+
         RenderContributorList();
     }
 
@@ -369,13 +411,34 @@ public sealed partial class ResultsPage : Page
             };
         }
 
+        // Phase (Administrator Retry result-integration correction): the completion wording must distinguish
+        // areas inspected, unique newly accounted bytes (never raw/overlapping retry output — state.AdditionalLogicalBytes
+        // is already the reconciler's own deduplicated delta, see ElevatedScanResultReconciler), and remaining
+        // inaccessible areas — and must say so truthfully, including when zero unique bytes were added.
         var showSummary = state.Phase == AdministratorRetryPhase.Applied;
         AdministratorRetrySummary.Visibility = showSummary ? Visibility.Visible : Visibility.Collapsed;
+        AdministratorRetryComparison.Visibility = showSummary ? Visibility.Visible : Visibility.Collapsed;
         if (showSummary)
-            AdministratorRetrySummary.Text =
-                $"CLYR inspected {state.RootsCompleted} restricted area(s) and added {OverviewPage.Format(state.AdditionalLogicalBytes ?? 0)}" +
-                (state.AdditionalAllocatedBytes is { } allocated ? $" ({OverviewPage.Format(allocated)} allocated)" : string.Empty) +
-                $". {state.RootsStillInaccessible} area(s) could still not be inspected.";
+        {
+            var addedBytes = state.AdditionalLogicalBytes ?? 0;
+            var inspectedText = $"{state.RootsCompleted} restricted area{(state.RootsCompleted == 1 ? "" : "s")} were inspected.";
+            var addedText = addedBytes > 0
+                ? $" {OverviewPage.Format(addedBytes)} of previously unobserved storage was added to this result."
+                : " No previously unobserved storage was added to this result.";
+            var remainingText = state.RootsStillInaccessible > 0
+                ? $" {state.RootsStillInaccessible} restricted area{(state.RootsStillInaccessible == 1 ? "" : "s")} remain unavailable."
+                : " No restricted areas remain unavailable.";
+            AdministratorRetrySummary.Text = inspectedText + addedText + remainingText;
+
+            var beforePercentage = state.CombinedResult is { } combined ? ScanAccounting.Summarize(combined.OriginalResult).AccountedPercentage : null;
+            var afterPercentage = ViewModel.Session.Result is { } current ? ScanAccounting.Summarize(current).AccountedPercentage : null;
+            AdministratorRetryCoverageText.Text = beforePercentage is { } before && afterPercentage is { } after
+                ? $"{before:F1}% -> {after:F1}%"
+                : "Unavailable";
+            AdministratorRetryNewlyAccountedText.Text = OverviewPage.Format(addedBytes);
+            AdministratorRetryAreasText.Text =
+                $"{state.RootsCompleted + state.RootsStillInaccessible} attempted - {state.RootsCompleted} inspected - {state.RootsStillInaccessible} remaining";
+        }
     }
 
     /// <summary>Updates only the elapsed-time text from <see cref="AdministratorRetryUiState.RunningSinceUtc"/> —

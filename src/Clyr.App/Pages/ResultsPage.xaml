@@ -37,6 +37,7 @@
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
                             <controls:StatusBadge x:Name="StatusBadgeControl" />
                             <controls:StatusBadge x:Name="WarningBadgeControl" Visibility="Collapsed" />
+                            <controls:StatusBadge x:Name="ScanLimitBadgeControl" Visibility="Collapsed" />
                         </StackPanel>
                     </Grid>
 
@@ -162,7 +163,7 @@
 
                     <!-- 5. Why is this drive full -->
                     <StackPanel x:Name="ContributorsSection" Spacing="14" AutomationProperties.Name="Why is this drive full">
-                        <controls:SectionHeader Title="Why is this drive full?"
+                        <controls:SectionHeader x:Name="ContributorsHeader" Title="Why is this drive full?"
                             Description="Ranked contributors include exact sizes so the ranking never relies on color alone." />
                         <ItemsControl x:Name="ContributorList" AutomationProperties.Name="Ranked storage contributors">
                             <ItemsControl.ItemTemplate>
@@ -210,7 +211,7 @@
                                                 <TextBlock Grid.Column="1" Text="{Binding Size}" Style="{StaticResource StatusTextStyle}" HorizontalAlignment="Right" />
                                             </Grid>
                                             <TextBlock Style="{StaticResource CaptionStyle}">
-                                                <Run Text="{Binding Category}" /><Run Text=" Â· " /><Run Text="{Binding Confidence}" /><Run Text=" confidence Â· " /><Run Text="{Binding SafetyStatus}" />
+                                                <Run Text="{Binding Category}" /><Run Text=" · " /><Run Text="{Binding Confidence}" /><Run Text=" confidence · " /><Run Text="{Binding SafetyStatus}" />
                                             </TextBlock>
                                             <TextBlock Text="{Binding Explanation}" Style="{StaticResource BodySecondaryStyle}" />
                                         </StackPanel>
@@ -289,6 +290,24 @@
                             </StackPanel>
                             <InfoBar x:Name="AdministratorRetryInfoBar" IsOpen="False" IsClosable="False" CornerRadius="{StaticResource CornerRadiusControl}" />
                             <TextBlock x:Name="AdministratorRetrySummary" Style="{StaticResource BodySecondaryStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
+                            <Grid x:Name="AdministratorRetryComparison" Visibility="Collapsed" ColumnSpacing="16" RowSpacing="4"
+                                  AutomationProperties.Name="Administrator retry coverage comparison">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Coverage" Style="{StaticResource CaptionStyle}" />
+                                    <TextBlock x:Name="AdministratorRetryCoverageText" Style="{StaticResource BodyStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Newly accounted" Style="{StaticResource CaptionStyle}" />
+                                    <TextBlock x:Name="AdministratorRetryNewlyAccountedText" Style="{StaticResource BodyStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="2">
+                                    <TextBlock Text="Restricted areas" Style="{StaticResource CaptionStyle}" />
+                                    <TextBlock x:Name="AdministratorRetryAreasText" Style="{StaticResource BodyStyle}" />
+                                </StackPanel>
+                            </Grid>
                         </StackPanel>
                     </Border>
 

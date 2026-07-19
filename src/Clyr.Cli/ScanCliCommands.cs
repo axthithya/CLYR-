@@ -174,7 +174,14 @@ public sealed partial class CliApplication
         writer.WriteLine($"Status: {result.Status}");
         writer.WriteLine($"Elapsed: {FormatElapsed(result.EndedAt - result.StartedAt)}");
         writer.WriteLine($"Observed logical size: {FormatBytes(result.LogicalBytesObserved)} ({result.Precision})");
-        writer.WriteLine($"Coverage: {result.Coverage.FilesObserved} files, {result.Coverage.DirectoriesObserved} directories, {result.Issues.Sum(x => x.Count)} warnings");
+        // Phase (Quick truthfulness correction): only genuine warnings, never a flat sum across every issue —
+        // Quick's expected policy-boundary budget limits and informational notes are reported separately below,
+        // not folded into this count.
+        var warningCount = result.Issues.Where(item => item.Severity is
+            ScanIssueSeverity.AccessWarning or ScanIssueSeverity.PermissionLimited or ScanIssueSeverity.DataChanged or ScanIssueSeverity.Fatal)
+            .Sum(item => item.Count);
+        var scanLimitCount = result.Issues.Where(item => item.Severity == ScanIssueSeverity.PolicyBoundary).Sum(item => item.Count);
+        writer.WriteLine($"Coverage: {result.Coverage.FilesObserved} files, {result.Coverage.DirectoriesObserved} directories, {warningCount} warnings, {scanLimitCount} scan limits");
         writer.WriteLine($"Inaccessible roots: {result.Coverage.InaccessibleEntries}; reparse points skipped: {result.Coverage.ReparsePointsSkipped}.");
         writer.WriteLine(result.AccountingNote);
 

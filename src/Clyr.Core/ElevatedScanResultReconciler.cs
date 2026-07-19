@@ -34,21 +34,41 @@ public sealed record ElevatedRetryAttempt(
     long AdditionalLogicalBytes, long AdditionalAllocatedBytes, ImmutableArray<string> AccountingLimitations, bool Applied);
 
 /// <summary>
+/// One successfully-applied retried root's already-deduplicated accounting delta — the exact amount that root
+/// contributes on top of whatever the original scan already counted for it, never the elevated engine's raw
+/// per-root totals. <see cref="ElevatedScanResultReconciler.Reconcile"/> computes this once, per root, by
+/// subtracting the original scan's own <see cref="ScanRootContribution"/> figures (when the root was
+/// <see cref="ScanRootEnumerationState.PartiallyObserved"/>) from the elevated engine's figures for that same
+/// root — the same subtraction already used for <see cref="ElevatedRetryAttempt.AdditionalLogicalBytes"/>, now
+/// exposed per root (rather than only as one pre-summed total) so a caller — see
+/// <c>ElevatedScanResultEnricher</c> — can truthfully recompute coverage, issue counts, and per-root rankings
+/// without re-deriving this same subtraction independently and risking drift.
+/// </summary>
+public sealed record AppliedRootAccountingDelta(
+    string CanonicalRootIdentity, string DisplayRootPath, string? StableRootIdentifier, ElevatedRootRetryResult RootResult,
+    long DeltaLogicalBytes, long DeltaAllocatedBytes, long DeltaFilesExamined, long DeltaDirectoriesExamined,
+    long DeltaHardLinkEntriesDetected, long DeltaAllocationUnavailableCount, long DeltaSparseFileCount,
+    long DeltaCompressedFileCount, long OriginalInaccessibleEntryCount);
+
+/// <summary>
 /// The immutable result of one reconciliation attempt. <see cref="OriginalResult"/> is always the exact,
 /// untouched object the caller passed in — reconciliation never mutates it and never returns a modified copy
 /// pretending to be the original. When <see cref="IsApplied"/>, <see cref="RemainingInaccessibleRoots"/> is the
 /// original permission-limited root set with only the successfully retried roots removed, and
 /// <see cref="CombinedLogicalBytesObserved"/>/<see cref="CombinedAllocatedBytesObserved"/> carry the safely
 /// combined totals; when not applied, those two are <see langword="null"/> and every originally requested root
-/// is still considered inaccessible.
+/// is still considered inaccessible. <see cref="AppliedRootDeltas"/> carries the same combined totals broken out
+/// per root — always empty when not applied.
 /// </summary>
 public sealed record ElevatedReconciliationResult(
     ElevatedReconciliationOutcome Outcome, ScanResult OriginalResult, ElevatedRetryAttempt Attempt,
     ImmutableArray<PermissionLimitedRoot> RemainingInaccessibleRoots,
     ImmutableArray<ElevatedRootRetryResult> AppliedRootResults,
-    long? CombinedLogicalBytesObserved, long? CombinedAllocatedBytesObserved, AccountingConsistency Consistency)
+    long? CombinedLogicalBytesObserved, long? CombinedAllocatedBytesObserved, AccountingConsistency Consistency,
+    ImmutableArray<AppliedRootAccountingDelta> AppliedRootDeltas = default)
 {
     public bool IsApplied => Outcome == ElevatedReconciliationOutcome.Applied;
+    public ImmutableArray<AppliedRootAccountingDelta> AppliedRootDeltas { get; init; } = AppliedRootDeltas.IsDefault ? [] : AppliedRootDeltas;
 }
 
 /// <summary>
@@ -110,7 +130,7 @@ public static class ElevatedScanResultReconciler
         // Phase 7.2.6G2: validate every completed retry root's safety BEFORE applying any of them — one
         // unsafe root aborts the whole reconciliation (never a partial application), matching Phase 7.2.6G1's
         // established "return NotApplied, change nothing" pattern.
-        var deltas = new List<(PermissionLimitedRoot Root, ElevatedRootRetryResult RootResult, long DeltaLogical, long DeltaAllocated)>();
+        var deltas = new List<AppliedRootAccountingDelta>();
         foreach (var requestRoot in request.PermissionLimitedRoots)
         {
             var normalized = ElevatedScanManifestBuilder.NormalizePath(requestRoot.NormalizedRootPath);
@@ -131,12 +151,22 @@ public static class ElevatedScanResultReconciler
                         startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
                         ["A retried root was already fully Completed by the original scan and should never have been in the retry manifest."]);
 
-                // InaccessibleAtRoot contributed zero bytes by construction, so nothing needs subtracting.
-                // PartiallyObserved contributed a truthful-but-incomplete amount that must be subtracted before
-                // the elevated figure is added, so the original's partial bytes are never double-counted.
-                var subtractLogical = contribution.EnumerationState == ScanRootEnumerationState.PartiallyObserved ? contribution.LogicalBytesObserved : 0;
-                var subtractAllocated = contribution.EnumerationState == ScanRootEnumerationState.PartiallyObserved ? contribution.AllocatedBytesObserved : 0;
-                deltas.Add((requestRoot, rootResult, rootResult.LogicalBytesObserved - subtractLogical, rootResult.AllocatedBytesObserved - subtractAllocated));
+                // InaccessibleAtRoot contributed zero of every figure by construction, so nothing needs
+                // subtracting. PartiallyObserved contributed a truthful-but-incomplete amount of every figure
+                // that must be subtracted before the elevated figure is added, so the original's partial
+                // contribution is never double-counted — the same rule applied uniformly across bytes, file/
+                // directory counts, and every other per-root descriptive count this reconciler now tracks.
+                var partial = contribution.EnumerationState == ScanRootEnumerationState.PartiallyObserved;
+                deltas.Add(new(normalized, contribution.RootPath, requestRoot.StableRootIdentifier, rootResult,
+                    rootResult.LogicalBytesObserved - (partial ? contribution.LogicalBytesObserved : 0),
+                    rootResult.AllocatedBytesObserved - (partial ? contribution.AllocatedBytesObserved : 0),
+                    rootResult.FilesExamined - (partial ? contribution.FilesExamined : 0),
+                    rootResult.DirectoriesExamined - (partial ? contribution.DirectoriesExamined : 0),
+                    rootResult.HardLinkEntriesDetected - (partial ? contribution.HardLinkEntriesDetected : 0),
+                    rootResult.AllocationUnavailableCount - (partial ? contribution.AllocationUnavailableCount : 0),
+                    rootResult.SparseFileCount - (partial ? contribution.SparseFileCount : 0),
+                    rootResult.CompressedFileCount - (partial ? contribution.CompressedFileCount : 0),
+                    contribution.InaccessibleEntryCount));
             }
             else
             {
@@ -151,11 +181,15 @@ public static class ElevatedScanResultReconciler
                         startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
                         ["The original scan may already have observed part of one or more retried roots, and carries no " +
                          "root-level contribution records; exact replacement cannot be proven safe."]);
-                deltas.Add((requestRoot, rootResult, Math.Max(0, rootResult.LogicalBytesObserved), Math.Max(0, rootResult.AllocatedBytesObserved)));
+                deltas.Add(new(normalized, requestRoot.NormalizedRootPath, requestRoot.StableRootIdentifier, rootResult,
+                    Math.Max(0, rootResult.LogicalBytesObserved), Math.Max(0, rootResult.AllocatedBytesObserved),
+                    Math.Max(0, rootResult.FilesExamined), Math.Max(0, rootResult.DirectoriesExamined),
+                    Math.Max(0, rootResult.HardLinkEntriesDetected), Math.Max(0, rootResult.AllocationUnavailableCount),
+                    Math.Max(0, rootResult.SparseFileCount), Math.Max(0, rootResult.CompressedFileCount), 0));
             }
         }
 
-        var appliedPaths = deltas.Select(delta => ElevatedScanManifestBuilder.NormalizePath(delta.Root.NormalizedRootPath)).ToHashSet(StringComparer.Ordinal);
+        var appliedPaths = deltas.Select(delta => delta.CanonicalRootIdentity).ToHashSet(StringComparer.Ordinal);
         var remaining = ImmutableArray.CreateBuilder<PermissionLimitedRoot>();
         foreach (var requestRoot in request.PermissionLimitedRoots)
             if (!appliedPaths.Contains(ElevatedScanManifestBuilder.NormalizePath(requestRoot.NormalizedRootPath)))
@@ -163,8 +197,26 @@ public static class ElevatedScanResultReconciler
 
         var applied = ImmutableArray.CreateBuilder<ElevatedRootRetryResult>(deltas.Count);
         long additionalLogical = 0, additionalAllocated = 0;
-        foreach (var delta in deltas) { applied.Add(delta.RootResult); additionalLogical += delta.DeltaLogical; additionalAllocated += delta.DeltaAllocated; }
+        foreach (var delta in deltas) { applied.Add(delta.RootResult); additionalLogical += delta.DeltaLogicalBytes; additionalAllocated += delta.DeltaAllocatedBytes; }
         var rootsCompleted = deltas.Count;
+
+        // Section 3: retried bytes can never make observed bytes exceed the drive's own used-space basis — a
+        // real invariant, not merely a display nicety. The original scan's own reported "not observed" figure is
+        // an accounting-basis estimate (drive-used minus observed), not a precise measurement of exactly what
+        // lives inside these specific roots, so a genuinely small overshoot here is possible without either side
+        // being individually wrong; when it happens, this reconciliation is rejected outright (matching the
+        // established "one unsafe condition aborts the whole reconciliation, never a partial or silently clamped
+        // application" pattern above) rather than ever presenting an impossible combined total.
+        // Only guarded when the original scan's own basis was already consistent (observed at or under drive-used) —
+        // a scan that already reported LogicalExceedsDriveUsed has a pre-existing, independent basis difference
+        // unrelated to this retry, and rejecting an otherwise-correct retry over that pre-existing condition would
+        // be punishing the wrong cause.
+        if (originalResult.DriveUsedBytes is { } driveUsedBytes && originalResult.LogicalBytesObserved <= driveUsedBytes
+            && originalResult.LogicalBytesObserved + additionalLogical > driveUsedBytes)
+            return NotApplied(ElevatedReconciliationOutcome.AccountingBasisMismatch, originalResult, request, reconciliationId,
+                startedAtUtc, effectiveClock.UtcNow, launcherResult.Outcome, response.Outcome,
+                ["The retried roots' combined contribution could not be safely applied because it would make observed " +
+                 "bytes exceed this drive's own used-space basis."]);
 
         // Never a falsely exact global-unique-allocation total: the elevated engine (and, per root,
         // ScanCoordinator) only de-duplicate hard links within their own attempt/root, and the original scan may
@@ -190,7 +242,8 @@ public static class ElevatedScanResultReconciler
             : (originalResult.Allocation?.AllocatedBytesObserved ?? 0) + additionalAllocated;
 
         return new ElevatedReconciliationResult(ElevatedReconciliationOutcome.Applied, originalResult, attempt,
-            remaining.ToImmutable(), applied.ToImmutable(), combinedLogical, combinedAllocated, consistency);
+            remaining.ToImmutable(), applied.ToImmutable(), combinedLogical, combinedAllocated, consistency,
+            deltas.ToImmutableArray());
     }
 
     private static bool IsEligibleOriginalScan(ScanResult originalResult) =>

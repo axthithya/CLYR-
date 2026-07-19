@@ -28,13 +28,24 @@
                     <Border Style="{StaticResource StandardCardStyle}" AutomationProperties.Name="Review Plan summary">
                         <StackPanel Spacing="16">
                             <StackPanel Spacing="4">
-                                <TextBlock Text="Estimated potential" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Observed candidate footprint" Style="{StaticResource CardTitleStyle}" />
                                 <TextBlock x:Name="TotalPotentialText" FontSize="30" FontWeight="SemiBold"
-                                           AutomationProperties.Name="Total estimated potential storage" />
-                                <TextBlock Text="Actual reclaimed space can differ because files may be shared, locked, compressed, hard-linked or changed before execution."
+                                           AutomationProperties.Name="Total observed candidate footprint" />
+                                <TextBlock Text="Total size of every candidate found, including protected and unsupported items that are not reclaimable."
                                            Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
                             </StackPanel>
                             <Border Style="{StaticResource DividerStyle}" />
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Eligible estimated potential" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock x:Name="EligiblePotentialText" FontSize="22" FontWeight="SemiBold"
+                                           AutomationProperties.Name="Eligible estimated potential storage" />
+                                <TextBlock Text="Sum of only the recommended, dry-run-eligible candidates. Actual reclaimed space can still differ because files may be shared, locked, compressed, hard-linked or changed before execution."
+                                           Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Border Style="{StaticResource DividerStyle}" />
+                            <TextBlock x:Name="NoEligibleCandidatesText" Visibility="Collapsed" TextWrapping="Wrap"
+                                       Style="{StaticResource BodyMutedStyle}"
+                                       AutomationProperties.Name="No currently eligible cleanup actions notice" />
                             <Grid x:Name="SummaryMetrics" ColumnSpacing="16" RowSpacing="12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
@@ -64,7 +75,7 @@
                             <ComboBox x:Name="SortOrder" Grid.Column="1" Header="Sort by" SelectedIndex="0"
                                       SelectionChanged="FilterChanged" MinWidth="220"
                                       AutomationProperties.Name="Sort Review Plan candidates">
-                                <ComboBoxItem Content="Largest potential first" /><ComboBoxItem Content="Safest first" />
+                                <ComboBoxItem Content="Recommended first" /><ComboBoxItem Content="Largest potential first" />
                                 <ComboBoxItem Content="Category" /><ComboBoxItem Content="Name" />
                             </ComboBox>
                             <Button x:Name="SelectAllButton" Grid.Column="2" Content="Select all eligible"

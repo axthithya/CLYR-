@@ -18,8 +18,10 @@ public sealed class AboutSettingsPresentationTests
         Assert.Contains("Width=\"88\" Height=\"88\" Stretch=\"Uniform\"", identity, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.Name=\"CLYR application icon\"", identity, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"C:\"", identity, StringComparison.Ordinal);
-        Assert.Equal("ACA5E2907AFD46FA3B28B644B56352263CF22DC4833B74245D7C123178C99DE1",
+        Assert.Equal("FC7F7B57AFD235396232332A033E9BEA602B42C4BA51EDC41D67D899D3654AAE",
             Hash(Path.Combine("src", "Clyr.App", "Assets", "Branding", "CLYR-AppIcon-Master-1024.png")));
+        Assert.Equal("09E147B9E8A437838939B8E3385C7DA56122D697FF5CA4E31A42CE9358BA7746",
+            Hash(Path.Combine("src", "Clyr.App", "Assets", "Branding", "CLYR-AppIcon.ico")));
     }
 
     [Fact]

@@ -137,7 +137,11 @@ public sealed partial class OverviewPage : Page
         ClassifiedValue.Text = accounting.ClassificationPercentage is { } classified ? $"{classified:F1}%" : "Unavailable";
         ExaminedValue.Text = $"{result.Coverage.FilesObserved:N0} files, {result.Coverage.DirectoriesObserved:N0} folders";
 
-        var warningCount = result.Issues.Sum(item => item.Count);
+        // Phase (Quick truthfulness correction): only genuine warnings — Quick's expected budget boundaries
+        // (PolicyBoundary) and informational notes (reparse skips, etc.) must never inflate this count.
+        var warningCount = result.Issues.Where(item => item.Severity is
+            ScanIssueSeverity.AccessWarning or ScanIssueSeverity.PermissionLimited or ScanIssueSeverity.DataChanged or ScanIssueSeverity.Fatal)
+            .Sum(item => item.Count);
         WarningSummary.Visibility = warningCount > 0 || result.Status == ScanStatus.CompletedWithWarnings
             ? Visibility.Visible
             : Visibility.Collapsed;

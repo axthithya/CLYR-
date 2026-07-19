@@ -63,10 +63,21 @@ public sealed partial class ReviewPlanPage : Page
         var review = candidates.Count(candidate => candidate.Eligibility is CleanupEligibility.ManualReviewOnly or CleanupEligibility.InsufficientEvidence);
         var protectedCount = candidates.Count(candidate => candidate.Eligibility == CleanupEligibility.Protected);
         var unsupported = candidates.Count(candidate => candidate.Eligibility is CleanupEligibility.Unsupported or CleanupEligibility.NotEligible);
+        // Phase (Review Plan accounting correction): the headline total is every candidate's observed footprint
+        // (not reclaimable on its own — protected/unsupported items are included), kept separate from the
+        // eligible-only figure below so protected/unsupported items can never inflate reclaimable potential.
         TotalPotentialText.Text = OverviewPage.Format(SumBytes(candidates.Select(candidate => candidate.Impact.ObservedLogicalBytes)));
+        EligiblePotentialText.Text = OverviewPage.Format(SumBytes(candidates.Where(IsEligible).Select(candidate => candidate.Impact.ObservedLogicalBytes)));
         CandidateCountText.Text = candidates.Count.ToString("N0", CultureInfo.CurrentCulture);
         SafetyCountsText.Text = $"Recommended {recommended:N0} · Review {review:N0} · Protected {protectedCount:N0} · Unsupported {unsupported:N0}";
         SelectAllButton.IsEnabled = recommended > 0;
+
+        var hasActionableCandidates = recommended > 0 || review > 0;
+        NoEligibleCandidatesText.Visibility = hasActionableCandidates ? Visibility.Collapsed : Visibility.Visible;
+        if (!hasActionableCandidates)
+            NoEligibleCandidatesText.Text = candidates.Count > 0
+                ? "No currently eligible cleanup actions were found. Every candidate found is protected or unsupported. Run Deep Analysis for more complete results, or return to Results."
+                : "No currently eligible cleanup actions were found. Run an analysis to find storage areas that may be worth reviewing.";
     }
 
     private void RenderCandidates()
@@ -154,12 +165,15 @@ public sealed partial class ReviewPlanPage : Page
             5 => result.Where(candidate => selectedFindingIds.Contains(candidate.FindingId)),
             _ => result
         };
+        // Phase (Review Plan accounting correction): default (and fallback) sort now surfaces actionable
+        // (eligible, then review-required) candidates first — protected/unsupported items are still inspectable
+        // but never dominate the top of the list purely by raw size.
         return SortOrder?.SelectedIndex switch
         {
-            1 => result.OrderBy(candidate => SafetyOrder(candidate.Eligibility)).ThenBy(candidate => candidate.Title, StringComparer.CurrentCultureIgnoreCase),
+            1 => result.OrderByDescending(candidate => candidate.Impact.ObservedLogicalBytes).ThenBy(candidate => candidate.Title, StringComparer.CurrentCultureIgnoreCase),
             2 => result.OrderBy(candidate => candidate.Category).ThenByDescending(candidate => candidate.Impact.ObservedLogicalBytes),
             3 => result.OrderBy(candidate => candidate.Title, StringComparer.CurrentCultureIgnoreCase),
-            _ => result.OrderByDescending(candidate => candidate.Impact.ObservedLogicalBytes).ThenBy(candidate => candidate.Title, StringComparer.CurrentCultureIgnoreCase)
+            _ => result.OrderBy(candidate => SafetyOrder(candidate.Eligibility)).ThenByDescending(candidate => candidate.Impact.ObservedLogicalBytes).ThenBy(candidate => candidate.Title, StringComparer.CurrentCultureIgnoreCase)
         };
     }
 

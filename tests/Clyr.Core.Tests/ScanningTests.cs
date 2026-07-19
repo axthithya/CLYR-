@@ -83,19 +83,58 @@ public sealed class ScanningTests
     }
 
     [Fact]
-    public async Task QuickModeStopsAtDocumentedDepthWithoutFailing()
+    public async Task QuickModeExploresPastTheOldShallowDepthWhenBudgetPermits()
     {
+        // Phase (Quick truthfulness correction): Quick no longer abandons a branch merely because of a small
+        // fixed depth — a directory nested well past the previous 3-level ceiling must still be discovered as
+        // long as the (generous, default) time/item budget permits it.
         var fs = new FakeFileSystem(new()
         {
             ["C:\\"] = [Dir("C:\\a")],
             ["C:\\a"] = [Dir("C:\\a\\b")],
             ["C:\\a\\b"] = [Dir("C:\\a\\b\\c")],
-            ["C:\\a\\b\\c"] = [Dir("C:\\a\\b\\c\\d")]
+            ["C:\\a\\b\\c"] = [Dir("C:\\a\\b\\c\\d")],
+            ["C:\\a\\b\\c\\d"] = []
         });
         var result = await Scanner(fs).ScanAsync(new("C:\\", ScanMode.Quick), null, default);
         Assert.Equal(ScanStatus.Completed, result.Status);
-        Assert.Contains(result.Issues, item => item.Code == "scan.depth-limit" && item.Severity == ScanIssueSeverity.PolicyBoundary);
-        Assert.DoesNotContain("C:\\a\\b\\c\\d", fs.EnumeratedDirectories);
+        Assert.DoesNotContain(result.Issues, item => item.Code == "scan.depth-limit");
+        Assert.Contains("C:\\a\\b\\c\\d", fs.EnumeratedDirectories);
+    }
+
+    [Fact]
+    public async Task QuickExploresMultipleTopLevelBranchesFairlyAndProducesOneAggregateBudgetSummary()
+    {
+        // Three sibling branches, each a chain of nested directories. A depth-first (or fixed-depth) strategy
+        // would exhaust one branch — or abandon all of them at the same shallow rung — before ever touching the
+        // others; the priority-queue-based breadth-first strategy must instead visit each top-level branch's own
+        // shallow level before descending deeply into any single one.
+        var fs = new FakeFileSystem(new()
+        {
+            ["C:\\"] = [Dir("C:\\A"), Dir("C:\\B"), Dir("C:\\C")],
+            ["C:\\A"] = [Dir("C:\\A\\1")],
+            ["C:\\A\\1"] = [Dir("C:\\A\\1\\2")],
+            ["C:\\B"] = [Dir("C:\\B\\1")],
+            ["C:\\B\\1"] = [Dir("C:\\B\\1\\2")],
+            ["C:\\C"] = [Dir("C:\\C\\1")],
+            ["C:\\C\\1"] = [Dir("C:\\C\\1\\2")],
+        });
+        var tinyItemBudget = new QuickAnalysisPolicy(TimeSpan.FromMinutes(10), ItemBudget: 5, PolicyVersion: 2);
+        var scanner = new ScanCoordinator(fs, new FakeDrives(true), new SystemClock(), quickPolicy: tinyItemBudget);
+
+        var result = await scanner.ScanAsync(new("C:\\", ScanMode.Quick), null, default);
+
+        Assert.Equal(ScanStatus.Completed, result.Status);
+        // Fairness: more than one top-level branch was actually opened before the tiny budget ended the scan —
+        // never one branch exhausted while its siblings were never even visited.
+        Assert.Contains("C:\\A", fs.EnumeratedDirectories);
+        Assert.Contains("C:\\B", fs.EnumeratedDirectories);
+        // One aggregated limitation, not one record per skipped directory.
+        var budgetIssues = result.Issues.Where(item => item.Code == "scan.quick-item-budget").ToArray();
+        var budgetIssue = Assert.Single(budgetIssues);
+        Assert.Equal(1, budgetIssue.Count);
+        Assert.Equal(ScanIssueSeverity.PolicyBoundary, budgetIssue.Severity);
+        Assert.Matches(@"\d+ subdirector(y was|ies were) not examined", budgetIssue.SafeDetail);
     }
 
     [Fact]
