@@ -3,58 +3,303 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Clyr.App.Controls"
-    Background="{ThemeResource AppBackgroundBrush}"
+    Background="{ThemeResource AppBackground}"
     AutomationProperties.Name="Results page">
     <controls:ResponsivePageHost x:Name="PageHost" Title="Results"
-        Subtitle="Understand the latest analysis through clear aggregates, evidence, and limitations."
+        Subtitle="Understand what is using storage and what is safe to review."
         AutomationProperties.Name="Results responsive page host">
         <controls:ResponsivePageHost.PageContent>
-            <StackPanel Spacing="24">
+            <StackPanel Spacing="{StaticResource PageSectionSpacing}">
+
+                <!-- Empty state: no analysis has been run yet in this session. -->
                 <StackPanel x:Name="EmptyPanel" Spacing="16" AutomationProperties.Name="Results empty state">
-                    <controls:EmptyState Title="No analysis results yet" Message="Run a private, read-only analysis to understand what is using space on your drive." Glyph="&#xE9D2;"/>
-                    <StackPanel x:Name="EmptyActions" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center"><Button Content="Run Quick Analysis" Click="RunQuick" Style="{StaticResource PrimaryActionStyle}"/><Button Content="Run Deep Analysis" Click="RunDeep"/></StackPanel>
+                    <controls:EmptyState Title="No analysis results yet"
+                        Message="Run a private, read-only analysis to understand what is using storage on your drive."
+                        Glyph="&#xE9D2;" />
+                    <StackPanel x:Name="EmptyActions" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
+                        <Button Content="Run Quick Analysis" Click="RunQuick" Style="{StaticResource PrimaryActionStyle}" />
+                        <Button Content="Run Deep Analysis" Click="RunDeep" Style="{StaticResource QuietButtonStyle}" />
+                    </StackPanel>
                 </StackPanel>
-                <StackPanel x:Name="Dashboard" Visibility="Collapsed" Spacing="24">
-                    <Grid x:Name="MetricGrid" ColumnSpacing="12" RowSpacing="12">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <Border x:Name="DriveUsedCard" Style="{StaticResource CardStyle}" AutomationProperties.Name="Drive used metric card"><StackPanel><TextBlock Text="Drive used" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="DriveUsedMetric" FontSize="22" FontWeight="SemiBold"/></StackPanel></Border>
-                        <Border x:Name="AccountedCard" Grid.Column="1" Style="{StaticResource CardStyle}" AutomationProperties.Name="Accounted by this scan metric card"><StackPanel><TextBlock Text="Accounted by this scan" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="AccountedMetric" FontSize="22" FontWeight="SemiBold"/><TextBlock x:Name="AccountedPercentText" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                        <Border x:Name="NotObservedCard" Grid.Column="2" Style="{StaticResource CardStyle}" AutomationProperties.Name="Not observed by this scan metric card"><StackPanel><TextBlock Text="Not observed by this scan" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="NotObservedMetric" FontSize="22" FontWeight="SemiBold"/></StackPanel></Border>
-                        <Border x:Name="ClassifiedCard" Grid.Column="3" Style="{StaticResource CardStyle}" AutomationProperties.Name="Classified of observed metric card"><StackPanel><TextBlock Text="Classified (of observed)" Style="{StaticResource BodyMutedStyle}"/><TextBlock x:Name="ClassifiedMetric" FontSize="22" FontWeight="SemiBold"/><TextBlock x:Name="UnclassifiedText" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
+
+                <StackPanel x:Name="Dashboard" Visibility="Collapsed" Spacing="{StaticResource PageSectionSpacing}">
+                    <StackPanel.Transitions>
+                        <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
+                    </StackPanel.Transitions>
+
+                    <!-- 1. Scan identity row -->
+                    <Grid ColumnSpacing="12" RowSpacing="8" AutomationProperties.Name="Scan identity">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel Spacing="4" MinWidth="0">
+                            <TextBlock x:Name="ScanIdentityText" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock x:Name="ScanTimingText" Style="{StaticResource BodySecondaryStyle}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                            <controls:StatusBadge x:Name="StatusBadgeControl" />
+                            <controls:StatusBadge x:Name="WarningBadgeControl" Visibility="Collapsed" />
+                        </StackPanel>
                     </Grid>
-                    <Border x:Name="QualityBannerCard" Style="{StaticResource CardStyle}" AutomationProperties.Name="Results scan quality banner">
-                        <StackPanel Spacing="6">
-                            <TextBlock x:Name="QualityBannerText" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="QualityRecommendationText" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
+
+                    <!-- 2. Storage accounting hero -->
+                    <Border Style="{StaticResource StandardCardStyle}" AutomationProperties.Name="Storage accounting summary">
+                        <StackPanel Spacing="18">
+                            <Grid ColumnSpacing="20">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Storage accounting" Style="{StaticResource SectionTitleStyle}"
+                                               AutomationProperties.HeadingLevel="Level2" />
+                                    <TextBlock x:Name="AccountedDescriptionText" Style="{StaticResource BodySecondaryStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                    <TextBlock x:Name="AccountedPercentValue" Style="{StaticResource MetricValueStyle}" HorizontalAlignment="Right" />
+                                    <TextBlock Text="accounted" Style="{StaticResource MetricLabelStyle}" HorizontalAlignment="Right" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid x:Name="StorageVisualization" Height="16" Background="{ThemeResource SurfaceSecondary}"
+                                  CornerRadius="8" AutomationProperties.Name="Drive storage breakdown">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition x:Name="AccountedColumn" Width="0*" />
+                                    <ColumnDefinition x:Name="NotObservedColumn" Width="0*" />
+                                    <ColumnDefinition x:Name="FreeColumn" Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border x:Name="AccountedSegment" Background="{ThemeResource AccentPrimary}" CornerRadius="8,0,0,8" />
+                                <Border x:Name="NotObservedSegment" Grid.Column="1" Background="{ThemeResource BorderStrong}" />
+                            </Grid>
+                            <Grid x:Name="StorageMetrics" ColumnSpacing="24" RowSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel x:Name="DriveUsedMetricPanel" Spacing="3">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Border Width="8" Height="8" CornerRadius="2" Background="{ThemeResource AccentPrimary}" />
+                                        <TextBlock Text="Accounted by this scan" Style="{StaticResource MetricLabelStyle}" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="AccountedMetric" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                                <StackPanel x:Name="NotObservedMetricPanel" Grid.Column="1" Spacing="3">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Border Width="8" Height="8" CornerRadius="2" Background="{ThemeResource BorderStrong}" />
+                                        <TextBlock Text="Not observed by this scan" Style="{StaticResource MetricLabelStyle}" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="NotObservedMetric" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                                <StackPanel x:Name="FreeMetricPanel" Grid.Column="2" Spacing="3">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Border Width="8" Height="8" CornerRadius="2" Background="{ThemeResource SurfaceSecondary}" BorderBrush="{ThemeResource BorderSubtle}" BorderThickness="1" />
+                                        <TextBlock Text="Free space" Style="{StaticResource MetricLabelStyle}" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="FreeMetric" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                                <StackPanel x:Name="DriveUsedTotalPanel" Grid.Column="3" Spacing="3">
+                                    <TextBlock Text="Drive used" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="DriveUsedMetric" Style="{StaticResource CardTitleStyle}" />
+                                </StackPanel>
+                            </Grid>
                         </StackPanel>
                     </Border>
-                    <Grid x:Name="ContentGrid" ColumnSpacing="20" RowSpacing="16">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <Border x:Name="ContributorPanel" Style="{StaticResource CardStyle}" AutomationProperties.Name="Contributor visualization"><StackPanel Spacing="14"><TextBlock Text="Why is this drive full?" Style="{StaticResource SectionTitleStyle}"/><TextBlock Text="Ranked contributors include exact textual sizes so the visualization never relies on color alone." Style="{StaticResource BodyMutedStyle}"/><ListView x:Name="ContributorList" MaxHeight="420" AutomationProperties.Name="Contributor text alternatives"/></StackPanel></Border>
-                        <StackPanel x:Name="ResultSidebar" Grid.Column="1" Spacing="16">
-                            <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Scan status" Style="{StaticResource CardTitleStyle}"/><TextBlock x:Name="ScanSummary" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                            <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="Limitations" Style="{StaticResource CardTitleStyle}"/><TextBlock x:Name="Limitations" Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                            <Border x:Name="AdministratorRetryCard" Style="{StaticResource CardStyle}" Visibility="Collapsed" AutomationProperties.Name="Administrator retry for restricted scan areas">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Administrator retry" Style="{StaticResource CardTitleStyle}"/>
-                                    <TextBlock Text="Some folders could not be fully inspected. CLYR can retry only those scan areas with administrator access." Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap"/>
-                                    <Button x:Name="AdministratorRetryButton" Click="RequestAdministratorRetry"
-                                        AutomationProperties.HelpText="Optional, read-only. Retries only the restricted scan areas with administrator permission. Does not delete, move, rename, or modify files."/>
-                                    <StackPanel x:Name="AdministratorRetryRunningPanel" Spacing="4" Visibility="Collapsed">
-                                        <ProgressBar x:Name="AdministratorRetryProgress" IsIndeterminate="True" Height="5"/>
-                                        <TextBlock x:Name="AdministratorRetryElapsedText" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
-                                    </StackPanel>
-                                    <InfoBar x:Name="AdministratorRetryInfoBar" IsOpen="False" IsClosable="False"/>
-                                    <TextBlock x:Name="AdministratorRetrySummary" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" Visibility="Collapsed"/>
+
+                    <!-- 3. Coverage versus classification -->
+                    <Border Style="{StaticResource CompactCardStyle}" AutomationProperties.Name="Coverage versus classification">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="Coverage and classification are different" Style="{StaticResource CardTitleStyle}" />
+                            <Grid ColumnSpacing="24" RowSpacing="12">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Spacing="4">
+                                    <TextBlock x:Name="CoverageHeadlineText" Style="{StaticResource StatusTextStyle}" />
+                                    <TextBlock Text="Coverage: how much used storage the scan observed." Style="{StaticResource BodySecondaryStyle}" />
                                 </StackPanel>
-                            </Border>
-                            <Button Content="Review potential actions" Click="ReviewActions" Style="{StaticResource PrimaryActionStyle}"/><Button Content="Export privacy-safe report" IsEnabled="False" ToolTipService.ToolTip="Use the CLI export option in this preview build."/><Button Content="Run another analysis" Click="RunAgain"/>
+                                <StackPanel Grid.Column="1" Spacing="4">
+                                    <TextBlock x:Name="ClassificationHeadlineText" Style="{StaticResource StatusTextStyle}" />
+                                    <TextBlock Text="Classification: how much observed storage matched a known category." Style="{StaticResource BodySecondaryStyle}" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="Observed but unclassified storage is still real storage - it simply has no known category yet."
+                                       Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
+                            <Border Style="{StaticResource DividerStyle}" />
+                            <Grid ColumnSpacing="20" RowSpacing="10">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Classified" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="ClassifiedValueText" Style="{StaticResource BodyStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="Observed, unclassified" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="UnclassifiedValueText" Style="{StaticResource BodyStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="2">
+                                    <TextBlock Text="Not observed" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="UnobservedValueText" Style="{StaticResource BodyStyle}" />
+                                </StackPanel>
+                            </Grid>
                         </StackPanel>
-                    </Grid>
-                    <TextBlock Text="Findings" Style="{StaticResource SectionTitleStyle}"/><ListView x:Name="FindingList" MaxHeight="420" AutomationProperties.Name="Storage findings"/>
-                    <TextBlock x:Name="DirectoryHeading" Text="Largest directories" Style="{StaticResource SectionTitleStyle}"/><ListView x:Name="DirectoryList" MaxHeight="320"/>
+                    </Border>
+
+                    <!-- 4. Scan quality and limitations -->
+                    <Border Style="{StaticResource CompactCardStyle}" AutomationProperties.Name="Scan quality and limitations">
+                        <StackPanel Spacing="12">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Scan quality" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock x:Name="QualityDescriptionText" Style="{StaticResource BodySecondaryStyle}" />
+                                </StackPanel>
+                                <controls:StatusBadge x:Name="QualityBadgeControl" Grid.Column="1" VerticalAlignment="Top" />
+                            </Grid>
+                            <Expander x:Name="LimitationsExpander" Header="What this scan could and could not see"
+                                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                      AutomationProperties.Name="Scan limitation details">
+                                <ItemsControl x:Name="LimitationRows" AutomationProperties.Name="Limitation details">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <controls:KeyValueRow Label="{Binding Label}" Value="{Binding Value}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Expander>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 5. Why is this drive full -->
+                    <StackPanel x:Name="ContributorsSection" Spacing="14" AutomationProperties.Name="Why is this drive full">
+                        <controls:SectionHeader Title="Why is this drive full?"
+                            Description="Ranked contributors include exact sizes so the ranking never relies on color alone." />
+                        <ItemsControl x:Name="ContributorList" AutomationProperties.Name="Ranked storage contributors">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,12" ColumnSpacing="12" AutomationProperties.Name="{Binding AccessibleText}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="22" /><ColumnDefinition Width="26" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Rank}" Style="{StaticResource CaptionStyle}" VerticalAlignment="Center" />
+                                        <FontIcon Grid.Column="1" Glyph="{Binding Glyph}" FontSize="15" Foreground="{ThemeResource TextSecondary}" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="2" MinWidth="0" Spacing="5" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStyle}" TextTrimming="CharacterEllipsis" />
+                                            <ProgressBar Value="{Binding PercentageValue}" Minimum="0" Maximum="100" Height="4"
+                                                         Foreground="{ThemeResource AccentPrimary}" Background="{ThemeResource SurfaceSecondary}"
+                                                         IsHitTestVisible="False" AutomationProperties.Name="{Binding AccessibleText}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="3" HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding Size}" Style="{StaticResource StatusTextStyle}" HorizontalAlignment="Right" />
+                                            <TextBlock Text="{Binding Percentage}" Style="{StaticResource CaptionStyle}" HorizontalAlignment="Right" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button x:Name="ContributorsExpandButton" Click="ToggleContributors" Style="{StaticResource QuietButtonStyle}"
+                                HorizontalAlignment="Left" Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <!-- 6. Findings -->
+                    <StackPanel x:Name="FindingsSection" Spacing="14" AutomationProperties.Name="Findings">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <controls:SectionHeader Title="Findings" Description="Specific storage patterns CLYR recognized, with explanations and safety guidance." />
+                            <ComboBox x:Name="FindingFilter" Grid.Column="1" VerticalAlignment="Top" MinWidth="90"
+                                      SelectionChanged="FindingFilterChanged" AutomationProperties.Name="Filter findings by confidence" />
+                        </Grid>
+                        <ItemsControl x:Name="FindingList" AutomationProperties.Name="Storage findings">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="0,10" AutomationProperties.Name="{Binding AccessibleText}">
+                                        <StackPanel Spacing="4">
+                                            <Grid ColumnSpacing="12">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Title}" Style="{StaticResource BodyStyle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Size}" Style="{StaticResource StatusTextStyle}" HorizontalAlignment="Right" />
+                                            </Grid>
+                                            <TextBlock Style="{StaticResource CaptionStyle}">
+                                                <Run Text="{Binding Category}" /><Run Text=" Â· " /><Run Text="{Binding Confidence}" /><Run Text=" confidence Â· " /><Run Text="{Binding SafetyStatus}" />
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Explanation}" Style="{StaticResource BodySecondaryStyle}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="NoFindingsText" Style="{StaticResource BodySecondaryStyle}" Visibility="Collapsed"
+                                   Text="No findings match the selected filter." />
+                    </StackPanel>
+
+                    <!-- 7. Largest directories and files -->
+                    <StackPanel x:Name="DirectoriesSection" Spacing="14" Visibility="Collapsed" AutomationProperties.Name="Largest directories">
+                        <controls:SectionHeader Title="Largest directories" Description="Top-level storage by folder, ranked by observed size." />
+                        <ItemsControl x:Name="DirectoryList" AutomationProperties.Name="Largest directories list">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid MinHeight="44" ColumnSpacing="12" AutomationProperties.Name="{Binding AccessibleText}"
+                                          ToolTipService.ToolTip="{Binding FullPath}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="24" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE8B7;" FontSize="15" Foreground="{ThemeResource TextSecondary}" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" MinWidth="0" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStyle}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding ShortPath}" Style="{StaticResource CaptionStyle}" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding Size}" Style="{StaticResource StatusTextStyle}" HorizontalAlignment="Right" />
+                                            <TextBlock Text="{Binding Percentage}" Style="{StaticResource CaptionStyle}" HorizontalAlignment="Right" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <StackPanel x:Name="FilesSection" Spacing="14" Visibility="Collapsed" AutomationProperties.Name="Largest files">
+                        <controls:SectionHeader Title="Largest files" Description="Individual files observed with the largest logical size." />
+                        <ItemsControl x:Name="FileList" AutomationProperties.Name="Largest files list">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid MinHeight="44" ColumnSpacing="12" AutomationProperties.Name="{Binding AccessibleText}"
+                                          ToolTipService.ToolTip="{Binding FullPath}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="24" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE7C3;" FontSize="15" Foreground="{ThemeResource TextSecondary}" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" MinWidth="0" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStyle}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding ShortPath}" Style="{StaticResource CaptionStyle}" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding Size}" Style="{StaticResource StatusTextStyle}" HorizontalAlignment="Right" />
+                                            <TextBlock Text="{Binding Percentage}" Style="{StaticResource CaptionStyle}" HorizontalAlignment="Right" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- 8. Administrator retry -->
+                    <Border x:Name="AdministratorRetryCard" Style="{StaticResource CompactCardStyle}" Visibility="Collapsed"
+                            AutomationProperties.Name="Administrator retry for restricted scan areas">
+                        <StackPanel Spacing="10">
+                            <controls:SectionHeader Title="Administrator retry"
+                                Description="Some folders could not be fully inspected. CLYR can retry only those scan areas with administrator access." />
+                            <Button x:Name="AdministratorRetryButton" Click="RequestAdministratorRetry" Style="{StaticResource SecondaryActionStyle}"
+                                    HorizontalAlignment="Left"
+                                    AutomationProperties.HelpText="Optional, read-only. Retries only the restricted scan areas with administrator permission. Does not delete, move, rename, or modify files." />
+                            <StackPanel x:Name="AdministratorRetryRunningPanel" Spacing="6" Visibility="Collapsed">
+                                <ProgressBar x:Name="AdministratorRetryProgress" IsIndeterminate="True" Height="4" />
+                                <TextBlock x:Name="AdministratorRetryElapsedText" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap"
+                                           AutomationProperties.LiveSetting="Polite" />
+                            </StackPanel>
+                            <InfoBar x:Name="AdministratorRetryInfoBar" IsOpen="False" IsClosable="False" CornerRadius="{StaticResource CornerRadiusControl}" />
+                            <TextBlock x:Name="AdministratorRetrySummary" Style="{StaticResource BodySecondaryStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 9. Final action area -->
+                    <Border Style="{StaticResource DividerStyle}" Margin="0,4" />
+                    <StackPanel x:Name="FinalActionArea" Orientation="Horizontal" Spacing="12" AutomationProperties.Name="Results actions">
+                        <Button Content="Review potential actions" Click="ReviewActions" Style="{StaticResource PrimaryActionStyle}" />
+                        <Button Content="Export privacy-safe report" IsEnabled="False" Style="{StaticResource SecondaryActionStyle}"
+                                ToolTipService.ToolTip="Use the CLI export option in this preview build." />
+                        <Button Content="Run another analysis" Click="RunAgain" Style="{StaticResource QuietButtonStyle}" />
+                    </StackPanel>
                 </StackPanel>
             </StackPanel>
         </controls:ResponsivePageHost.PageContent>

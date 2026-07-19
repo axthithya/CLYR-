@@ -9,6 +9,8 @@ namespace Clyr.App.Pages;
 
 public sealed partial class ResultsPage : Page
 {
+    private const int InitialContributorCount = 12;
+
     /// <summary>Guards against enqueueing a second redundant dispatcher callback while one is already pending —
     /// <see cref="RenderAdministratorRetry"/> always reads the controller's current
     /// <see cref="AdministratorRetryController.State"/> at the time it actually runs, so a single pending callback
@@ -21,16 +23,23 @@ public sealed partial class ResultsPage : Page
     /// only reads <see cref="AdministratorRetryUiState.RunningSinceUtc"/>.</summary>
     private readonly DispatcherTimer administratorRetryElapsedTimer = new() { Interval = TimeSpan.FromSeconds(1) };
 
+    private ResultsContributorItem[] contributors = [];
+    private bool contributorsExpanded;
+    private ResultsFindingItem[] findings = [];
+
     public ResultsPage(ResultsViewModel viewModel)
     {
         ViewModel = viewModel;
         InitializeComponent();
         administratorRetryElapsedTimer.Tick += (_, _) => RenderAdministratorRetryElapsed();
+        FindingFilter.ItemsSource = new[] { "All findings", "High confidence", "Medium confidence", "Low confidence" };
+        FindingFilter.SelectedIndex = 0;
         viewModel.Session.StateChanged += (_, _) => Refresh();
         viewModel.AdministratorRetry.StateChanged += OnAdministratorRetryStateChanged;
         PageHost.LayoutModeChanged += (_, mode) => Reflow(mode);
         Refresh();
     }
+
     public ResultsViewModel ViewModel { get; }
     public void ResetScroll() => PageHost.ResetScroll();
 
@@ -44,10 +53,7 @@ public sealed partial class ResultsPage : Page
     /// <c>IElevatedScanRetryService.RetryAsync</c> with <c>ConfigureAwait(false)</c>, so its continuation (and this
     /// event) runs on whatever thread-pool thread completed the underlying elevated retry, not necessarily this
     /// page's UI thread. WinUI controls may only be touched from the thread that owns them, so every render this
-    /// event causes is marshaled through <see cref="FrameworkElement.DispatcherQueue"/> first — this is what a
-    /// prior build was missing, and why a real administrator retry that ran to completion on a background thread
-    /// could terminate the app the instant it tried to update <see cref="AdministratorRetryCard"/> and friends
-    /// directly from that thread.
+    /// event causes is marshaled through <see cref="FrameworkElement.DispatcherQueue"/> first.
     /// </summary>
     private void OnAdministratorRetryStateChanged(object? sender, EventArgs args)
     {
@@ -63,8 +69,6 @@ public sealed partial class ResultsPage : Page
             administratorRetryRenderQueued = false;
             RenderAdministratorRetry();
         });
-        // TryEnqueue returns false only when the dispatcher queue itself is already shutting down (the window is
-        // closing) — there is nothing left to render onto in that case, and no flag was left stuck "queued".
         if (!enqueued) administratorRetryRenderQueued = false;
     }
 
@@ -75,45 +79,248 @@ public sealed partial class ResultsPage : Page
         Dashboard.Visibility = r is null ? Visibility.Collapsed : Visibility.Visible;
         ViewModel.RefreshAdministratorRetry();
         if (r is null) return;
-        var c = r.Classification;
 
-        // The metric cards below use the exact same Clyr.Core.ScanAccounting model as the Scan page's own "Last
-        // attempt" summary — one accounting model, never two competing sets of numbers on different pages.
-        var summary = ScanAccounting.Summarize(r);
-        DriveUsedMetric.Text = r.DriveUsedBytes is long used ? OverviewPage.Format(used) : "Unavailable";
-        AccountedMetric.Text = OverviewPage.Format(r.LogicalBytesObserved);
-        AccountedPercentText.Text = summary.AccountedPercentage is { } accounted
-            ? $"{accounted:F1}% of drive used"
-            : "Drive-used basis unavailable";
-        NotObservedMetric.Text = summary.UnaccountedDriveBytes is { } unaccounted
-            ? OverviewPage.Format(unaccounted)
-            : "Unavailable";
-        ClassifiedMetric.Text = summary.ClassificationPercentage is { } classification ? $"{classification:F1}%" : "Unavailable";
-        UnclassifiedText.Text = $"Observed but unclassified: {OverviewPage.Format(summary.UnclassifiedObservedBytes)}";
-
-        QualityBannerText.Text = summary.Quality switch
-        {
-            ScanQuality.Insufficient => "Scan quality: Insufficient coverage",
-            ScanQuality.Partial => "Scan quality: Partial coverage",
-            ScanQuality.Good => "Scan quality: Good coverage",
-            ScanQuality.Excellent => "Scan quality: Excellent coverage",
-            _ => "Scan quality: Unavailable"
-        };
-        QualityRecommendationText.Text = summary.Quality switch
-        {
-            ScanQuality.Insufficient or ScanQuality.Partial =>
-                "Recommended next step: Run Deep Analysis to account for more of this drive.",
-            _ => "This scan accounted for most or all of this drive's used space."
-        };
-
-        ContributorList.ItemsSource = c?.Categories.OrderByDescending(x => x.LogicalBytes).Select((x, i) => $"{i + 1}. {OverviewPage.Humanize(x.Category)} — {OverviewPage.Format(x.LogicalBytes)} — {(r.LogicalBytesObserved > 0 ? x.LogicalBytes * 100d / r.LogicalBytesObserved : 0):F1}%").ToArray() ?? [];
-        FindingList.ItemsSource = c?.Findings.Select(x => $"{x.Title}\n{OverviewPage.Format(x.LogicalBytes)} · {OverviewPage.Humanize(x.Category)} · {x.Confidence}\n{x.Explanation.WhatItMeans}").ToArray() ?? [];
-        DirectoryList.ItemsSource = r.LargestDirectories.Select(x => $"{x.DisplayPath} — {OverviewPage.Format(x.LogicalBytes)}").ToArray();
-        DirectoryHeading.Visibility = r.LargestDirectories.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        DirectoryList.Visibility = r.LargestDirectories.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ScanSummary.Text = $"{r.Status} · {r.Mode} · {r.EndedAt.LocalDateTime:g} · {r.Coverage.FilesObserved:N0} files · {r.Coverage.DirectoriesObserved:N0} directories";
-        Limitations.Text = r.AccountingNote + " " + string.Join(" ", c?.Limitations ?? []);
+        RenderIdentity(r);
+        RenderStorageHero(r);
+        RenderCoverageAndClassification(r);
+        RenderQualityAndLimitations(r);
+        RenderContributors(r);
+        RenderFindings(r);
+        RenderDirectoriesAndFiles(r);
+        Reflow(PageHost.LayoutMode);
     }
+
+    private void RenderIdentity(ScanResult r)
+    {
+        var duration = r.EndedAt >= r.StartedAt ? r.EndedAt - r.StartedAt : TimeSpan.Zero;
+        ScanIdentityText.Text = $"{r.Root.TrimEnd('\\')} - {r.Mode} Analysis";
+        ScanTimingText.Text = $"Completed {r.EndedAt.LocalDateTime:g} - {OverviewPage.FormatDuration(duration)} - " +
+            $"{r.Coverage.FilesObserved:N0} files - {r.Coverage.DirectoriesObserved:N0} folders";
+
+        var completedWithWarnings = r.Status == ScanStatus.CompletedWithWarnings;
+        StatusBadgeControl.Text = completedWithWarnings ? "Completed with warnings" : OverviewPage.Humanize(r.Status);
+        StatusBadgeControl.Glyph = completedWithWarnings ? "" : "";
+
+        var warningCount = r.Issues.Sum(item => item.Count);
+        WarningBadgeControl.Visibility = warningCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (warningCount > 0)
+        {
+            WarningBadgeControl.Text = $"{warningCount:N0} {(warningCount == 1 ? "warning" : "warnings")}";
+            WarningBadgeControl.Glyph = "";
+        }
+    }
+
+    private void RenderStorageHero(ScanResult r)
+    {
+        var summary = ScanAccounting.Summarize(r);
+        var drive = ViewModel.Session.Drives.FirstOrDefault(item =>
+            string.Equals(item.Root.TrimEnd('\\'), r.Root.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase));
+
+        AccountedPercentValue.Text = summary.AccountedPercentage is { } accounted ? $"{accounted:F1}%" : "Unavailable";
+        AccountedDescriptionText.Text = summary.AccountedPercentage is null
+            ? "Drive coverage cannot be calculated from the available accounting basis."
+            : "of this drive's used storage was observed by this analysis.";
+        AccountedMetric.Text = OverviewPage.Format(r.LogicalBytesObserved);
+        NotObservedMetric.Text = OverviewPage.FormatSigned(summary.UnaccountedDriveBytes);
+        FreeMetric.Text = drive?.FreeBytes is { } free ? OverviewPage.Format(free) : "Unavailable";
+        DriveUsedMetric.Text = r.DriveUsedBytes is { } used ? OverviewPage.Format(used) : "Unavailable";
+
+        double accountedShare = 0, notObservedShare = 0, freeShare = 0;
+        if (drive?.CapacityBytes is > 0)
+        {
+            var capacity = (double)drive.CapacityBytes.Value;
+            accountedShare = Math.Clamp(r.LogicalBytesObserved / capacity * 100, 0, 100);
+            notObservedShare = summary.UnaccountedDriveBytes is { } unaccounted
+                ? Math.Clamp(Math.Max(0, unaccounted) / capacity * 100, 0, 100)
+                : 0;
+            freeShare = Math.Max(0, 100 - accountedShare - notObservedShare);
+        }
+        AccountedColumn.Width = new GridLength(Math.Max(accountedShare, 0.001), GridUnitType.Star);
+        NotObservedColumn.Width = new GridLength(Math.Max(notObservedShare, 0.001), GridUnitType.Star);
+        FreeColumn.Width = new GridLength(Math.Max(freeShare, 0.001), GridUnitType.Star);
+        AccountedSegment.CornerRadius = accountedShare >= 99.95 ? new CornerRadius(8) : new CornerRadius(8, 0, 0, 8);
+        AutomationProperties.SetName(StorageVisualization,
+            $"{AccountedMetric.Text} accounted, {accountedShare:F1}%; {NotObservedMetric.Text} not observed, {notObservedShare:F1}%; " +
+            $"{FreeMetric.Text} free, {freeShare:F1}%.");
+    }
+
+    private void RenderCoverageAndClassification(ScanResult r)
+    {
+        var summary = ScanAccounting.Summarize(r);
+        CoverageHeadlineText.Text = summary.AccountedPercentage is { } accounted
+            ? $"{accounted:F1}% accounted - CLYR observed most of the drive's used storage."
+            : "Accounted percentage unavailable for this scan.";
+        ClassificationHeadlineText.Text = summary.ClassificationPercentage is { } classified
+            ? $"{classified:F1}% classified - about {Rounded(classified)}% of the observed storage matched known categories."
+            : "Classification percentage unavailable for this scan.";
+
+        ClassifiedValueText.Text = OverviewPage.Format(r.Classification?.Coverage.ClassifiedBytes ?? 0);
+        UnclassifiedValueText.Text = OverviewPage.Format(summary.UnclassifiedObservedBytes);
+        UnobservedValueText.Text = OverviewPage.FormatSigned(summary.UnaccountedDriveBytes);
+    }
+
+    private static string Rounded(double percentage) => percentage switch
+    {
+        >= 95 => "all",
+        >= 45 and <= 55 => "half",
+        _ => $"{percentage:F0}"
+    };
+
+    private void RenderQualityAndLimitations(ScanResult r)
+    {
+        var summary = ScanAccounting.Summarize(r);
+        var (qualityText, qualityGlyph) = summary.Quality switch
+        {
+            ScanQuality.Excellent => ("Excellent coverage", ""),
+            ScanQuality.Good => ("Good coverage", ""),
+            ScanQuality.Partial => ("Limited coverage", ""),
+            _ => ("Limited coverage", "")
+        };
+        QualityBadgeControl.Text = qualityText;
+        QualityBadgeControl.Glyph = qualityGlyph;
+        QualityDescriptionText.Text = summary.Quality switch
+        {
+            ScanQuality.Excellent or ScanQuality.Good => "This scan accounted for most or all of this drive's used space.",
+            _ => "Run Deep Analysis for more complete drive coverage."
+        };
+
+        var rows = new List<ResultsLimitationRow>
+        {
+            new("Logical vs. allocated size", "Sizes reflect logical (namespace) bytes, not real on-disk allocation."),
+            new("Hard links", "Content shared by multiple paths may be counted more than once in logical totals."),
+            new("Filesystem-managed storage", "Some Windows-managed areas are reported but are not cleanup candidates."),
+        };
+        foreach (var issue in r.Issues.Where(item => item.Count > 0))
+            rows.Add(new(OverviewPage.Humanize(issue.Kind), $"{issue.Count:N0} - {issue.SafeDetail}"));
+        if (r.Classification is { } classification)
+            foreach (var limitation in classification.Limitations)
+                rows.Add(new("Classification estimate", limitation));
+        LimitationRows.ItemsSource = rows;
+    }
+
+    private void RenderContributors(ScanResult r)
+    {
+        contributors = r.Classification?.Categories
+            .Where(item => item.LogicalBytes > 0)
+            .OrderByDescending(item => item.LogicalBytes)
+            .Select((item, index) =>
+            {
+                var percentage = r.LogicalBytesObserved > 0
+                    ? Math.Clamp(item.LogicalBytes * 100d / r.LogicalBytesObserved, 0, 100)
+                    : 0;
+                var name = OverviewPage.Humanize(item.Category);
+                var size = OverviewPage.Format(item.LogicalBytes);
+                return new ResultsContributorItem(index + 1, name, GlyphFor(item.Category), size, $"{percentage:F1}%", percentage,
+                    $"Rank {index + 1}, {name}, {size}, {percentage:F1}% of observed storage.");
+            })
+            .ToArray() ?? [];
+        ContributorsSection.Visibility = contributors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ContributorsExpandButton.Visibility = contributors.Length > InitialContributorCount ? Visibility.Visible : Visibility.Collapsed;
+        RenderContributorList();
+    }
+
+    private void RenderContributorList()
+    {
+        var visible = contributorsExpanded ? contributors : contributors.Take(InitialContributorCount).ToArray();
+        ContributorList.ItemsSource = visible;
+        if (contributors.Length > InitialContributorCount)
+            ContributorsExpandButton.Content = contributorsExpanded ? "Show fewer" : $"Show all {contributors.Length}";
+    }
+
+    private void ToggleContributors(object sender, RoutedEventArgs args)
+    {
+        contributorsExpanded = !contributorsExpanded;
+        RenderContributorList();
+    }
+
+    private void RenderFindings(ScanResult r)
+    {
+        findings = r.Classification?.Findings.OrderByDescending(item => item.LogicalBytes).Select(item =>
+        {
+            var size = OverviewPage.Format(item.LogicalBytes);
+            var category = OverviewPage.Humanize(item.Category);
+            var confidence = item.Confidence.ToString();
+            var safety = OverviewPage.Humanize(item.Explanation.SafetyStatus.Length > 0 ? item.Explanation.SafetyStatus : item.Status.ToString());
+            return new ResultsFindingItem(item.Title, size, category, confidence, safety, item.Explanation.WhatItMeans, item.Confidence,
+                $"{item.Title}, {size}, {category}, {confidence} confidence, {safety}. {item.Explanation.WhatItMeans}");
+        }).ToArray() ?? [];
+        FindingsSection.Visibility = findings.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ApplyFindingFilter();
+    }
+
+    private void FindingFilterChanged(object sender, SelectionChangedEventArgs args) => ApplyFindingFilter();
+
+    private void ApplyFindingFilter()
+    {
+        var filtered = FindingFilter.SelectedIndex switch
+        {
+            1 => findings.Where(item => item.ConfidenceValue == FindingConfidence.High).ToArray(),
+            2 => findings.Where(item => item.ConfidenceValue == FindingConfidence.Medium).ToArray(),
+            3 => findings.Where(item => item.ConfidenceValue == FindingConfidence.Low).ToArray(),
+            _ => findings
+        };
+        FindingList.ItemsSource = filtered;
+        NoFindingsText.Visibility = findings.Length > 0 && filtered.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void RenderDirectoriesAndFiles(ScanResult r)
+    {
+        DirectoryList.ItemsSource = r.LargestDirectories.Select(item => ToPathItem(item, r, "")).ToArray();
+        DirectoriesSection.Visibility = r.LargestDirectories.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        FileList.ItemsSource = r.LargestFiles.Select(item => ToPathItem(item, r, "")).ToArray();
+        FilesSection.Visibility = r.LargestFiles.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static ResultsPathItem ToPathItem(RankedPath item, ScanResult r, string glyph)
+    {
+        var size = OverviewPage.Format(item.LogicalBytes);
+        var name = ShortName(item.DisplayPath);
+        var shortPath = ShortenPath(item.DisplayPath);
+        var percentage = r.LogicalBytesObserved > 0 ? Math.Clamp(item.LogicalBytes * 100d / r.LogicalBytesObserved, 0, 100) : 0;
+        return new ResultsPathItem(name, shortPath, item.DisplayPath, size, $"{percentage:F1}%", glyph,
+            $"{name}, {shortPath}, {size}, {percentage:F1}% of observed storage.");
+    }
+
+    /// <summary>The last path segment only — the full, un-truncated path always remains available through the
+    /// row's tooltip and accessible name, never discarded, only not shown as the primary line.</summary>
+    private static string ShortName(string path)
+    {
+        var trimmed = path.TrimEnd('\\');
+        var lastSeparator = trimmed.LastIndexOf('\\');
+        return lastSeparator >= 0 && lastSeparator < trimmed.Length - 1 ? trimmed[(lastSeparator + 1)..] : trimmed;
+    }
+
+    /// <summary>Keeps the drive root and the final one or two segments, replacing the middle with an ellipsis
+    /// marker, so a long nested path never visually dominates the row while the full path remains one tooltip
+    /// or accessible-name away.</summary>
+    private static string ShortenPath(string path)
+    {
+        var segments = path.Split('\\', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length <= 3) return path;
+        var root = segments[0] + "\\";
+        var tail = string.Join('\\', segments[^2..]);
+        return $"{root}...\\{tail}";
+    }
+
+    private static string GlyphFor(StorageCategory category) => category switch
+    {
+        StorageCategory.WindowsSystemManaged or StorageCategory.WindowsUpdateServicing => "",
+        StorageCategory.TemporaryFiles or StorageCategory.CrashDumpsDiagnostics or StorageCategory.Logs => "",
+        StorageCategory.BrowserCache or StorageCategory.ApplicationCache or StorageCategory.DeveloperCache => "",
+        StorageCategory.UserDownloads => "",
+        StorageCategory.UserDocuments => "",
+        StorageCategory.UserMedia => "",
+        StorageCategory.ArchivesInstallers => "",
+        StorageCategory.GamesLaunchers => "",
+        StorageCategory.CloudSync => "",
+        StorageCategory.DeveloperDependencies or StorageCategory.BuildOutput => "",
+        StorageCategory.Containers or StorageCategory.VirtualMachines => "",
+        StorageCategory.Wsl => "",
+        StorageCategory.AndroidSdkEmulators => "",
+        StorageCategory.RecycleBin => "",
+        StorageCategory.RestoreRecovery => "",
+        _ => ""
+    };
 
     /// <summary>Renders <see cref="ResultsViewModel.AdministratorRetry"/>'s current state. Reads only bounded
     /// counts and pre-composed safe text off <see cref="AdministratorRetryUiState"/> — never a path, manifest,
@@ -175,7 +382,8 @@ public sealed partial class ResultsPage : Page
         var elapsed = DateTimeOffset.UtcNow - runningSince;
         if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
         AdministratorRetryElapsedText.Text =
-            $"Elapsed {elapsed:mm\\:ss} of up to {AdministratorRetryUx.SafetyLimit.TotalMinutes:N0} minutes.";
+            $"Retrying {state.ReplaceableRootCount} restricted area(s) - elapsed {elapsed:mm\\:ss} of up to {AdministratorRetryUx.SafetyLimit.TotalMinutes:N0} minutes. " +
+            "CLYR is reading file and folder metadata only.";
     }
 
     /// <summary>Requires an explicit Continue on the confirmation dialog before ever calling
@@ -223,13 +431,35 @@ public sealed partial class ResultsPage : Page
     private void RunDeep(object sender, RoutedEventArgs args) { ViewModel.Session.SelectedScanMode = ScanMode.Deep; ViewModel.Navigate("Scan"); }
     private void RunAgain(object sender, RoutedEventArgs args) => ViewModel.Navigate("Scan");
     private void ReviewActions(object sender, RoutedEventArgs args) => ViewModel.Navigate("Review Plan");
+
     private void Reflow(Controls.ResponsivePageWidth mode)
     {
         var narrow = mode == Controls.ResponsivePageWidth.Narrow;
-        var cards = new FrameworkElement[] { DriveUsedCard, AccountedCard, NotObservedCard, ClassifiedCard };
-        for (var i = 0; i < cards.Length; i++) { Grid.SetColumn(cards[i], narrow ? 0 : i); Grid.SetRow(cards[i], narrow ? i : 0); }
-        Grid.SetColumn(ResultSidebar, narrow ? 0 : 1);
-        Grid.SetRow(ResultSidebar, narrow ? 1 : 0);
         EmptyActions.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal;
+        FinalActionArea.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal;
+        FindingFilter.HorizontalAlignment = narrow ? HorizontalAlignment.Stretch : HorizontalAlignment.Right;
+
+        Position(DriveUsedMetricPanel, 0, 0);
+        Position(NotObservedMetricPanel, narrow ? 1 : 1, 0);
+        Position(FreeMetricPanel, narrow ? 0 : 2, narrow ? 1 : 0);
+        Position(DriveUsedTotalPanel, narrow ? 1 : 3, narrow ? 1 : 0);
+    }
+
+    private static void Position(FrameworkElement element, int column, int row)
+    {
+        Grid.SetColumn(element, column);
+        Grid.SetRow(element, row);
     }
 }
+
+internal sealed record ResultsContributorItem(
+    int Rank, string Name, string Glyph, string Size, string Percentage, double PercentageValue, string AccessibleText);
+
+internal sealed record ResultsFindingItem(
+    string Title, string Size, string Category, string Confidence, string SafetyStatus, string Explanation,
+    FindingConfidence ConfidenceValue, string AccessibleText);
+
+internal sealed record ResultsPathItem(
+    string Name, string ShortPath, string FullPath, string Size, string Percentage, string Glyph, string AccessibleText);
+
+internal sealed record ResultsLimitationRow(string Label, string Value);

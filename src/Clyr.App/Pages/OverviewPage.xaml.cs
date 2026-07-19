@@ -265,7 +265,7 @@ public sealed partial class OverviewPage : Page
         ? "Complete with warnings"
         : Humanize(status);
 
-    private static string FormatDuration(TimeSpan duration) => duration.TotalMinutes >= 1
+    internal static string FormatDuration(TimeSpan duration) => duration.TotalMinutes >= 1
         ? $"{(int)duration.TotalMinutes}m {duration.Seconds}s"
         : $"{Math.Max(0, (int)Math.Ceiling(duration.TotalSeconds))}s";
 }

@@ -165,7 +165,7 @@ public sealed class UiArchitectureTests
     public void AccessibilityNamesAndTextAlternativesCoverCriticalFlow()
     {
         var all = string.Join(Environment.NewLine, Directory.EnumerateFiles(Pages, "*.xaml").Select(Read));
-        foreach (var required in new[] { "AutomationProperties.Name=\"Overview page\"", "AutomationProperties.Name=\"Scan page\"", "AutomationProperties.Name=\"Results page\"", "Contributor text alternatives", "AutomationProperties.LiveSetting=\"Polite\"", "Local snapshot history" })
+        foreach (var required in new[] { "AutomationProperties.Name=\"Overview page\"", "AutomationProperties.Name=\"Scan page\"", "AutomationProperties.Name=\"Results page\"", "Ranked storage contributors", "AutomationProperties.LiveSetting=\"Polite\"", "Local snapshot history" })
             Assert.Contains(required, all, StringComparison.Ordinal);
     }
 

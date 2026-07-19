@@ -735,6 +735,133 @@ public sealed class RepositorySafetyTests
         foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ResultsPageHasNoNestedScrollableSurface()
+    {
+        // Section R1/R6: the redesigned Results page must use exactly one primary vertical scrollbar, owned by
+        // ResponsivePageHost's own ScrollViewer — a ListView (or an explicit second ScrollViewer) would introduce
+        // its own internal scroll region, which the redesign specifically removes.
+        var xaml = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml"));
+        Assert.DoesNotContain("<ListView", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<ScrollViewer", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResultsPagePresentsCoverageAndClassificationAsDistinctConcepts()
+    {
+        var xaml = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml"));
+        Assert.Contains("Coverage and classification are different", xaml, StringComparison.Ordinal);
+        Assert.Contains("CoverageHeadlineText", xaml, StringComparison.Ordinal);
+        Assert.Contains("ClassificationHeadlineText", xaml, StringComparison.Ordinal);
+        // Truthful reuse: the page must compute these from the existing Clyr.Core accounting model, never a
+        // second, independently maintained calculation.
+        var codeBehind = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml.cs"));
+        Assert.Contains("ScanAccounting.Summarize", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResultsPageWarningBadgeIsIndependentOfScanQuality()
+    {
+        // Excellent coverage must be able to coexist with warnings — the warning badge's visibility must derive
+        // only from the observed warning count, never be suppressed by a high quality/coverage value.
+        var codeBehind = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml.cs"));
+        Assert.Contains("WarningBadgeControl.Visibility = warningCount > 0", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResultsPageContributorAndFindingRowsIncludeTruthfulSizeAndPercentage()
+    {
+        var xaml = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml"));
+        Assert.Contains("Text=\"{Binding Size}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Percentage}\"", xaml, StringComparison.Ordinal);
+        // Findings are structured fields (title, size, category, confidence, safety status, explanation) bound
+        // separately — never one dense pre-composed text block.
+        Assert.Contains("Text=\"{Binding Title}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Category}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Confidence}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Explanation}\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResultsPageLongPathsTruncateWithFullAccessibleTextPreserved()
+    {
+        var xaml = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml"));
+        Assert.Contains("TextTrimming=\"CharacterEllipsis\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ToolTipService.ToolTip=\"{Binding FullPath}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.Name=\"{Binding AccessibleText}\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResultsPageAdministratorRetryRunningStateShowsRootCountAndSafetyLimit()
+    {
+        var codeBehind = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml.cs"));
+        Assert.Contains("state.ReplaceableRootCount", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("AdministratorRetryUx.SafetyLimit", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResultsPageAppliedRetrySummaryShowsAddedCoverageAndRemainingRoots()
+    {
+        var codeBehind = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml.cs"));
+        Assert.Contains("state.RootsCompleted", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("state.AdditionalLogicalBytes", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("state.RootsStillInaccessible", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResultsPageActionHierarchyHasOneCoherentFinalActionArea()
+    {
+        var xaml = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml"));
+        Assert.Contains("x:Name=\"FinalActionArea\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Review potential actions\" Click=\"ReviewActions\" Style=\"{StaticResource PrimaryActionStyle}\"", xaml, StringComparison.Ordinal);
+        // Export stays exactly as truthfully disabled/explained as before this redesign — never silently made to
+        // look functional, never removed without explanation.
+        Assert.Contains("Content=\"Export privacy-safe report\" IsEnabled=\"False\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Use the CLI export option in this preview build.", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResultsPageNarrowLayoutStacksActionsAndMetrics()
+    {
+        var codeBehind = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml.cs"));
+        Assert.Contains("FinalActionArea.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResultsUiIntroducesNoUnauthorizedMutationOrPrivilegedCapability()
+    {
+        // Phase: complete Results UI/UX redesign. Every privileged behavior must remain behind the existing,
+        // unmodified IElevatedScanRetryService/AdministratorRetryController boundary — the redesigned page and
+        // code-behind must never gain a process, pipe, filesystem-mutation, or cleanup-execution capability of
+        // their own, and must never introduce a cleanup action that did not already exist.
+        var forbidden = new[]
+        {
+            "Process.Start", "ProcessStartInfo", "System.Diagnostics.Process", "powershell.exe", "cmd.exe",
+            "cmd /c", "runas", "requireAdministrator", "UseShellExecute",
+            "File.Delete", "File.Move", "File.WriteAllText", "File.WriteAllBytes", "File.AppendAllText",
+            "File.Create(", "File.OpenWrite", "File.Replace", "File.SetAttributes",
+            "Directory.Delete", "Directory.Move", "Directory.CreateDirectory",
+            "FileSecurity", "DirectorySecurity", "SetAccessControl", "FileSystemAclExtensions",
+            "TakeOwnership", "Ownership.Set",
+            "System.Net.Sockets", "TcpClient", "TcpListener", "UdpClient", "HttpClient", "WebRequest",
+            "NamedPipe", "PipeName", "ElevatedScanManifestBuilder", "PermissionLimitedRoot",
+            "Clyr.ElevatedHelper", "ElevatedHelperLauncher",
+            "NonElevatedCleanupExecutor", "CleanupPlanBuilder", "ExecutionTokenService", "CleanupCandidateFactory",
+            "BuiltInExecutionActions", "MoveKnownFolder", "MoveToAnotherDrive",
+        };
+        var files = new[]
+        {
+            Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml"),
+            Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml.cs"),
+        };
+        foreach (var file in files)
+        {
+            Assert.True(File.Exists(file), $"Expected file not found: {file}");
+            var text = File.ReadAllText(file);
+            foreach (var token in forbidden) Assert.DoesNotContain(token, text, StringComparison.Ordinal);
+        }
+    }
+
     private static XDocument Project(string name) => XDocument.Load(Path.Combine(Root, "src", name, name + ".csproj"));
     private static IEnumerable<string> RepositoryFiles(string pattern) => Directory.EnumerateFiles(Root, pattern, SearchOption.AllDirectories)
         .Where(path => !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
