@@ -156,6 +156,11 @@
                                 <Border x:Name="AccountedSegment" Background="{ThemeResource AccentPrimary}" CornerRadius="8,0,0,8" />
                                 <Border x:Name="NotObservedSegment" Grid.Column="1" Background="{ThemeResource BorderStrong}" />
                             </Grid>
+                            <Border x:Name="AccountingBasisDiffersPanel" Visibility="Collapsed" Padding="14,10"
+                                    Background="{ThemeResource SurfaceSecondary}" CornerRadius="{StaticResource CornerRadiusControl}"
+                                    AutomationProperties.Name="Accounting basis differs explanation">
+                                <TextBlock x:Name="AccountingBasisDiffersText" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
+                            </Border>
                             <Grid x:Name="StorageMetrics" ColumnSpacing="24" RowSpacing="16">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
@@ -164,14 +169,14 @@
                                 <StackPanel x:Name="DriveUsedMetricPanel" Spacing="3">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <Border Width="8" Height="8" CornerRadius="2" Background="{ThemeResource AccentPrimary}" />
-                                        <TextBlock Text="Accounted by this scan" Style="{StaticResource MetricLabelStyle}" />
+                                        <TextBlock x:Name="AccountedMetricLabel" Text="Accounted by this scan" Style="{StaticResource MetricLabelStyle}" />
                                     </StackPanel>
                                     <TextBlock x:Name="AccountedMetric" Style="{StaticResource CardTitleStyle}" />
                                 </StackPanel>
                                 <StackPanel x:Name="NotObservedMetricPanel" Grid.Column="1" Spacing="3">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <Border Width="8" Height="8" CornerRadius="2" Background="{ThemeResource BorderStrong}" />
-                                        <TextBlock Text="Not observed by this scan" Style="{StaticResource MetricLabelStyle}" />
+                                        <TextBlock Text="Not observed" Style="{StaticResource MetricLabelStyle}" />
                                     </StackPanel>
                                     <TextBlock x:Name="NotObservedMetric" Style="{StaticResource CardTitleStyle}" />
                                 </StackPanel>
@@ -183,7 +188,7 @@
                                     <TextBlock x:Name="FreeMetric" Style="{StaticResource CardTitleStyle}" />
                                 </StackPanel>
                                 <StackPanel x:Name="DriveUsedTotalPanel" Grid.Column="3" Spacing="3">
-                                    <TextBlock Text="Drive used" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock Text="Drive-reported used space" Style="{StaticResource MetricLabelStyle}" />
                                     <TextBlock x:Name="DriveUsedMetric" Style="{StaticResource CardTitleStyle}" />
                                 </StackPanel>
                             </Grid>
@@ -398,6 +403,8 @@
                                     <TextBlock x:Name="AdministratorRetryAreasText" Style="{StaticResource BodyStyle}" />
                                 </StackPanel>
                             </Grid>
+                            <TextBlock x:Name="AdministratorRetryBasisNoteText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}"
+                                       TextWrapping="Wrap" AutomationProperties.Name="Administrator retry accounting basis note" />
                         </StackPanel>
                     </Border>
 

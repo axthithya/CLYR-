@@ -205,22 +205,45 @@ public sealed partial class ResultsPage : Page
         var summary = ScanAccounting.Summarize(r);
         var drive = ViewModel.Session.Drives.FirstOrDefault(item =>
             string.Equals(item.Root.TrimEnd('\\'), r.Root.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase));
+        // Section 2/8: a distinct, specific state — never the generic "coverage cannot be calculated" wording —
+        // for the one condition where logical (namespace) bytes legitimately exceed the drive's physical
+        // used-bytes basis (hard links, sparse files, compression, filesystem-managed storage).
+        var basisDiffers = summary.Consistency.HasFlag(AccountingConsistency.LogicalExceedsDriveUsed);
 
         AccountedPercentValue.Text = summary.AccountedPercentage is { } accounted ? $"{accounted:F1}%" : "Unavailable";
-        AccountedDescriptionText.Text = summary.AccountedPercentage is null
-            ? "Drive coverage cannot be calculated from the available accounting basis."
-            : "of this drive's used storage was observed by this analysis.";
+        AccountedDescriptionText.Text = summary.AccountedPercentage is not null
+            ? "of this drive's used storage was observed by this analysis."
+            : basisDiffers
+                ? "CLYR observed logical filesystem sizes that cannot be directly compared with the drive's physical used-space total."
+                : "Drive coverage cannot be calculated from the available accounting basis.";
+        AccountedMetricLabel.Text = basisDiffers ? "Observed logical size" : "Accounted by this scan";
         AccountedMetric.Text = OverviewPage.Format(r.LogicalBytesObserved);
-        NotObservedMetric.Text = OverviewPage.FormatSigned(summary.UnaccountedDriveBytes);
+        // Section 5: never a negative "amount of unobserved storage" — PresentableUnaccountedDriveBytes is null
+        // (never a raw negative UnaccountedDriveBytes) exactly when the bases are incompatible.
+        NotObservedMetric.Text = summary.PresentableUnaccountedDriveBytes is { } notObserved
+            ? OverviewPage.FormatSigned(notObserved)
+            : "Not available";
         FreeMetric.Text = drive?.FreeBytes is { } free ? OverviewPage.Format(free) : "Unavailable";
         DriveUsedMetric.Text = r.DriveUsedBytes is { } used ? OverviewPage.Format(used) : "Unavailable";
+
+        // Section 8: never render a proportional bar implying 276 GiB fits inside a 275 GiB drive — replaced
+        // entirely with a neutral, non-proportional explanation surface when the bases are incompatible.
+        StorageVisualization.Visibility = basisDiffers ? Visibility.Collapsed : Visibility.Visible;
+        AccountingBasisDiffersPanel.Visibility = basisDiffers ? Visibility.Visible : Visibility.Collapsed;
+        if (basisDiffers)
+        {
+            AccountingBasisDiffersText.Text = "Hard links, sparse files, compression and filesystem-managed storage can cause " +
+                "logical totals to exceed physical usage. Accounting basis differs — a proportional comparison is not shown.";
+            AutomationProperties.SetName(AccountingBasisDiffersPanel, AccountingBasisDiffersText.Text);
+            return;
+        }
 
         double accountedShare = 0, notObservedShare = 0, freeShare = 0;
         if (drive?.CapacityBytes is > 0)
         {
             var capacity = (double)drive.CapacityBytes.Value;
             accountedShare = Math.Clamp(r.LogicalBytesObserved / capacity * 100, 0, 100);
-            notObservedShare = summary.UnaccountedDriveBytes is { } unaccounted
+            notObservedShare = summary.PresentableUnaccountedDriveBytes is { } unaccounted
                 ? Math.Clamp(Math.Max(0, unaccounted) / capacity * 100, 0, 100)
                 : 0;
             freeShare = Math.Max(0, 100 - accountedShare - notObservedShare);
@@ -246,7 +269,9 @@ public sealed partial class ResultsPage : Page
 
         ClassifiedValueText.Text = OverviewPage.Format(r.Classification?.Coverage.ClassifiedBytes ?? 0);
         UnclassifiedValueText.Text = OverviewPage.Format(summary.UnclassifiedObservedBytes);
-        UnobservedValueText.Text = OverviewPage.FormatSigned(summary.UnaccountedDriveBytes);
+        UnobservedValueText.Text = summary.PresentableUnaccountedDriveBytes is { } notObserved
+            ? OverviewPage.FormatSigned(notObserved)
+            : "Not available";
     }
 
     private static string Rounded(double percentage) => percentage switch
@@ -268,19 +293,27 @@ public sealed partial class ResultsPage : Page
     private void RenderQualityAndLimitations(ScanResult r)
     {
         var summary = ScanAccounting.Summarize(r);
+        // Section 10 correction: AccountingBasisDiffers gets its own neutral "Coverage unavailable" badge —
+        // it must never collapse into "Limited coverage", reserved for a genuinely low but valid, comparable
+        // percentage.
         var (qualityText, qualityGlyph) = summary.Quality switch
         {
             ScanQuality.Excellent => ("Excellent coverage", ""),
             ScanQuality.Good => ("Good coverage", ""),
-            ScanQuality.Partial => ("Limited coverage", ""),
-            _ => ("Limited coverage", "")
+            ScanQuality.AccountingBasisDiffers => ("Coverage unavailable", ""),
+            _ => ("Limited coverage", "") // Partial, Insufficient (a genuinely low, valid percentage)
         };
         QualityBadgeControl.Text = qualityText;
         QualityBadgeControl.Glyph = qualityGlyph;
+        // Section 6: the normal UI no longer exposes Deep Analysis — "Run Deep Analysis for more complete
+        // drive coverage" is obsolete. Accounting-basis incompatibility and remaining-inaccessible-areas stay
+        // two separate concepts, never merged into one ambiguous sentence.
         QualityDescriptionText.Text = summary.Quality switch
         {
             ScanQuality.Excellent or ScanQuality.Good => "This scan accounted for most or all of this drive's used space.",
-            _ => "Run Deep Analysis for more complete drive coverage."
+            ScanQuality.AccountingBasisDiffers => "CLYR completed the drive analysis, but logical filesystem sizes cannot be " +
+                "directly compared with the drive's physical used-space total.",
+            _ => "Some areas could still not be inspected."
         };
 
         var rows = new List<ResultsLimitationRow>
@@ -317,7 +350,7 @@ public sealed partial class ResultsPage : Page
         ContributorsExpandButton.Visibility = contributors.Length > InitialContributorCount ? Visibility.Visible : Visibility.Collapsed;
 
         var quality = ScanAccounting.Summarize(r).Quality;
-        var limitedCoverage = quality is ScanQuality.Partial or ScanQuality.Insufficient;
+        var limitedCoverage = quality is ScanQuality.Partial or ScanQuality.Insufficient or ScanQuality.AccountingBasisDiffers;
         ContributorsHeader.Title = limitedCoverage ? "Largest observed contributors" : "Why is this drive full?";
         ContributorsHeader.Description = limitedCoverage
             ? "These rankings describe only the storage observed by this analysis. Ranked contributors include exact sizes so the ranking never relies on color alone."
@@ -486,14 +519,26 @@ public sealed partial class ResultsPage : Page
                 : " No restricted areas remain unavailable.";
             AdministratorRetrySummary.Text = inspectedText + addedText + remainingText;
 
+            // Section 7 correction: "before" is shown whenever it was ever valid, independent of whether "after"
+            // is now unavailable — a retry that adds real logical-over-physical data is a success, never a
+            // failure, and must never be collapsed into one blanket "Unavailable" that could as easily read as
+            // "the comparison itself failed."
             var beforePercentage = state.CombinedResult is { } combined ? ScanAccounting.Summarize(combined.OriginalResult).AccountedPercentage : null;
             var afterPercentage = ViewModel.Session.Result is { } current ? ScanAccounting.Summarize(current).AccountedPercentage : null;
-            AdministratorRetryCoverageText.Text = beforePercentage is { } before && afterPercentage is { } after
-                ? $"{before:F1}% -> {after:F1}%"
-                : "Unavailable";
+            var beforeText = beforePercentage is { } before ? $"{before:F1}%" : "unavailable";
+            var afterText = afterPercentage is { } after ? $"{after:F1}%" : "unavailable";
+            AdministratorRetryCoverageText.Text = $"{beforeText} -> {afterText}";
             AdministratorRetryNewlyAccountedText.Text = OverviewPage.Format(addedBytes);
             AdministratorRetryAreasText.Text =
                 $"{state.RootsCompleted + state.RootsStillInaccessible} attempted - {state.RootsCompleted} inspected - {state.RootsStillInaccessible} remaining";
+            // Never claimed as a retry failure — the after-percentage becoming unavailable is a truthful
+            // accounting-basis fact, not an error, and must say so explicitly rather than leaving it unexplained.
+            var afterBasisDiffers = ViewModel.Session.Result is { } activeResult
+                && ScanAccounting.Summarize(activeResult).Consistency.HasFlag(AccountingConsistency.LogicalExceedsDriveUsed);
+            AdministratorRetryBasisNoteText.Visibility = afterBasisDiffers ? Visibility.Visible : Visibility.Collapsed;
+            if (afterBasisDiffers)
+                AdministratorRetryBasisNoteText.Text = "The retry added logical filesystem data whose accounting basis cannot be " +
+                    "directly compared with physical drive usage. This is not a retry failure.";
         }
     }
 

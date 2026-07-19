@@ -218,15 +218,21 @@ public sealed partial class ScanPage : Page
 
         TerminalSummary.Visibility = failed ? Visibility.Collapsed : Visibility.Visible;
         var accounting = ScanAccounting.Summarize(attempt);
+        // Section 10/11 correction: AccountingBasisDiffers is a distinct, neutral state — never "Limited
+        // coverage", which is reserved for a genuinely low but valid, comparable percentage.
         QualityText.Text = accounting.Quality switch
         {
             ScanQuality.Excellent => "Excellent coverage",
             ScanQuality.Good => "Good coverage",
+            ScanQuality.AccountingBasisDiffers => "Coverage unavailable",
             _ => "Limited coverage"
         };
         AccountedValue.Text = accounting.AccountedPercentage is { } accounted ? $"{accounted:F1}%" : "Unavailable";
         TerminalObserved.Text = OverviewPage.Format(attempt.LogicalBytesObserved);
-        TerminalUnobserved.Text = OverviewPage.FormatSigned(accounting.UnaccountedDriveBytes);
+        // Section 5: never a negative "not observed" figure.
+        TerminalUnobserved.Text = accounting.PresentableUnaccountedDriveBytes is { } notObserved
+            ? OverviewPage.FormatSigned(notObserved)
+            : "Not available";
         TerminalClassified.Text = accounting.ClassificationPercentage is { } classified ? $"{classified:F1}%" : "Unavailable";
         var duration = attempt.EndedAt >= attempt.StartedAt ? attempt.EndedAt - attempt.StartedAt : TimeSpan.Zero;
         TerminalDuration.Text = FormatDuration(duration);

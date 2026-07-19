@@ -38,7 +38,12 @@ public sealed class ScanReportExporter : IScanReportExporter
                 TopLevelDirectories = Redact(result.Root, result.TopLevelDirectories, "folder"),
                 LargestDirectories = Redact(result.Root, result.LargestDirectories, "directory"),
                 LargestFiles = Redact(result.Root, result.LargestFiles, "file"),
-                RootContributions = RedactContributions(result.Root, result.RootContributions)
+                RootContributions = RedactContributions(result.Root, result.RootContributions),
+                // Section 14: never export a negative unobserved-bytes figure as a valid storage measurement —
+                // an existing, already-nullable field (schema-compatible, no new field needed). The
+                // accounting-consistency status (Allocation.Consistency, including LogicalExceedsDriveUsed) is
+                // already preserved unchanged elsewhere in this same exported result.
+                UnaccountedBytes = PresentableUnaccountedBytes(result.UnaccountedBytes)
             }
         };
         return JsonSerializer.Serialize(report, Options);
@@ -65,11 +70,18 @@ public sealed class ScanReportExporter : IScanReportExporter
                 TopLevelDirectories = Redact(result.Root, result.TopLevelDirectories, "folder"),
                 LargestDirectories = Redact(result.Root, result.LargestDirectories, "directory"),
                 LargestFiles = Redact(result.Root, result.LargestFiles, "file"),
-                RootContributions = RedactContributions(result.Root, result.RootContributions)
+                RootContributions = RedactContributions(result.Root, result.RootContributions),
+                // Section 14: never export a negative unobserved-bytes figure as a valid storage measurement —
+                // an existing, already-nullable field (schema-compatible, no new field needed). The
+                // accounting-consistency status (Allocation.Consistency, including LogicalExceedsDriveUsed) is
+                // already preserved unchanged elsewhere in this same exported result.
+                UnaccountedBytes = PresentableUnaccountedBytes(result.UnaccountedBytes)
             }
         };
         return JsonSerializer.Serialize(report, Options);
     }
+
+    private static long? PresentableUnaccountedBytes(long? value) => value is < 0 ? null : value;
 
     private static RankedPath[] Redact(string root, IReadOnlyList<RankedPath> paths, string kind) =>
         paths.Select((item, index) => item with { DisplayPath = root + "<" + kind + "-" + (index + 1) + ">" }).ToArray();

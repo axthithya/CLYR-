@@ -50,7 +50,10 @@ public sealed class HistoryPresentationTests
         })
             Assert.Contains(required, code, StringComparison.Ordinal);
         Assert.Contains("detail.Warnings.Count", code, StringComparison.Ordinal);
-        Assert.Contains("ScanAccounting.QualityFor(accounted)", code, StringComparison.Ordinal);
+        // Phase (post-Administrator-Retry accounting correction): now passes a derived AccountingConsistency so
+        // a logical-exceeds-drive-used history record shows "Coverage unavailable" rather than "Insufficient
+        // coverage" — see ConsistencyFor.
+        Assert.Contains("ScanAccounting.QualityFor(accounted, ConsistencyFor(item))", code, StringComparison.Ordinal);
     }
 
     [Fact]

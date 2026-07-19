@@ -58,11 +58,16 @@ public sealed class ScanAccountingTests
         // drive-used bytes. This must never be papered over as a reassuring "100% accounted" — the percentage
         // is suppressed (null), the raw (negative) difference is preserved rather than floored to zero, and the
         // LogicalExceedsDriveUsed flag names exactly what happened so the UI can qualify it honestly.
+        // Phase (post-Administrator-Retry accounting correction): this specific condition is now its own
+        // distinct ScanQuality.AccountingBasisDiffers value — never the same "Insufficient"/"Limited coverage"
+        // bucket used for a genuinely low percentage, and PresentableUnaccountedDriveBytes must be null (never a
+        // negative user-facing figure) even though the raw UnaccountedDriveBytes stays available for diagnostics.
         var result = ScanFixtures.Result(ScanMode.Deep, ScanStatus.Completed, observed: 5000, driveUsed: 3000);
         var summary = ScanAccounting.Summarize(result);
         Assert.Null(summary.AccountedPercentage);
-        Assert.Equal(ScanQuality.Insufficient, summary.Quality);
+        Assert.Equal(ScanQuality.AccountingBasisDiffers, summary.Quality);
         Assert.Equal(-2000, summary.UnaccountedDriveBytes);
+        Assert.Null(summary.PresentableUnaccountedDriveBytes);
         Assert.True(summary.Consistency.HasFlag(AccountingConsistency.LogicalExceedsDriveUsed));
     }
 

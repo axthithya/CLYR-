@@ -3,10 +3,12 @@ using Clyr.Contracts;
 namespace Clyr.Core;
 
 /// <summary>Coverage quality bands, purely a display aid over <see cref="ScanAccountingSummary.AccountedPercentage"/>.
-/// A drive with no comparable used-bytes basis (or a scan that observed essentially nothing of it) is treated as
-/// <see cref="Insufficient"/> — the same label used for a genuinely low percentage — since neither case supports
-/// a confident claim about drive coverage.</summary>
-public enum ScanQuality { Excellent, Good, Partial, Insufficient }
+/// A drive with no comparable used-bytes basis at all (or a scan that observed essentially nothing of it) is
+/// treated as <see cref="Insufficient"/> — a genuinely low or absent percentage. <see cref="AccountingBasisDiffers"/>
+/// is a distinct condition: a percentage could not be computed specifically because logical (namespace) bytes
+/// legitimately exceed the drive's physical used-bytes basis (hard links, sparse files, compression) — this is
+/// never a coverage problem and must never be presented as "Limited coverage" or "Insufficient coverage".</summary>
+public enum ScanQuality { Excellent, Good, Partial, Insufficient, AccountingBasisDiffers }
 
 /// <summary>
 /// Truthful, separated accounting derived from a finished <see cref="ScanResult"/>. Two independent bases are
@@ -19,7 +21,19 @@ public enum ScanQuality { Excellent, Good, Partial, Insufficient }
 public sealed record ScanAccountingSummary(
     double? AccountedPercentage, double? ClassificationPercentage, ScanQuality Quality,
     long ClassifiedObservedBytes, long UnclassifiedObservedBytes, long? UnaccountedDriveBytes,
-    AccountingConsistency Consistency = AccountingConsistency.Consistent);
+    AccountingConsistency Consistency = AccountingConsistency.Consistent)
+{
+    /// <summary>
+    /// The presentation-safe not-observed figure — every normal UI surface (Results, Overview, Scan, History,
+    /// exports) must read this for display, never <see cref="UnaccountedDriveBytes"/> directly.
+    /// <see cref="UnaccountedDriveBytes"/> is deliberately never clamped at its own source (Phase 7.2.5 — a
+    /// negative value there is a real, meaningful internal signal that logical bytes exceed the drive-used
+    /// basis), but a negative byte count is never a valid "amount of unobserved storage" to show a user — this
+    /// property is <see langword="null"/> ("Not available") whenever <see cref="UnaccountedDriveBytes"/> would be
+    /// negative, rather than ever formatting a negative number or silently flooring it to a misleading 0 B.
+    /// </summary>
+    public long? PresentableUnaccountedDriveBytes => UnaccountedDriveBytes is < 0 ? null : UnaccountedDriveBytes;
+}
 
 public static class ScanAccounting
 {
@@ -51,18 +65,28 @@ public static class ScanAccounting
         var observedForClassification = classifiedBytes + unclassifiedBytes;
         double? classificationPercentage = observedForClassification > 0 ? classifiedBytes * 100d / observedForClassification : null;
 
-        return new(accountedPercentage, classificationPercentage, QualityFor(accountedPercentage),
+        return new(accountedPercentage, classificationPercentage, QualityFor(accountedPercentage, consistency),
             classifiedBytes, unclassifiedBytes, result.UnaccountedBytes, consistency);
     }
 
-    public static ScanQuality QualityFor(double? accountedPercentage) => accountedPercentage switch
+    /// <param name="consistency">Optional — when it carries <see cref="AccountingConsistency.LogicalExceedsDriveUsed"/>
+    /// and <paramref name="accountedPercentage"/> is null, the result is the distinct <see cref="ScanQuality.AccountingBasisDiffers"/>
+    /// rather than <see cref="ScanQuality.Insufficient"/>, so a caller never has to guess why the percentage is
+    /// unavailable. Defaults to <see cref="AccountingConsistency.Consistent"/> for callers (such as History, which
+    /// has no stored consistency data) that cannot supply it — those callers fall back to the older, coarser
+    /// <see cref="ScanQuality.Insufficient"/> behavior for a null percentage.</param>
+    public static ScanQuality QualityFor(double? accountedPercentage, AccountingConsistency consistency = AccountingConsistency.Consistent)
     {
-        null => ScanQuality.Insufficient,
-        >= ExcellentCoverageThreshold => ScanQuality.Excellent,
-        >= GoodCoverageThreshold => ScanQuality.Good,
-        >= InsufficientCoverageThreshold => ScanQuality.Partial,
-        _ => ScanQuality.Insufficient
-    };
+        if (accountedPercentage is null)
+            return consistency.HasFlag(AccountingConsistency.LogicalExceedsDriveUsed) ? ScanQuality.AccountingBasisDiffers : ScanQuality.Insufficient;
+        return accountedPercentage switch
+        {
+            >= ExcellentCoverageThreshold => ScanQuality.Excellent,
+            >= GoodCoverageThreshold => ScanQuality.Good,
+            >= InsufficientCoverageThreshold => ScanQuality.Partial,
+            _ => ScanQuality.Insufficient
+        };
+    }
 }
 
 /// <summary>

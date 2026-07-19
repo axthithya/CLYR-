@@ -253,7 +253,9 @@ public sealed partial class HistoryPage : Page
         {
             ("Accounted", Percentage(AccountedPercentage(item))),
             ("Observed storage", OverviewPage.Format(item.LogicalBytesObserved)),
-            ("Unobserved storage", BytesOrNotRecorded(detail?.UnaccountedBytes)),
+            // Section 5/12: never a negative "unobserved storage" figure — null (never a negative
+            // detail.UnaccountedBytes) whenever logical observed bytes exceed the drive-used basis.
+            ("Unobserved storage", BytesOrNotRecorded(PresentableUnaccountedBytes(item, detail))),
             ("Warnings", detail is null ? "Not recorded" : detail.Warnings.Count.ToString("N0", CultureInfo.CurrentCulture)),
             ("Files examined", detail is null ? "Not recorded" : detail.Coverage.FilesObserved.ToString("N0", CultureInfo.CurrentCulture)),
             ("Directories examined", detail is null ? "Not recorded" : detail.Coverage.DirectoriesObserved.ToString("N0", CultureInfo.CurrentCulture)),
@@ -293,7 +295,7 @@ public sealed partial class HistoryPage : Page
             var accounted = AccountedPercentage(item);
             var classifiedBasis = detail.ClassifiedBytes + detail.UnknownBytes;
             double? classified = classifiedBasis > 0 ? detail.ClassifiedBytes * 100d / classifiedBasis : null;
-            AddDetail(content, "Scan quality", QualityLabel(ScanAccounting.QualityFor(accounted)));
+            AddDetail(content, "Scan quality", QualityLabel(ScanAccounting.QualityFor(accounted, ConsistencyFor(item))));
             AddDetail(content, "Classified observed storage", Percentage(classified));
             AddDetail(content, "Inaccessible entries", detail.Coverage.InaccessibleEntries.ToString("N0", CultureInfo.CurrentCulture));
             AddDetail(content, "Warning count", detail.Warnings.Count.ToString("N0", CultureInfo.CurrentCulture));
@@ -482,6 +484,25 @@ public sealed partial class HistoryPage : Page
         return item.LogicalBytesObserved * 100d / item.UsedBytes.Value;
     }
 
+    /// <summary>Section 5/12: never a negative "unobserved storage" figure. <see cref="StorageSnapshot.UnaccountedBytes"/>
+    /// is stored unclamped (the same real, meaningful-when-negative signal <see cref="ScanAccounting"/> preserves
+    /// for a live <see cref="ScanResult"/>), so this re-derives the same non-negative presentation rule directly
+    /// from the snapshot's own logical-observed/drive-used fields, without any schema change.</summary>
+    private static long? PresentableUnaccountedBytes(SnapshotSummary item, StorageSnapshot? detail)
+    {
+        if (detail?.UnaccountedBytes is not { } value) return null;
+        return item.UsedBytes is > 0 && item.LogicalBytesObserved > item.UsedBytes.Value ? null : value;
+    }
+
+    /// <summary>Section 6/10/12: the same logical-exceeds-drive-used condition <see cref="AccountedPercentage"/>
+    /// already detects, exposed as the matching <see cref="AccountingConsistency"/> flag so
+    /// <see cref="ScanAccounting.QualityFor"/> can distinguish "Coverage unavailable" from a genuinely low,
+    /// valid percentage — without requiring any stored consistency field on <see cref="SnapshotSummary"/>.</summary>
+    private static AccountingConsistency ConsistencyFor(SnapshotSummary item) =>
+        item.UsedBytes is > 0 && item.LogicalBytesObserved > item.UsedBytes.Value
+            ? AccountingConsistency.LogicalExceedsDriveUsed
+            : AccountingConsistency.Consistent;
+
     private static string DateGroup(DateTime captured)
     {
         var date = captured.Date;
@@ -543,6 +564,7 @@ public sealed partial class HistoryPage : Page
         ScanQuality.Excellent => "Excellent coverage",
         ScanQuality.Good => "Good coverage",
         ScanQuality.Partial => "Partial coverage",
+        ScanQuality.AccountingBasisDiffers => "Coverage unavailable",
         _ => "Insufficient coverage"
     };
 

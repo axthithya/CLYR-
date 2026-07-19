@@ -137,19 +137,26 @@ public sealed partial class OverviewPage : Page
         var accounting = ScanAccounting.Summarize(result);
         var duration = result.EndedAt >= result.StartedAt ? result.EndedAt - result.StartedAt : TimeSpan.Zero;
         LatestIdentity.Text = $"Drive Analysis - completed {result.EndedAt.LocalDateTime:g} - {FormatDuration(duration)}";
+        // Section 10/11 correction: AccountingBasisDiffers is a distinct, neutral state — never labelled
+        // "Insufficient coverage" (which implies a genuinely low, valid percentage).
         LatestQuality.Text = accounting.Quality switch
         {
             ScanQuality.Excellent => "Excellent coverage",
             ScanQuality.Good => "Good coverage",
             ScanQuality.Partial => "Partial coverage",
+            ScanQuality.AccountingBasisDiffers => "Coverage unavailable",
             _ => "Insufficient coverage"
         };
         LatestCoverageValue.Text = accounting.AccountedPercentage is { } accounted ? $"{accounted:F1}%" : "Unavailable";
-        LatestCoverageDescription.Text = accounting.AccountedPercentage is null
-            ? "Drive coverage cannot be calculated from the available accounting basis."
-            : "of used storage accounted for by this analysis";
+        LatestCoverageDescription.Text = accounting.AccountedPercentage is not null
+            ? "of used storage accounted for by this analysis"
+            : accounting.Quality == ScanQuality.AccountingBasisDiffers
+                ? "Logical filesystem sizes cannot be directly compared with the drive's physical used-space total."
+                : "Drive coverage cannot be calculated from the available accounting basis.";
         ObservedValue.Text = Format(result.LogicalBytesObserved);
-        UnobservedValue.Text = FormatSigned(accounting.UnaccountedDriveBytes);
+        // Section 5: never a negative "not observed" figure — PresentableUnaccountedDriveBytes is null ("Not
+        // available") exactly when the raw value would be negative.
+        UnobservedValue.Text = accounting.PresentableUnaccountedDriveBytes is { } notObserved ? FormatSigned(notObserved) : "Not available";
         ClassifiedValue.Text = accounting.ClassificationPercentage is { } classified ? $"{classified:F1}%" : "Unavailable";
         ExaminedValue.Text = $"{result.Coverage.FilesObserved:N0} files, {result.Coverage.DirectoriesObserved:N0} folders";
 
