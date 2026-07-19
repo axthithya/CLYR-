@@ -7,29 +7,180 @@
     AutomationProperties.Name="Licenses page">
     <Page.Resources>
         <DataTemplate x:Key="WideLicenseTemplate">
-            <Grid ColumnSpacing="18" Padding="4,10" ToolTipService.ToolTip="{Binding Summary}">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Package}" TextWrapping="Wrap" FontWeight="SemiBold"/>
-                <TextBlock Grid.Column="1" Text="{Binding Version}" Style="{StaticResource BodyMutedStyle}" VerticalAlignment="Center"/>
-                <Border Grid.Column="2" Background="{ThemeResource TrustBadgeBackgroundBrush}" BorderBrush="{ThemeResource TrustBadgeBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="9,4"><TextBlock Text="{Binding License}" FontSize="12"/></Border>
+            <Grid Padding="8,12" ColumnSpacing="16" ToolTipService.ToolTip="{Binding AccessibilityLabel}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel MinWidth="0" Spacing="3">
+                    <TextBlock Text="{Binding Package}" FontFamily="{StaticResource FontFamilyMonospace}" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" MaxLines="1" />
+                    <TextBlock Text="{Binding DependencyType}" Style="{StaticResource CaptionStyle}" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding Version}" FontFamily="{StaticResource FontFamilyMonospace}"
+                           Style="{StaticResource BodySecondaryStyle}" VerticalAlignment="Center" IsTextSelectionEnabled="True" />
+                <TextBlock Grid.Column="2" Text="{Binding License}" FontFamily="{StaticResource FontFamilyMonospace}"
+                           Style="{StaticResource BodySecondaryStyle}" TextWrapping="Wrap" VerticalAlignment="Center" IsTextSelectionEnabled="True" />
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                    <FontIcon Glyph="{Binding StatusGlyph}" FontSize="14" Foreground="{ThemeResource TextSecondary}" AutomationProperties.AccessibilityView="Raw" />
+                    <TextBlock Text="{Binding StatusText}" Style="{StaticResource StatusTextStyle}" />
+                </StackPanel>
             </Grid>
         </DataTemplate>
         <DataTemplate x:Key="NarrowLicenseTemplate">
-            <StackPanel Spacing="5" Padding="4,10" ToolTipService.ToolTip="{Binding Summary}">
-                <TextBlock Text="{Binding Package}" TextWrapping="Wrap" FontWeight="SemiBold"/>
-                <TextBlock Text="{Binding Metadata}" Style="{StaticResource BodyMutedStyle}"/>
+            <StackPanel Padding="6,12" Spacing="7" ToolTipService.ToolTip="{Binding AccessibilityLabel}">
+                <TextBlock Text="{Binding Package}" FontFamily="{StaticResource FontFamilyMonospace}" FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding Version}" FontFamily="{StaticResource FontFamilyMonospace}" Style="{StaticResource BodySecondaryStyle}" IsTextSelectionEnabled="True" />
+                    <TextBlock Text="{Binding License}" FontFamily="{StaticResource FontFamilyMonospace}" Style="{StaticResource BodySecondaryStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                    <FontIcon Glyph="{Binding StatusGlyph}" FontSize="14" Foreground="{ThemeResource TextSecondary}" AutomationProperties.AccessibilityView="Raw" />
+                    <TextBlock Text="{Binding StatusText}" Style="{StaticResource StatusTextStyle}" />
+                    <TextBlock Text="{Binding DependencyType}" Style="{StaticResource CaptionStyle}" />
+                </StackPanel>
             </StackPanel>
         </DataTemplate>
     </Page.Resources>
     <controls:ResponsivePageHost x:Name="PageHost" Title="Licenses"
-        Subtitle="Open-source licenses and third-party software included with CLYR."
+        Subtitle="Review CLYR’s license and third-party open-source notices."
         AutomationProperties.Name="Licenses responsive page host">
         <controls:ResponsivePageHost.PageContent>
-            <StackPanel Spacing="20">
-                <Border Style="{StaticResource CardStyle}"><StackPanel Spacing="8"><TextBlock Text="CLYR" Style="{StaticResource CardTitleStyle}"/><TextBlock Text="Open-source project · license details are provided in the repository." Style="{StaticResource BodyMutedStyle}"/></StackPanel></Border>
-                <TextBox x:Name="LicenseSearch" Header="Search dependencies" PlaceholderText="Name, version, or license" HorizontalAlignment="Stretch" TextChanged="SearchChanged" AutomationProperties.Name="Search third-party licenses"/>
-                <ListView x:Name="LicenseList" MaxHeight="500" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Third-party license inventory"/>
-                <TextBlock Text="Dependency versions are pinned and reviewed through the repository verification process." Style="{StaticResource BodyMutedStyle}"/>
+            <StackPanel Spacing="28">
+                <Border Style="{StaticResource StandardCardStyle}" AutomationProperties.Name="CLYR application license summary">
+                    <Grid x:Name="ApplicationSummaryGrid" ColumnSpacing="28" RowSpacing="20">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="6*" /><ColumnDefinition Width="5*" /></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <StackPanel x:Name="ApplicationIdentity" Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="9">
+                                <FontIcon Glyph="&#xE8D7;" FontSize="19" Foreground="{ThemeResource AccentPrimary}" AutomationProperties.AccessibilityView="Raw" />
+                                <TextBlock Text="CLYR application license" Style="{StaticResource SectionTitleStyle}" />
+                            </StackPanel>
+                            <TextBlock Text="CLYR" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock x:Name="ApplicationVersionText" FontFamily="{StaticResource FontFamilyMonospace}"
+                                       IsTextSelectionEnabled="True" AutomationProperties.Name="CLYR application version" />
+                            <TextBlock Text="Open-source repository" Style="{StaticResource StatusTextStyle}" />
+                            <TextBlock Text="The exact license text is maintained in the repository LICENSE file and is not rewritten on this page."
+                                       Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel x:Name="ApplicationMetadata" Grid.Column="1" Spacing="10" AutomationProperties.Name="CLYR recorded license metadata">
+                            <TextBlock Text="License" Style="{StaticResource CaptionStyle}" />
+                            <TextBlock Text="Apache License 2.0" Style="{StaticResource CardTitleStyle}" IsTextSelectionEnabled="True" />
+                            <TextBlock Text="Apache-2.0" FontFamily="{StaticResource FontFamilyMonospace}" Style="{StaticResource BodySecondaryStyle}" IsTextSelectionEnabled="True" />
+                            <TextBlock Text="Copyright" Style="{StaticResource CaptionStyle}" Margin="0,4,0,0" />
+                            <TextBlock Text="Copyright 2026 CLYR contributors" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                            <TextBlock Text="Project website" Style="{StaticResource CaptionStyle}" Margin="0,4,0,0" />
+                            <TextBlock Text="Not recorded" Style="{StaticResource BodyMutedStyle}" />
+                            <Button x:Name="CopyApplicationLicenseButton" Content="Copy license ID" Style="{StaticResource QuietButtonStyle}"
+                                    HorizontalAlignment="Left" MinWidth="0" Click="CopyApplicationLicense"
+                                    ToolTipService.ToolTip="Copy CLYR license identifier" AutomationProperties.Name="Copy CLYR license identifier" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource InfoBannerStyle}" AutomationProperties.Name="Open-source acknowledgement">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE946;" FontSize="18" Foreground="{ThemeResource Information}" AutomationProperties.AccessibilityView="Raw" />
+                        <StackPanel Grid.Column="1" Spacing="5">
+                            <TextBlock Text="Open-source acknowledgement" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="CLYR uses open-source libraries. Their recorded licenses and attribution notices are listed below. Each component remains governed by its own license; including it in CLYR does not replace those terms. Full text is shown only when it is bundled, and missing metadata does not mean that no license requirement exists."
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <StackPanel x:Name="InventoryContent" Spacing="18">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Third-party components" Style="{StaticResource SectionTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                        <Grid x:Name="FilterGrid" ColumnSpacing="12" RowSpacing="12" AutomationProperties.Name="License search and filters">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <TextBox x:Name="LicenseSearch" Header="Search packages" PlaceholderText="Package name" HorizontalAlignment="Stretch"
+                                     AutomationProperties.Name="Search third-party packages" />
+                            <ComboBox x:Name="LicenseFilter" Grid.Column="1" Header="License" HorizontalAlignment="Stretch" SelectedIndex="0"
+                                      AutomationProperties.Name="Filter third-party packages by license">
+                                <ComboBoxItem Content="All licenses" Tag="All" /><ComboBoxItem Content="MIT" Tag="MIT" />
+                                <ComboBoxItem Content="Apache-2.0" Tag="Apache-2.0" /><ComboBoxItem Content="Microsoft terms" Tag="Microsoft" />
+                                <ComboBoxItem Content="SQLite notice" Tag="SQLite" />
+                            </ComboBox>
+                            <ComboBox x:Name="LicenseSort" Grid.Column="2" Header="Sort by" HorizontalAlignment="Stretch" SelectedIndex="0"
+                                      AutomationProperties.Name="Sort third-party packages">
+                                <ComboBoxItem Content="Package name" Tag="Package" /><ComboBoxItem Content="License name" Tag="License" />
+                                <ComboBoxItem Content="Dependency type" Tag="Type" />
+                            </ComboBox>
+                        </Grid>
+                        <TextBlock x:Name="ResultStatus" Style="{StaticResource BodyMutedStyle}" AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Grid x:Name="LicenseWorkspace" ColumnSpacing="20" RowSpacing="20">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="6*" /><ColumnDefinition Width="5*" /></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Border x:Name="DependencyListSurface" Style="{StaticResource StandardCardStyle}">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Recorded dependencies" Style="{StaticResource CardTitleStyle}" />
+                                <ListView x:Name="LicenseList" HorizontalContentAlignment="Stretch" SelectionMode="Single"
+                                          SelectionChanged="LicenseSelectionChanged" AutomationProperties.Name="Third-party license inventory" />
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="LicenseDetailSurface" Grid.Column="1" Style="{StaticResource StandardCardStyle}"
+                                AutomationProperties.Name="Selected license details">
+                            <StackPanel Spacing="16">
+                                <StackPanel Spacing="5">
+                                    <TextBlock Text="Selected license details" Style="{StaticResource SectionTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                                    <TextBlock x:Name="DetailAccessibleStatus" Style="{StaticResource BodyMutedStyle}"
+                                               AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Border Style="{StaticResource DividerStyle}" />
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Package" Style="{StaticResource CaptionStyle}" />
+                                    <TextBlock x:Name="DetailPackage" FontFamily="{StaticResource FontFamilyMonospace}" FontWeight="SemiBold" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                    <TextBlock Text="Version" Style="{StaticResource CaptionStyle}" Margin="0,3,0,0" />
+                                    <TextBlock x:Name="DetailVersion" FontFamily="{StaticResource FontFamilyMonospace}" IsTextSelectionEnabled="True" />
+                                    <TextBlock Text="License identifier" Style="{StaticResource CaptionStyle}" Margin="0,3,0,0" />
+                                    <TextBlock x:Name="DetailLicense" FontFamily="{StaticResource FontFamilyMonospace}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                    <TextBlock Text="Dependency type" Style="{StaticResource CaptionStyle}" Margin="0,3,0,0" />
+                                    <TextBlock x:Name="DetailType" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                    <TextBlock Text="Copyright holder" Style="{StaticResource CaptionStyle}" Margin="0,3,0,0" />
+                                    <TextBlock x:Name="DetailCopyright" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                    <TextBlock Text="Project or source URL" Style="{StaticResource CaptionStyle}" Margin="0,3,0,0" />
+                                    <TextBlock x:Name="DetailProject" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                </StackPanel>
+                                <StackPanel x:Name="DetailActions" Orientation="Horizontal" Spacing="8">
+                                    <Button x:Name="CopyPackageButton" Content="Copy package" Style="{StaticResource QuietButtonStyle}" MinWidth="0"
+                                            Click="CopySelectedPackage" ToolTipService.ToolTip="Copy selected package name" AutomationProperties.Name="Copy selected package name" />
+                                    <Button x:Name="CopyLicenseButton" Content="Copy license ID" Style="{StaticResource QuietButtonStyle}" MinWidth="0"
+                                            Click="CopySelectedLicense" ToolTipService.ToolTip="Copy selected license identifier" AutomationProperties.Name="Copy selected license identifier" />
+                                </StackPanel>
+                                <Border Style="{StaticResource DividerStyle}" />
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="License availability" Style="{StaticResource CardTitleStyle}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon x:Name="DetailStatusIcon" FontSize="15" Foreground="{ThemeResource TextSecondary}" AutomationProperties.AccessibilityView="Raw" />
+                                        <TextBlock x:Name="DetailStatus" Style="{StaticResource StatusTextStyle}" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="DetailNotice" Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                </StackPanel>
+                                <Expander x:Name="FullTextExpander" Header="Full bundled license text" AutomationProperties.Name="Full bundled license text">
+                                    <StackPanel Spacing="10" Padding="0,12,0,0">
+                                        <TextBox x:Name="FullLicenseText" Visibility="Collapsed" IsReadOnly="True" AcceptsReturn="True"
+                                                 TextWrapping="Wrap" FontFamily="{StaticResource FontFamilyMonospace}"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Selectable full license text" />
+                                        <TextBlock x:Name="UnavailableLicenseText" Text="License text is not bundled for this component."
+                                                   Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                        <Button x:Name="CopyFullTextButton" Content="Copy full license text" Visibility="Collapsed"
+                                                Style="{StaticResource QuietButtonStyle}" HorizontalAlignment="Left" MinWidth="0"
+                                                Click="CopySelectedFullText" ToolTipService.ToolTip="Copy full bundled license text"
+                                                AutomationProperties.Name="Copy full bundled license text" />
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+                <controls:EmptyState x:Name="NoInventoryState" Visibility="Collapsed"
+                    Title="No third-party license records are available"
+                    Message="CLYR cannot show dependency-license information because no bundled records were provided." Glyph="&#xE8D7;" />
+                <controls:EmptyState x:Name="NoResultsState" Visibility="Collapsed"
+                    Title="No licenses match these filters"
+                    Message="Try another package name or choose a different recorded license category." Glyph="&#xE721;" />
+                <TextBlock x:Name="CopyStatus" Style="{StaticResource BodyMutedStyle}"
+                           TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
             </StackPanel>
         </controls:ResponsivePageHost.PageContent>
     </controls:ResponsivePageHost>
