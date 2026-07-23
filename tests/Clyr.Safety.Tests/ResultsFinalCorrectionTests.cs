@@ -94,7 +94,7 @@ public sealed class ResultsFinalCorrectionTests
     {
         var code = File.ReadAllText(Path.Combine(Pages, "ResultsPage.xaml.cs"));
         Assert.Contains("Some administrator-inspected storage could not be categorized and is not shown as a named category below.", code, StringComparison.Ordinal);
-        Assert.Contains("Individual-file rankings remain based on the ", code, StringComparison.Ordinal);
+        Assert.Contains("This file list comes from the original Drive ", code, StringComparison.Ordinal);
         Assert.Contains("Large files are not automatically safe to remove.", code, StringComparison.Ordinal);
         Assert.Contains("Findings remain based on the original Drive Analysis.", code, StringComparison.Ordinal);
     }

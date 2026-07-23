@@ -154,7 +154,7 @@
                             <Grid x:Name="AdministratorRetryComparison" Visibility="Collapsed" ColumnSpacing="16" RowSpacing="4"
                                   AutomationProperties.Name="Administrator retry coverage comparison">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Spacing="2">
                                     <TextBlock Text="Coverage" Style="{StaticResource CaptionStyle}" />
@@ -164,7 +164,14 @@
                                     <TextBlock Text="Newly found storage" Style="{StaticResource CaptionStyle}" />
                                     <TextBlock x:Name="AdministratorRetryNewlyAccountedText" Style="{StaticResource BodyStyle}" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="2">
+                                <!-- Section 1 correction: additive (newly found) and replacement (refreshed-area net
+                                     change) accounting must stay visually separate — a replacement growth is never
+                                     "newly found storage", and a replacement shrink must never be hidden. -->
+                                <StackPanel x:Name="AdministratorRetryReplacementPanel" Grid.Column="2" Spacing="2" Visibility="Collapsed">
+                                    <TextBlock Text="Change from refreshed areas" Style="{StaticResource CaptionStyle}" />
+                                    <TextBlock x:Name="AdministratorRetryReplacementText" Style="{StaticResource BodyStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Spacing="2">
                                     <TextBlock Text="Restricted areas" Style="{StaticResource CaptionStyle}" />
                                     <TextBlock x:Name="AdministratorRetryAreasText" Style="{StaticResource BodyStyle}" />
                                 </StackPanel>
@@ -330,6 +337,7 @@
 
                     <StackPanel x:Name="FilesSection" Spacing="14" Visibility="Collapsed" AutomationProperties.Name="Largest files">
                         <controls:SectionHeader Title="Largest files" Description="Individual files observed with the largest logical size. Percentages show share of observed logical storage." />
+                        <TextBlock x:Name="FilesProvenanceText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
                         <ItemsControl x:Name="FileList" AutomationProperties.Name="Largest files list">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -351,7 +359,6 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <TextBlock x:Name="FilesProvenanceText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
                     </StackPanel>
 
                     <!-- 9. Final action area -->

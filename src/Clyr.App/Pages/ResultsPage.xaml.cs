@@ -176,7 +176,10 @@ public sealed partial class ResultsPage : Page
         StatusBadgeControl.Text = completedWithWarnings
             ? "Drive analysis complete"
             : quickEstimateComplete ? "Quick estimate complete" : OverviewPage.Humanize(r.Status);
-        StatusBadgeControl.Glyph = completedWithWarnings ? "" : "";
+        // Section 4 correction (confirmed real-machine defect): this badge now always reads as a neutral
+        // completion status ("Drive analysis complete") — it must use a completion checkmark, never the warning
+        // triangle. The separate access-issues badge below is the one that legitimately carries a warning icon.
+        StatusBadgeControl.Glyph = "";
 
         // Phase (Quick truthfulness correction): never a flat sum across every issue — genuine warnings (access
         // denied, entries changing mid-scan, enumeration failures, fatal problems) are shown separately from
@@ -473,8 +476,8 @@ public sealed partial class ResultsPage : Page
         FilesSection.Visibility = r.LargestFiles.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         FilesProvenanceText.Visibility = r.LargestFiles.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         FilesProvenanceText.Text = retryApplied
-            ? "Large files are not automatically safe to remove. Individual-file rankings remain based on the " +
-                "original Drive Analysis. Administrator Retry updates storage accounting and directory coverage only."
+            ? "Large files are not automatically safe to remove. This file list comes from the original Drive " +
+                "Analysis. Administrator Retry updated storage totals and folder coverage but did not rebuild the file list."
             : "Large files are not automatically safe to remove.";
     }
 
@@ -501,9 +504,18 @@ public sealed partial class ResultsPage : Page
     /// cleanable; this is presentation only. Full category/confidence detail remains one tooltip away.</summary>
     private static string NaturalFindingStatus(StorageCategory category, FindingStatus status) => status switch
     {
-        FindingStatus.Protected => category is StorageCategory.WindowsSystemManaged or StorageCategory.WindowsUpdateServicing or StorageCategory.RestoreRecovery
-            ? "Protected by Windows"
-            : "Managed by another application",
+        FindingStatus.Protected => category switch
+        {
+            StorageCategory.WindowsSystemManaged or StorageCategory.WindowsUpdateServicing or StorageCategory.RestoreRecovery
+                => "Protected by Windows",
+            // Section 3 correction (confirmed real-machine defect): user-authored content (Documents, Desktop)
+            // is not "managed by another application" — it is the user's own files. "Personal files — review
+            // carefully" stays truthful (still protected, never auto-eligible for cleanup) without implying an
+            // application owns it.
+            StorageCategory.UserDocuments or StorageCategory.UserMedia or StorageCategory.UserDownloads
+                => "Personal files — review carefully",
+            _ => "Managed by another application"
+        },
         FindingStatus.Review => "Needs your review",
         FindingStatus.Unknown => "Unsupported",
         _ => "Information only"
@@ -512,6 +524,16 @@ public sealed partial class ResultsPage : Page
     /// <summary>The count shown as "access issues" in normal UI (and "access warnings" in technical/advanced
     /// surfaces) — genuine access-denied/permission/data-changed/fatal issues only, never Quick's expected
     /// policy-boundary budget or purely informational notes.</summary>
+    /// <summary>Formats a replacement root's net byte change with an explicit sign on both sides — "+19.09 GiB"
+    /// for growth, "-3.00 GiB" for shrinkage — so a positive change is never mistaken for the unsigned figures
+    /// used elsewhere on this page. Distinct from <see cref="OverviewPage.FormatSigned"/> (used where a value is
+    /// only ever defensively non-negative and a "+" would be misleading noise).</summary>
+    private static string FormatSignedWithPlus(long value)
+    {
+        var absolute = value == long.MinValue ? long.MaxValue : Math.Abs(value);
+        return (value > 0 ? "+" : value < 0 ? "-" : string.Empty) + OverviewPage.Format(absolute);
+    }
+
     private static long AccessIssueCount(ScanResult r) => r.Issues.Where(item => item.Severity is
         ScanIssueSeverity.AccessWarning or ScanIssueSeverity.PermissionLimited or ScanIssueSeverity.DataChanged or ScanIssueSeverity.Fatal)
         .Sum(item => item.Count);
@@ -675,6 +697,14 @@ public sealed partial class ResultsPage : Page
             // Never the old full-sum (additive + replacement net) figure — only genuinely additive bytes are
             // safe to describe as "newly accounted".
             AdministratorRetryNewlyAccountedText.Text = OverviewPage.Format(additiveBytes);
+            // Section 1 correction (confirmed real-machine defect): a retry that only replaced roots (0 B
+            // additive) still legitimately changed the mapped total — that change must be visible as its own
+            // field, never folded into or confused with "newly found storage". Shown only when at least one root
+            // was actually replaced; a negative net change (files/caches shrank during the retry) is shown
+            // truthfully, never hidden.
+            AdministratorRetryReplacementPanel.Visibility = rootsReplaced > 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (rootsReplaced > 0)
+                AdministratorRetryReplacementText.Text = FormatSignedWithPlus(replacementNet);
             AdministratorRetryAreasText.Text =
                 $"{state.RootsCompleted + state.RootsStillInaccessible} attempted - {state.RootsCompleted} inspected - {state.RootsStillInaccessible} remaining";
 
