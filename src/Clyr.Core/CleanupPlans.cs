@@ -9,7 +9,8 @@ namespace Clyr.Core;
 public sealed record PlanCreationRequest(
     Guid SourceScanId, Guid? SourceSnapshotId, string DriveIdentity, string RulePackId,
     string RulePackVersion, string RulePackDigest, string ApplicationVersion, string PrivacyMode,
-    DateTimeOffset CreatedAtUtc, IReadOnlyList<CleanupCandidate> Candidates, IReadOnlyList<string> SelectedFindingIds);
+    string EvidenceStateId, DateTimeOffset CreatedAtUtc, IReadOnlyList<CleanupCandidate> Candidates,
+    IReadOnlyList<string> SelectedFindingIds);
 
 public sealed class CleanupPlanBuilder
 {
@@ -40,7 +41,7 @@ public sealed class CleanupPlanBuilder
         var binding = new PlanBinding(request.SourceScanId, request.SourceSnapshotId, request.DriveIdentity,
             request.RulePackId, request.RulePackVersion, request.RulePackDigest,
             CleanupPlanningConstants.CategoryRegistryVersion, CleanupPlanningConstants.ApplicationCompatibilityVersion,
-            request.PrivacyMode, StableId(string.Join("|", items.Select(item => item.FindingId))),
+            request.PrivacyMode, request.EvidenceStateId, StableId(string.Join("|", items.Select(item => item.FindingId))),
             items.Select(item => item.Action.AllowedRootIdentity).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToImmutableArray());
         var created = request.CreatedAtUtc.ToUniversalTime();
         var expiry = new PlanExpiry(created, created.Add(items.Min(item => item.Action.MaximumPlanAge)));
@@ -114,6 +115,7 @@ public static class CleanupPlanCanonicalizer
         writer.WriteString("categoryRegistryVersion", value.CategoryRegistryVersion);
         writer.WriteString("applicationCompatibilityVersion", value.ApplicationCompatibilityVersion);
         writer.WriteString("privacyMode", value.PrivacyMode);
+        writer.WriteString("evidenceStateId", value.EvidenceStateId);
         writer.WriteString("itemSelectionIdentity", value.ItemSelectionIdentity);
         WriteStrings(writer, "targetRootIdentities", value.TargetRootIdentities);
         writer.WriteEndObject();

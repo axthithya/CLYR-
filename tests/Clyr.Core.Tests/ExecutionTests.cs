@@ -253,7 +253,7 @@ public sealed class ExecutionTests : IDisposable
     private (CleanupPlan Plan, IExecutionTokenService TokenService) BuildPlan(IReadOnlyList<CleanupCandidate> candidates, IReadOnlyList<string> selected)
     {
         var plan = CleanupPlanBuilder.Create(new(Guid.NewGuid(), null, "drive-fixture", "clyr.builtin", "1.1.0",
-            "pack-digest", "test", "support-safe", clock.UtcNow, candidates, selected));
+            "pack-digest", "test", "support-safe", "evidence-fixture", clock.UtcNow, candidates, selected));
         return (plan, new ExecutionTokenService());
     }
 

@@ -10,6 +10,14 @@
         AutomationProperties.Name="Review Plan responsive page host">
         <controls:ResponsivePageHost.PageContent>
             <StackPanel Spacing="24">
+                <Border x:Name="PlanRebuildNotice" Visibility="Collapsed" Style="{StaticResource WarningBannerStyle}"
+                        AutomationProperties.Name="Review Plan rebuild required notice">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="Rebuild required" Style="{StaticResource CardTitleStyle}" />
+                        <TextBlock x:Name="PlanRebuildNoticeText" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
                 <StackPanel x:Name="EmptyPanel" Visibility="Collapsed" Spacing="12"
                             HorizontalAlignment="Center" MaxWidth="520" Margin="0,44,0,20"
                             AutomationProperties.Name="No Review Plan actions empty state">

@@ -45,6 +45,15 @@ public sealed partial class CliApplication
         if (plan.Expiry.IsExpired(DateTimeOffset.UtcNow))
         { error.WriteLine("plan.expired: The plan has expired."); return 1; }
 
+        // The Administrator Retry correction: a plan can carry the right digest and still be stale against the
+        // analysis it was built from (evidence, scan, snapshot, rule pack, category registry, or privacy mode
+        // may all have changed since). Full revalidation — not just the digest check above — must pass before
+        // any item reaches the executor.
+        var snapshot = plan.Binding.SourceSnapshotId.HasValue
+            ? snapshotStore!.GetAsync(plan.Binding.SourceSnapshotId.Value).GetAwaiter().GetResult() : null;
+        if (!Validate(plan, snapshot).IsValid)
+        { error.WriteLine("plan.stale: The plan is no longer current and cannot be executed. Rebuild the plan and try again."); return 1; }
+
         var executableItemIds = plan.Items
             .Where(item => ExecutionEligibilityValidator.ValidateItemForExecution(item).IsSuccess)
             .Select(item => item.ItemId).ToArray();

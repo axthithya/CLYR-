@@ -42,6 +42,7 @@ public sealed partial class ReviewPlanPage : Page
         candidates = ViewModel.Candidates;
         selections.Clear();
         selectedFindingIds.Clear();
+        DiscardIfStale();
         EmptyPanel.Visibility = candidates.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         ReviewStage.Visibility = candidates.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         PlanPanel.Visibility = Visibility.Collapsed;
@@ -55,6 +56,30 @@ public sealed partial class ReviewPlanPage : Page
             ShowPlan(ViewModel.CurrentPlan);
         }
         RefreshReceiptHistory();
+    }
+
+    /// <summary>
+    /// The Administrator Retry plan-staleness correction: a plan built before an Administrator Retry enrichment
+    /// (or any other analysis change) must never keep sitting on screen as though nothing happened — see
+    /// <see cref="ReviewPlanViewModel.ValidateCurrentPlan"/>, which revalidates it against the live session
+    /// evidence rather than echoing the plan's own binding back at itself. Clearing it here (rather than leaving
+    /// it displayed with a warning) is deliberate: <see cref="Refresh"/> already unconditionally clears
+    /// <see cref="selectedFindingIds"/>/<see cref="selections"/> above, so no prior selection is ever silently
+    /// carried into whatever the user reviews next — the banner this sets explains exactly what happened and
+    /// that CLYR is asking for an explicit rebuild, never rebuilding or executing automatically.
+    /// </summary>
+    private void DiscardIfStale()
+    {
+        PlanRebuildNotice.Visibility = Visibility.Collapsed;
+        if (ViewModel.CurrentPlan is null) return;
+        var validation = ViewModel.ValidateCurrentPlan();
+        if (validation is not { IsValid: false }) return;
+        var evidenceChanged = validation.Diagnostics.Any(item => item.Code == "plan.evidence-stale");
+        PlanRebuildNoticeText.Text = evidenceChanged
+            ? "The analysis changed after Administrator Retry. Rebuild this plan to review the updated results."
+            : "The analysis changed after this plan was created. Rebuild the Review Plan before continuing.";
+        ViewModel.Discard();
+        PlanRebuildNotice.Visibility = Visibility.Visible;
     }
 
     private void RenderSummary()
@@ -300,7 +325,10 @@ public sealed partial class ReviewPlanPage : Page
         PlanDigest.Text = $"SHA-256 digest: {plan.Digest}";
         PlanTiming.Text = $"Created {plan.Expiry.CreatedAtUtc.LocalDateTime:g} · expires {plan.Expiry.ExpiresAtUtc.LocalDateTime:g}";
         PlanImpact.Text = $"{plan.Items.Length:N0} selected actions · {plan.TotalImpact.ItemCount:N0} items · {OverviewPage.Format(plan.TotalImpact.ObservedLogicalBytes)} estimated potential";
-        PlanValidation.Text = "Protected-path validation: passed · stale-plan status: current · physical bytes: unavailable";
+        var validation = ViewModel.ValidateCurrentPlan();
+        var protectedPathStatus = validation is { ProtectedPathViolations.Length: 0 } ? "passed" : "failed";
+        var staleStatus = validation?.Status.ToString() ?? "unknown";
+        PlanValidation.Text = $"Protected-path validation: {protectedPathStatus} · stale-plan status: {staleStatus} · physical bytes: unavailable";
         var protectedCount = candidates.Count(candidate => candidate.Eligibility == CleanupEligibility.Protected);
         var unsupportedCount = candidates.Count(candidate => candidate.Eligibility is CleanupEligibility.Unsupported or CleanupEligibility.NotEligible);
         var reviewCount = candidates.Count(candidate => candidate.Eligibility is CleanupEligibility.ManualReviewOnly or CleanupEligibility.InsufficientEvidence);

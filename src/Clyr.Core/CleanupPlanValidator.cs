@@ -29,6 +29,13 @@ public sealed class CleanupPlanValidator
             "plan.application-stale", "The application compatibility version changed.");
         Compare(string.Equals(plan.Binding.PrivacyMode, context.PrivacyMode, StringComparison.Ordinal),
             "plan.privacy-stale", "The privacy mode changed.");
+        // The Administrator Retry correction: ScanId alone is insufficient, because a successful retry
+        // deliberately keeps the original ScanId while enriching root contributions, coverage, allocation, and
+        // findings — exactly the evidence cleanup candidates are built from. EvidenceStateId is a content digest
+        // over that evidence (see EvidenceState), so it changes whenever the evidence does, even though the scan,
+        // snapshot, drive, rule pack, category registry, and privacy mode all still match.
+        Compare(string.Equals(plan.Binding.EvidenceStateId, context.CurrentEvidenceStateId, StringComparison.Ordinal),
+            "plan.evidence-stale", "The analysis evidence changed after this plan was created.");
         foreach (var item in plan.Items)
         {
             if (item.Eligibility != CleanupEligibility.DryRunEligible

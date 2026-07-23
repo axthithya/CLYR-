@@ -73,7 +73,7 @@ public sealed partial class CliApplication
         var candidates = CandidatesFor(snapshot);
         var plan = CleanupPlanBuilder.Create(new(snapshot.ScanId, snapshot.Id, snapshot.Drive.Fingerprint,
             snapshot.RulePackId, snapshot.RulePackVersion, snapshot.RulePackDigest, version,
-            "support-safe", DateTimeOffset.UtcNow, candidates, findings));
+            "support-safe", EvidenceState.ForSnapshot(snapshot), DateTimeOffset.UtcNow, candidates, findings));
         cleanupPlanStore!.Save(plan);
         if (args.Contains("--json", StringComparer.Ordinal)) output.WriteLine(SafePlanJson(plan));
         else
@@ -144,13 +144,30 @@ public sealed partial class CliApplication
 
     private static PlanValidationResult Validate(CleanupPlan plan, StorageSnapshot? snapshot)
     {
+        // Always re-fetches (the caller already re-reads the snapshot fresh from the store by ID), so this
+        // reflects the snapshot's current content — never the plan's own binding echoed back at itself, which
+        // would always report "current" regardless of what actually changed since the plan was created.
         var context = new PlanValidationContext(DateTimeOffset.UtcNow,
             snapshot?.ScanId ?? Guid.Empty, snapshot?.Id, snapshot?.Drive.Fingerprint ?? string.Empty,
             snapshot?.RulePackId ?? string.Empty, snapshot?.RulePackVersion ?? string.Empty,
             snapshot?.RulePackDigest ?? string.Empty, CleanupPlanningConstants.CategoryRegistryVersion,
             CleanupPlanningConstants.ApplicationCompatibilityVersion, plan.Binding.PrivacyMode,
-            ImmutableDictionary<string, CleanupTarget>.Empty);
+            snapshot is null ? EvidenceState.NoResult : EvidenceState.ForSnapshot(snapshot),
+            CurrentTargets());
         return CleanupPlanValidator.Validate(plan, context);
+    }
+
+    /// <summary>The one real source of live per-target identity in this CLI (the classification-derived items
+    /// never carry real targets at all — see ADR-0009 — so an empty result for them is correct, not a gap).
+    /// Without this, <see cref="CleanupPlanValidator.Validate"/> would treat every real CLYR-owned-temp-artifact
+    /// target as "changed" purely because no current identity was supplied to compare against, which would make
+    /// 'plan execute' reject a perfectly current plan.</summary>
+    private static ImmutableDictionary<string, CleanupTarget> CurrentTargets()
+    {
+        var builtIn = ClyrOwnedTempArtifactScanner.Scan(new SystemClock());
+        return builtIn is null
+            ? ImmutableDictionary<string, CleanupTarget>.Empty
+            : builtIn.Targets.ToImmutableDictionary(target => target.TargetId);
     }
 
     private static object SafeCandidate(CleanupCandidate item) => new

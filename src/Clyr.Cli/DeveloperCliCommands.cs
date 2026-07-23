@@ -129,7 +129,7 @@ public sealed partial class CliApplication
         if (candidates.All(candidate => candidate.FindingId != findingId)) return Missing(error, "Developer finding not found in this snapshot.");
         var plan = CleanupPlanBuilder.Create(new(snapshot.ScanId, snapshot.Id, snapshot.Drive.Fingerprint,
             snapshot.RulePackId, snapshot.RulePackVersion, snapshot.RulePackDigest, version, "support-safe",
-            DateTimeOffset.UtcNow, candidates, [findingId]));
+            EvidenceState.ForSnapshot(snapshot), DateTimeOffset.UtcNow, candidates, [findingId]));
         cleanupPlanStore.Save(plan);
         if (args.Contains("--json", StringComparer.Ordinal)) { output.WriteLine(SafePlanJson(plan)); return 0; }
         output.WriteLine($"Integrity-checked cleanup plan {plan.Id} created from developer finding {findingId}.");

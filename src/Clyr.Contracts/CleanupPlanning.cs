@@ -59,7 +59,7 @@ public sealed record UserSelection(string Identity, ImmutableArray<string> Findi
 public sealed record PlanBinding(
     Guid SourceScanId, Guid? SourceSnapshotId, string DriveIdentity, string SourceRulePackId,
     string SourceRulePackVersion, string SourceRulePackDigest, string CategoryRegistryVersion,
-    string ApplicationCompatibilityVersion, string PrivacyMode, string ItemSelectionIdentity,
+    string ApplicationCompatibilityVersion, string PrivacyMode, string EvidenceStateId, string ItemSelectionIdentity,
     ImmutableArray<string> TargetRootIdentities);
 
 public sealed record PlanExpiry(DateTimeOffset CreatedAtUtc, DateTimeOffset ExpiresAtUtc)
@@ -125,7 +125,7 @@ public sealed class CleanupPlan
 public sealed record PlanValidationContext(
     DateTimeOffset NowUtc, Guid SourceScanId, Guid? SourceSnapshotId, string DriveIdentity,
     string RulePackId, string RulePackVersion, string RulePackDigest, string CategoryRegistryVersion,
-    string ApplicationCompatibilityVersion, string PrivacyMode,
+    string ApplicationCompatibilityVersion, string PrivacyMode, string CurrentEvidenceStateId,
     ImmutableDictionary<string, CleanupTarget> CurrentTargets);
 
 public sealed record CleanupExecutionResult(bool Available, string Code, string Message, ExecutionAvailability Availability);

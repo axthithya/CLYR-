@@ -7,7 +7,12 @@ namespace Clyr.Core;
 
 public static class CleanupPlanningConstants
 {
-    public const int PlanSchemaVersion = 1;
+    /// <summary>Bumped from 1 to 2 when <see cref="PlanBinding.EvidenceStateId"/> was added — a plan built under
+    /// schema 1 has no evidence-state binding at all, so <see cref="CleanupPlanValidator.Validate"/> must reject
+    /// it outright rather than silently treating a missing binding as "current". Since <see cref="PlanBinding"/>
+    /// is a positional record, no code path in this build can even construct a plan without the field — this
+    /// bump exists purely so a schema mismatch is the truthful, typed reason a pre-upgrade plan is rejected.</summary>
+    public const int PlanSchemaVersion = 2;
     public const string CategoryRegistryVersion = "1";
     public const string ApplicationCompatibilityVersion = "phase5-v1";
     public const int MaximumPlanItems = 128;

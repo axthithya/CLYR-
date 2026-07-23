@@ -98,16 +98,22 @@ internal static class PlanningFixtures
             RiskLevel.Medium, FindingConfidence.High, consequence, []);
     }
 
+    public const string FixtureEvidenceStateId = "evidence-fixture-1";
+
     public static CleanupPlan Plan(IReadOnlyList<CleanupCandidate> candidates, IReadOnlyList<string> selected) =>
         CleanupPlanBuilder.Create(new(Guid.Parse("11111111-1111-1111-1111-111111111111"),
             Guid.Parse("22222222-2222-2222-2222-222222222222"), "drive", "clyr.builtin", "1.1.0",
-            "pack-digest", "test", "support-safe",
+            "pack-digest", "test", "support-safe", FixtureEvidenceStateId,
             new DateTimeOffset(2026, 7, 16, 0, 0, 0, TimeSpan.Zero), candidates, selected));
 
+    /// <summary>The exact validation context <see cref="Plan"/> was built against — the baseline "nothing
+    /// changed" case. Tests proving staleness detection start from this and use <c>with</c> to change exactly
+    /// one field (see <see cref="PlanValidationContext.CurrentEvidenceStateId"/> for the Administrator Retry
+    /// correction's own case).</summary>
     public static PlanValidationContext Context(CleanupPlan plan) => new(plan.Expiry.CreatedAtUtc,
         plan.Binding.SourceScanId, plan.Binding.SourceSnapshotId, plan.Binding.DriveIdentity,
         plan.Binding.SourceRulePackId, plan.Binding.SourceRulePackVersion, plan.Binding.SourceRulePackDigest,
         plan.Binding.CategoryRegistryVersion, plan.Binding.ApplicationCompatibilityVersion,
-        plan.Binding.PrivacyMode, ImmutableDictionary<string, CleanupTarget>.Empty);
+        plan.Binding.PrivacyMode, plan.Binding.EvidenceStateId, ImmutableDictionary<string, CleanupTarget>.Empty);
 }
 

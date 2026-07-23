@@ -316,22 +316,56 @@ public sealed class ReviewPlanViewModel : PageViewModel
 
     public CleanupPlan Create(IReadOnlyList<string> selectedFindingIds)
     {
-        var result = Session.Result;
-        var scanId = result?.ScanId ?? Guid.NewGuid();
-        var driveIdentity = result is null ? "fixture-drive" : result.Root + "|" + result.FileSystem;
-        var pack = result?.Classification?.RulePack;
-        CurrentPlan = CleanupPlanBuilder.Create(new(scanId, null, driveIdentity,
-            pack?.Id ?? "clyr.builtin", pack?.Version ?? "1.0.0", pack?.Digest ?? "builtin-1", Session.ApplicationVersion,
-            "support-safe", DateTimeOffset.UtcNow, Candidates, selectedFindingIds));
+        var evidence = CurrentEvidence();
+        CurrentPlan = CleanupPlanBuilder.Create(new(evidence.ScanId, null, evidence.DriveIdentity,
+            evidence.RulePackId, evidence.RulePackVersion, evidence.RulePackDigest, Session.ApplicationVersion,
+            "support-safe", evidence.EvidenceStateId, DateTimeOffset.UtcNow, Candidates, selectedFindingIds));
         store.Save(CurrentPlan);
         LastOutcome = null;
         return CurrentPlan;
     }
 
+    /// <summary>The evidence CLYR would bind a plan to right now, derived only from the live
+    /// <see cref="AppSessionViewModel.Result"/> — never from a plan's own <see cref="PlanBinding"/>, which would
+    /// make every comparison trivially match itself. <see cref="Guid.Empty"/> stands in for
+    /// <see cref="PlanBinding.SourceScanId"/> when there is no completed result at all (a plan built only from
+    /// the always-live CLYR-owned-temp-artifact candidate), so this same method can deterministically reproduce
+    /// that binding later for revalidation — a freshly random ID here could never match itself twice.</summary>
+    private (Guid ScanId, string DriveIdentity, string RulePackId, string RulePackVersion, string RulePackDigest, string EvidenceStateId) CurrentEvidence()
+    {
+        var result = Session.Result;
+        var pack = result?.Classification?.RulePack;
+        return (
+            result?.ScanId ?? Guid.Empty,
+            result is null ? "fixture-drive" : result.Root + "|" + result.FileSystem,
+            pack?.Id ?? "clyr.builtin", pack?.Version ?? "1.0.0", pack?.Digest ?? "builtin-1",
+            result is null ? EvidenceState.NoResult : EvidenceState.ForResult(result));
+    }
+
+    /// <summary>Revalidates <paramref name="plan"/> against the exact evidence CLYR's live session currently
+    /// holds — not the plan's own binding echoed back at itself, which would always report "current" regardless
+    /// of what actually changed since the plan was created. This is what makes a plan built before an
+    /// Administrator Retry enrichment genuinely fail as stale afterward, even though the retry preserves the
+    /// same ScanId.</summary>
+    private PlanValidationResult ValidateAgainstCurrentEvidence(CleanupPlan plan)
+    {
+        var evidence = CurrentEvidence();
+        return CleanupPlanValidator.Validate(plan, new(DateTimeOffset.UtcNow, evidence.ScanId, null, evidence.DriveIdentity,
+            evidence.RulePackId, evidence.RulePackVersion, evidence.RulePackDigest,
+            CleanupPlanningConstants.CategoryRegistryVersion, CleanupPlanningConstants.ApplicationCompatibilityVersion,
+            "support-safe", evidence.EvidenceStateId, System.Collections.Immutable.ImmutableDictionary<string, CleanupTarget>.Empty));
+    }
+
+    /// <summary>Null when there is no current plan; otherwise the plan's live validation status against whatever
+    /// evidence CLYR's session currently holds — the single source of truth <see cref="ReviewPlanPage"/> uses to
+    /// decide whether the plan it is about to display is still current, and that <see cref="Execute"/> uses to
+    /// refuse to run a plan that no longer is.</summary>
+    public PlanValidationResult? ValidateCurrentPlan() => CurrentPlan is null ? null : ValidateAgainstCurrentEvidence(CurrentPlan);
+
     public string Export()
     {
         var plan = CurrentPlan ?? throw new InvalidOperationException("No dry-run plan is available.");
-        return CleanupPlanReportExporter.Serialize(plan, CurrentValidation(plan));
+        return CleanupPlanReportExporter.Serialize(plan, ValidateAgainstCurrentEvidence(plan));
     }
 
     public void Discard()
@@ -348,6 +382,10 @@ public sealed class ReviewPlanViewModel : PageViewModel
     public ExecutionOutcome Execute(IReadOnlyList<string> selectedItemIds, IProgress<ExecutionItemResult>? progress, CancellationToken cancellationToken)
     {
         var plan = CurrentPlan ?? throw new InvalidOperationException("No dry-run plan is available.");
+        // Closes the exact gap this correction targets: a plan built before an Administrator Retry enrichment
+        // (or any other evidence change) must never reach the executor just because nothing else asked first.
+        if (ValidateAgainstCurrentEvidence(plan) is { IsValid: false })
+            throw new InvalidOperationException("This plan is no longer current and cannot be executed. Rebuild the plan and try again.");
         if (!attemptedPlanIds.Add(plan.Id.ToString()))
             throw new InvalidOperationException("This plan has already been used for an execution attempt.");
         var userSid = OperatingSystem.IsWindows() ? WindowsUserIdentity.CurrentSid() : "unavailable";
@@ -372,13 +410,6 @@ public sealed class ReviewPlanViewModel : PageViewModel
     }
 
     public bool DiscardReceipt(ExecutionId id) => receiptStore?.DiscardAsync(id).GetAwaiter().GetResult() ?? false;
-
-    private static PlanValidationResult CurrentValidation(CleanupPlan plan) =>
-        CleanupPlanValidator.Validate(plan, new(DateTimeOffset.UtcNow, plan.Binding.SourceScanId,
-            plan.Binding.SourceSnapshotId, plan.Binding.DriveIdentity, plan.Binding.SourceRulePackId,
-            plan.Binding.SourceRulePackVersion, plan.Binding.SourceRulePackDigest,
-            CleanupPlanningConstants.CategoryRegistryVersion, CleanupPlanningConstants.ApplicationCompatibilityVersion,
-            plan.Binding.PrivacyMode, System.Collections.Immutable.ImmutableDictionary<string, CleanupTarget>.Empty));
 }
 public sealed class DeveloperModeViewModel : PageViewModel
 {
@@ -447,7 +478,7 @@ public sealed class DeveloperModeViewModel : PageViewModel
         if (candidates.All(candidate => candidate.FindingId != findingId)) return null;
         var plan = CleanupPlanBuilder.Create(new(snapshot.ScanId, snapshot.Id, snapshot.Drive.Fingerprint,
             snapshot.RulePackId, snapshot.RulePackVersion, snapshot.RulePackDigest, Session.ApplicationVersion,
-            "support-safe", DateTimeOffset.UtcNow, candidates, [findingId]));
+            "support-safe", EvidenceState.ForSnapshot(snapshot), DateTimeOffset.UtcNow, candidates, [findingId]));
         cleanupPlans.Save(plan);
         Session.PendingReviewPlanId = plan.Id;
         return plan;
