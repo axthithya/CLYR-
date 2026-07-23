@@ -63,12 +63,6 @@ public sealed partial class ScanPage : Page
         Refresh();
     }
 
-    private async void ViewCurrentInsights(object sender, RoutedEventArgs args)
-    {
-        await Task.CompletedTask;
-        ViewModel.Navigate("Results");
-    }
-
     private async void RunAgain(object sender, RoutedEventArgs args) => await StartAsync();
 
     private void ChangeSetup(object sender, RoutedEventArgs args)
@@ -101,7 +95,7 @@ public sealed partial class ScanPage : Page
         TerminalPanel.Visibility = !active && hasAttempt && !showSetupAfterAttempt ? Visibility.Visible : Visibility.Collapsed;
 
         if (active) RenderRunning(session);
-        if (!active && hasAttempt && !showSetupAfterAttempt) RenderTerminal(session.LatestAttempt!);
+        if (!active && hasAttempt && !showSetupAfterAttempt) RenderTerminal(session.LatestAttempt!, session.Result);
         Reflow(PageHost.LayoutMode);
     }
 
@@ -156,31 +150,28 @@ public sealed partial class ScanPage : Page
         var snapshot = session.ProvisionalSnapshot;
         var cancelling = session.LifecycleState == ScanUiLifecycleState.Cancelling;
         var stageText = StageText(session.LifecycleState, snapshot?.Stage);
-        RunningTitle.Text = cancelling ? "Stopping analysis…" : stageText;
-        RunningStatus.Text = cancelling
-            ? "Finishing the current metadata operation safely."
-            : progress?.Message ?? "Examining accessible folders…";
-        RunningGuidance.Text = "CLYR begins showing useful storage insights early and continues toward a complete drive analysis.";
+        var drive = session.SelectedDrive;
+        var driveLabel = drive is null ? "the drive" : $"{(string.IsNullOrWhiteSpace(drive.Label) ? "Local drive" : drive.Label.Trim())} ({drive.Root.TrimEnd('\\')})";
+        RunningTitle.Text = cancelling ? "Stopping analysis…" : $"Analyzing {driveLabel}";
+        RunningStatus.Text = cancelling ? "Finishing the current metadata operation safely." : $"Current stage: {stageText}";
+
+        // Section 7 correction: storage-mapped coverage is not a scan-completion percentage — a drive can reach
+        // high mapped-storage coverage quickly (most bytes sitting in a few large files) while a large share of
+        // files and folders remain unexamined, or vice versa. The progressive backend exposes no genuine
+        // work-completion estimate, so the bar stays indeterminate unconditionally; "Storage found so far" is
+        // shown only as its own separate, clearly-labelled metric below, never as an implied completion percentage.
+        ActiveProgress.IsIndeterminate = true;
 
         ElapsedText.Text = progress?.Elapsed.ToString(@"mm\:ss", CultureInfo.InvariantCulture) ?? "00:00";
         FileCount.Text = progress?.FilesObserved.ToString("N0", CultureInfo.CurrentCulture) ?? "0";
         DirectoryCount.Text = progress?.DirectoriesObserved.ToString("N0", CultureInfo.CurrentCulture) ?? "0";
         ObservedSize.Text = OverviewPage.Format(progress?.LogicalBytesObserved ?? 0);
-        InaccessibleCount.Text = progress?.InaccessibleEntries.ToString("N0", CultureInfo.CurrentCulture) ?? "0";
-        WarningCountText.Text = progress?.WarningCount.ToString("N0", CultureInfo.CurrentCulture) ?? "0";
-        CurrentLocation.Text = progress is null ? "Preparing a privacy-safe location…" : $"Current location: {progress.CurrentPath}";
-        ToolTipService.SetToolTip(CurrentLocation, CurrentLocation.Text);
+        // Section 4 correction: a single natural "Access issues" count for normal users, combining inaccessible
+        // entries and categorized warnings — the separate technical "Inaccessible" row is no longer shown here.
+        WarningCountText.Text = ((progress?.InaccessibleEntries ?? 0) + (progress?.WarningCount ?? 0))
+            .ToString("N0", CultureInfo.CurrentCulture);
         AutomationProperties.SetName(ActiveProgress,
             $"{stageText}. {FileCount.Text} files and {DirectoryCount.Text} folders examined.");
-
-        var insightsReady = !cancelling && (snapshot?.EarlyInsightsReady ?? false);
-        EarlyInsightsPanel.Visibility = insightsReady ? Visibility.Visible : Visibility.Collapsed;
-        if (insightsReady && snapshot is not null)
-        {
-            EarlyInsightsSummary.Text = $"{OverviewPage.Format(snapshot.LogicalBytesObserved)} observed so far across " +
-                $"{snapshot.TopContributors.Count} storage area{(snapshot.TopContributors.Count == 1 ? "" : "s")}.";
-            ViewCurrentInsightsButton.IsEnabled = true;
-        }
 
         StopButton.Content = cancelling ? "Stopping…" : "Stop analysis";
         StopButton.IsEnabled = !cancelling;
@@ -198,7 +189,14 @@ public sealed partial class ScanPage : Page
         }
     };
 
-    private void RenderTerminal(ScanResult attempt)
+    /// <summary>
+    /// Renders the just-finished attempt's own figures — never the enriched active result — because a scan
+    /// attempt's outcome is what actually happened at the time it ran. <paramref name="activeResult"/> (the
+    /// session's current active result, possibly since enriched by a successful Administrator Retry) is used only
+    /// to detect that divergence and label it truthfully; this method never silently presents stale pre-retry
+    /// totals as though they already include the retry (see section 5/14).
+    /// </summary>
+    private void RenderTerminal(ScanResult attempt, ScanResult? activeResult)
     {
         var completed = attempt.Status is ScanStatus.Completed or ScanStatus.CompletedWithWarnings;
         var cancelled = attempt.Status == ScanStatus.Cancelled;
@@ -218,22 +216,35 @@ public sealed partial class ScanPage : Page
 
         TerminalSummary.Visibility = failed ? Visibility.Collapsed : Visibility.Visible;
         var accounting = ScanAccounting.Summarize(attempt);
+        var basisDiffers = accounting.Quality == ScanQuality.AccountingBasisDiffers;
         // Section 10/11 correction: AccountingBasisDiffers is a distinct, neutral state — never "Limited
         // coverage", which is reserved for a genuinely low but valid, comparable percentage.
         QualityText.Text = accounting.Quality switch
         {
             ScanQuality.Excellent => "Excellent coverage",
             ScanQuality.Good => "Good coverage",
-            ScanQuality.AccountingBasisDiffers => "Coverage unavailable",
+            ScanQuality.AccountingBasisDiffers => "Coverage cannot be calculated",
             _ => "Limited coverage"
         };
-        AccountedValue.Text = accounting.AccountedPercentage is { } accounted ? $"{accounted:F1}%" : "Unavailable";
+        // Section 5 correction: one natural sentence stating what CLYR actually found, using the same canonical
+        // wording as Results, instead of a bare "Coverage summary" label.
+        TerminalCoverageSentence.Text = accounting.AccountedPercentage is { } percentage
+            ? $"CLYR mapped {percentage:F1}% of the storage Windows currently reports as used."
+            : "Coverage cannot be calculated for this analysis.";
+        AccountedValue.Text = accounting.AccountedPercentage is { } accounted ? $"{accounted:F1}%" : "Cannot be calculated";
+        AccountedValueCaption.Text = "coverage";
         TerminalObserved.Text = OverviewPage.Format(attempt.LogicalBytesObserved);
         // Section 5: never a negative "not observed" figure.
         TerminalUnobserved.Text = accounting.PresentableUnaccountedDriveBytes is { } notObserved
             ? OverviewPage.FormatSigned(notObserved)
             : "Not available";
-        TerminalClassified.Text = accounting.ClassificationPercentage is { } classified ? $"{classified:F1}%" : "Unavailable";
+        TerminalClassified.Text = accounting.ClassificationPercentage is { } classified ? $"{classified:F1}% of mapped storage" : "Unavailable";
+        // Section 5 correction: the natural logical-versus-physical explanation replaces technical accounting
+        // terminology when coverage cannot be calculated.
+        TerminalBasisNoteText.Visibility = basisDiffers ? Visibility.Visible : Visibility.Collapsed;
+        if (basisDiffers)
+            TerminalBasisNoteText.Text = "Some files share storage or use compression, so logical file sizes can be larger " +
+                "than the physical space Windows reports.";
         var duration = attempt.EndedAt >= attempt.StartedAt ? attempt.EndedAt - attempt.StartedAt : TimeSpan.Zero;
         TerminalDuration.Text = FormatDuration(duration);
         TerminalFiles.Text = attempt.Coverage.FilesObserved.ToString("N0", CultureInfo.CurrentCulture);
@@ -243,14 +254,27 @@ public sealed partial class ScanPage : Page
         var warningCount = WarningCount(attempt);
         TerminalWarnings.Visibility = !failed && (warningCount > 0 || attempt.Status == ScanStatus.CompletedWithWarnings)
             ? Visibility.Visible : Visibility.Collapsed;
+        // Section 6/15: "access issues" is the normal-UI term everywhere; "access warnings" stays a technical
+        // synonym for Developer Mode/advanced surfaces only.
         TerminalWarningTitle.Text = warningCount > 0
-            ? $"{warningCount:N0} access {(warningCount == 1 ? "warning" : "warnings")}"
+            ? $"{warningCount:N0} access {(warningCount == 1 ? "issue" : "issues")}"
             : "Analysis completed with warnings";
 
         ResultsButton.Visibility = completed || (cancelled && attempt.LogicalBytesObserved > 0) ? Visibility.Visible : Visibility.Collapsed;
         ResultsButton.Content = completed ? "View Results" : "View partial results";
         RunAgainButton.Content = failed ? "Try Again" : "Run again";
         ChangeSetupButton.Content = "Change drive";
+
+        // Section 5/14 correction: this page cannot refresh its completion figures after a successful
+        // Administrator Retry (they describe the attempt as it actually ran) — a different ScanId means a
+        // genuinely newer analysis, not a stale label; the same ScanId with a different object means the active
+        // result was since enriched, and that must be said explicitly rather than silently shown as current.
+        var staleAfterRetry = completed && activeResult is not null && activeResult.ScanId == attempt.ScanId
+            && !ReferenceEquals(activeResult, attempt);
+        TerminalStaleRetryNoteText.Visibility = staleAfterRetry ? Visibility.Visible : Visibility.Collapsed;
+        if (staleAfterRetry)
+            TerminalStaleRetryNoteText.Text = "These figures describe the original Drive Analysis. " +
+                "Administrator Retry has since updated the totals — view Results for the latest figures.";
     }
 
     private void ApplyTerminalTone(string foregroundKey, string surfaceKey, string glyph)
@@ -272,7 +296,7 @@ public sealed partial class ScanPage : Page
         StartButton.HorizontalAlignment = narrow ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
 
         LayoutMetrics(RunningMetrics,
-            [ElapsedMetric, FilesMetric, DirectoryMetric, ObservedMetric, InaccessibleMetric, WarningMetric], narrow ? 2 : 3);
+            [ElapsedMetric, ObservedMetric, FilesMetric, DirectoryMetric, WarningMetric], narrow ? 2 : 3);
         RunningActions.Orientation = narrow ? Orientation.Vertical : Orientation.Horizontal;
 
         Position(TerminalStorageMetrics, narrow ? 0 : 1, narrow ? 1 : 0);

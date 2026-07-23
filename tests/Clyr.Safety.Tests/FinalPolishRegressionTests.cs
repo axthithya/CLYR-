@@ -90,7 +90,7 @@ public sealed class FinalPolishRegressionTests
         Assert.Contains("Read-only analysis", privacy, StringComparison.Ordinal);
         Assert.DoesNotContain("Read-only by default", privacy, StringComparison.Ordinal);
         Assert.Contains("Content=\"Run an analysis\"", review, StringComparison.Ordinal);
-        Assert.Contains("AccountedPortion(accounted)", results, StringComparison.Ordinal);
+        Assert.Contains("AccountedPercentValue.Text = summary.AccountedPercentage is { } accounted", results, StringComparison.Ordinal);
         Assert.DoesNotContain("observed most of the drive", results, StringComparison.Ordinal);
         Assert.Contains("Style=\"{StaticResource SecondaryActionStyle}\"", developer, StringComparison.Ordinal);
         Assert.Contains("DispatcherQueue.TryEnqueue", responsive, StringComparison.Ordinal);

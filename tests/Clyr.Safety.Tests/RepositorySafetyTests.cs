@@ -750,8 +750,9 @@ public sealed class RepositorySafetyTests
     public void ResultsPagePresentsCoverageAndClassificationAsDistinctConcepts()
     {
         var xaml = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml"));
-        Assert.Contains("Coverage and classification are different", xaml, StringComparison.Ordinal);
-        Assert.Contains("CoverageHeadlineText", xaml, StringComparison.Ordinal);
+        // Section 4 correction: Coverage is the large top-right hero value (AccountedPercentValue) and is no
+        // longer repeated as a separate headline here — only Categorized remains in this card.
+        Assert.Contains("AccountedPercentValue", xaml, StringComparison.Ordinal);
         Assert.Contains("ClassificationHeadlineText", xaml, StringComparison.Ordinal);
         // Truthful reuse: the page must compute these from the existing Clyr.Core accounting model, never a
         // second, independently maintained calculation.
@@ -774,11 +775,11 @@ public sealed class RepositorySafetyTests
         var xaml = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml"));
         Assert.Contains("Text=\"{Binding Size}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding Percentage}\"", xaml, StringComparison.Ordinal);
-        // Findings are structured fields (title, size, category, confidence, safety status, explanation) bound
-        // separately — never one dense pre-composed text block.
+        // Findings are structured fields (title, size, natural status, explanation) bound separately — never one
+        // dense pre-composed text block. Category/confidence remain available as a technical-detail tooltip.
         Assert.Contains("Text=\"{Binding Title}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"{Binding Category}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"{Binding Confidence}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding NaturalStatus}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ToolTipService.ToolTip=\"{Binding TechnicalDetail}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding Explanation}\"", xaml, StringComparison.Ordinal);
     }
 

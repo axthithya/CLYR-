@@ -184,6 +184,12 @@ public sealed class OverviewViewModel(AppSessionViewModel session, ISnapshotStor
 {
     public IReadOnlyList<SnapshotSummary> RecentAnalyses { get; private set; } = [];
 
+    /// <summary>The most recently saved analysis in local History, if any — <see cref="RecentAnalyses"/> is
+    /// already ordered newest-first by <see cref="ISnapshotStore.ListAsync"/>. Used by Overview to truthfully
+    /// surface a previous session's saved result (see section 16) rather than showing the generic first-run
+    /// state when one already exists; never a substitute for a real in-session <see cref="AppSessionViewModel.Result"/>.</summary>
+    public SnapshotSummary? LatestSaved => RecentAnalyses.Count > 0 ? RecentAnalyses[0] : null;
+
     public async Task LoadRecentAsync()
     {
         RecentAnalyses = await history.ListAsync(3).ConfigureAwait(false);

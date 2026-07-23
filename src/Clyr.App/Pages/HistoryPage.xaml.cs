@@ -564,7 +564,7 @@ public sealed partial class HistoryPage : Page
         ScanQuality.Excellent => "Excellent coverage",
         ScanQuality.Good => "Good coverage",
         ScanQuality.Partial => "Partial coverage",
-        ScanQuality.AccountingBasisDiffers => "Coverage unavailable",
+        ScanQuality.AccountingBasisDiffers => "Coverage cannot be calculated",
         _ => "Insufficient coverage"
     };
 

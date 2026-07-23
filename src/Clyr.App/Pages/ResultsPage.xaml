@@ -21,11 +21,13 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Provisional state: an analysis is running, or was stopped before completing, but useful
-                     bounded insights already exist. Never shown once a completed result exists (Dashboard, below,
-                     is authoritative once available). -->
+                <!-- Section 3 correction: the normal UI no longer shows a separate "Early Insights" experience —
+                     while an analysis is running (or was stopped before completing), Results shows only a brief,
+                     honest notice pointing back to the Scan page's own live progress; it never shows provisional
+                     contributor/directory/file rankings here. Never shown once a completed result exists
+                     (Dashboard, below, is authoritative once available). -->
                 <StackPanel x:Name="ProvisionalPanel" Visibility="Collapsed" Spacing="{StaticResource PageSectionSpacing}"
-                            AutomationProperties.Name="Provisional analysis results">
+                            AutomationProperties.Name="Analysis in progress">
                     <StackPanel.Transitions>
                         <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
                     </StackPanel.Transitions>
@@ -38,77 +40,9 @@
                         </StackPanel>
                         <controls:StatusBadge x:Name="ProvisionalBadge" Grid.Column="1" />
                     </Grid>
-                    <TextBlock Text="These values are provisional and may change while the analysis continues."
-                               Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
-                    <Border Style="{StaticResource StandardCardStyle}" AutomationProperties.Name="Provisional storage accounting">
-                        <StackPanel Spacing="16">
-                            <Grid ColumnSpacing="16" RowSpacing="12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="Observed so far" Style="{StaticResource BodyMutedStyle}" />
-                                    <TextBlock x:Name="ProvisionalObservedText" Style="{StaticResource CardTitleStyle}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Provisional coverage" Style="{StaticResource BodyMutedStyle}" />
-                                    <TextBlock x:Name="ProvisionalCoverageText" Style="{StaticResource CardTitleStyle}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="2">
-                                    <TextBlock Text="Files / folders examined" Style="{StaticResource BodyMutedStyle}" />
-                                    <TextBlock x:Name="ProvisionalExaminedText" Style="{StaticResource CardTitleStyle}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="3" Spacing="2">
-                                    <TextBlock Text="Elapsed" Style="{StaticResource BodyMutedStyle}" />
-                                    <TextBlock x:Name="ProvisionalElapsedText" Style="{StaticResource CardTitleStyle}" />
-                                </StackPanel>
-                            </Grid>
-                            <Border Style="{StaticResource DividerStyle}" />
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="Warnings" Style="{StaticResource BodyMutedStyle}" />
-                                    <TextBlock x:Name="ProvisionalWarningsText" Style="{StaticResource CardTitleStyle}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Scan limitations" Style="{StaticResource BodyMutedStyle}" />
-                                    <TextBlock x:Name="ProvisionalLimitationsText" Style="{StaticResource CardTitleStyle}" />
-                                </StackPanel>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-                    <StackPanel Spacing="10">
-                        <controls:SectionHeader Title="Current largest observed contributors"
-                            Description="These rankings describe only the storage observed so far and may change." />
-                        <ItemsControl x:Name="ProvisionalContributorList" AutomationProperties.Name="Provisional storage contributors">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate><controls:KeyValueRow Label="{Binding Label}" Value="{Binding Value}" /></DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                    <StackPanel Spacing="10">
-                        <controls:SectionHeader Title="Current largest directories"
-                            Description="Provisional; may change as the analysis continues." />
-                        <ItemsControl x:Name="ProvisionalDirectoryList" AutomationProperties.Name="Provisional largest directories">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate><controls:KeyValueRow Label="{Binding Label}" Value="{Binding Value}" /></DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                    <StackPanel Spacing="10">
-                        <controls:SectionHeader Title="Current largest files"
-                            Description="Provisional; may change as the analysis continues." />
-                        <ItemsControl x:Name="ProvisionalFileList" AutomationProperties.Name="Provisional largest files">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate><controls:KeyValueRow Label="{Binding Label}" Value="{Binding Value}" /></DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                    <Border Style="{StaticResource DividerStyle}" />
                     <StackPanel x:Name="ProvisionalActions" Orientation="Horizontal" Spacing="12"
-                                AutomationProperties.Name="Provisional results actions">
-                        <Button Content="View progress" Click="ViewScanProgressFromResults" Style="{StaticResource SecondaryActionStyle}" />
+                                AutomationProperties.Name="Analysis in progress actions">
+                        <Button Content="View progress" Click="ViewScanProgressFromResults" Style="{StaticResource PrimaryActionStyle}" />
                     </StackPanel>
                 </StackPanel>
 
@@ -131,19 +65,19 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- 2. Storage accounting hero -->
-                    <Border Style="{StaticResource StandardCardStyle}" AutomationProperties.Name="Storage accounting summary">
+                    <!-- 2. Main summary hero -->
+                    <Border Style="{StaticResource StandardCardStyle}" AutomationProperties.Name="What CLYR found">
                         <StackPanel Spacing="18">
                             <Grid ColumnSpacing="20">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <StackPanel Spacing="4">
-                                    <TextBlock Text="Storage accounting" Style="{StaticResource SectionTitleStyle}"
+                                    <TextBlock Text="What CLYR found" Style="{StaticResource SectionTitleStyle}"
                                                AutomationProperties.HeadingLevel="Level2" />
                                     <TextBlock x:Name="AccountedDescriptionText" Style="{StaticResource BodySecondaryStyle}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                                     <TextBlock x:Name="AccountedPercentValue" Style="{StaticResource MetricValueStyle}" HorizontalAlignment="Right" />
-                                    <TextBlock x:Name="AccountedPercentCaptionText" Text="accounted" Style="{StaticResource MetricLabelStyle}" HorizontalAlignment="Right" />
+                                    <TextBlock x:Name="AccountedPercentCaptionText" Text="Coverage" Style="{StaticResource MetricLabelStyle}" HorizontalAlignment="Right" />
                                 </StackPanel>
                             </Grid>
                             <Grid x:Name="StorageVisualization" Height="16" Background="{ThemeResource SurfaceSecondary}"
@@ -169,14 +103,14 @@
                                 <StackPanel x:Name="DriveUsedMetricPanel" Spacing="3">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <Border Width="8" Height="8" CornerRadius="2" Background="{ThemeResource AccentPrimary}" />
-                                        <TextBlock x:Name="AccountedMetricLabel" Text="Accounted by this scan" Style="{StaticResource MetricLabelStyle}" />
+                                        <TextBlock x:Name="AccountedMetricLabel" Text="Storage mapped" Style="{StaticResource MetricLabelStyle}" />
                                     </StackPanel>
                                     <TextBlock x:Name="AccountedMetric" Style="{StaticResource CardTitleStyle}" />
                                 </StackPanel>
                                 <StackPanel x:Name="NotObservedMetricPanel" Grid.Column="1" Spacing="3">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <Border Width="8" Height="8" CornerRadius="2" Background="{ThemeResource BorderStrong}" />
-                                        <TextBlock Text="Not observed" Style="{StaticResource MetricLabelStyle}" />
+                                        <TextBlock Text="Still unexplained" Style="{StaticResource MetricLabelStyle}" />
                                     </StackPanel>
                                     <TextBlock x:Name="NotObservedMetric" Style="{StaticResource CardTitleStyle}" />
                                 </StackPanel>
@@ -188,65 +122,80 @@
                                     <TextBlock x:Name="FreeMetric" Style="{StaticResource CardTitleStyle}" />
                                 </StackPanel>
                                 <StackPanel x:Name="DriveUsedTotalPanel" Grid.Column="3" Spacing="3">
-                                    <TextBlock Text="Drive-reported used space" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock Text="Windows reports used" Style="{StaticResource MetricLabelStyle}" />
                                     <TextBlock x:Name="DriveUsedMetric" Style="{StaticResource CardTitleStyle}" />
                                 </StackPanel>
                             </Grid>
+                            <Border Style="{StaticResource DividerStyle}" />
+                            <!-- Section 4 correction: Coverage is already the large top-right value — repeating it
+                                 here as well read as duplicated information. Only Categorized (a distinct concept)
+                                 remains in this row. -->
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Categorized" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="ClassificationHeadlineText" Style="{StaticResource StatusTextStyle}" />
+                            </StackPanel>
+                            <TextBlock x:Name="ClassificationRetryNoteText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}"
+                                       TextWrapping="Wrap" AutomationProperties.Name="Why the categorized percentage changed" />
                         </StackPanel>
                     </Border>
 
-                    <!-- 3. Coverage versus classification -->
-                    <Border Style="{StaticResource CompactCardStyle}" AutomationProperties.Name="Coverage versus classification">
-                        <StackPanel Spacing="14">
-                            <TextBlock Text="Coverage and classification are different" Style="{StaticResource CardTitleStyle}" />
-                            <Grid ColumnSpacing="24" RowSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <StackPanel Spacing="4">
-                                    <TextBlock x:Name="CoverageHeadlineText" Style="{StaticResource StatusTextStyle}" />
-                                    <TextBlock Text="Coverage: how much used storage the scan observed." Style="{StaticResource BodySecondaryStyle}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Spacing="4">
-                                    <TextBlock x:Name="ClassificationHeadlineText" Style="{StaticResource StatusTextStyle}" />
-                                    <TextBlock Text="Classification: how much observed storage matched a known category." Style="{StaticResource BodySecondaryStyle}" />
-                                </StackPanel>
-                            </Grid>
-                            <TextBlock Text="Observed but unclassified storage is still real storage - it simply has no known category yet."
-                                       Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
-                            <Border Style="{StaticResource DividerStyle}" />
-                            <Grid ColumnSpacing="20" RowSpacing="10">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="Classified" Style="{StaticResource MetricLabelStyle}" />
-                                    <TextBlock x:Name="ClassifiedValueText" Style="{StaticResource BodyStyle}" />
+                    <!-- 3. Administrator retry — kept directly below the main summary so a successful retry is
+                         never buried at the bottom of a long page (see section 9). -->
+                    <Border x:Name="AdministratorRetryCard" Style="{StaticResource CompactCardStyle}" Visibility="Collapsed"
+                            AutomationProperties.Name="Administrator retry for restricted scan areas">
+                        <StackPanel Spacing="10">
+                            <controls:SectionHeader x:Name="AdministratorRetryHeader" Title="Administrator retry"
+                                Description="Some folders could not be fully inspected. CLYR can retry only those scan areas with administrator access." />
+                            <!-- Section 3 correction: the terminal summary must appear above the retry button, never
+                                 be replaced by it — a successful (or otherwise concluded) retry keeps its summary
+                                 visible even when further restricted roots still make another retry available. -->
+                            <InfoBar x:Name="AdministratorRetryInfoBar" IsOpen="False" IsClosable="False" CornerRadius="{StaticResource CornerRadiusControl}" />
+                            <TextBlock x:Name="AdministratorRetrySummary" Style="{StaticResource BodySecondaryStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
+                            <Grid x:Name="AdministratorRetryComparison" Visibility="Collapsed" ColumnSpacing="16" RowSpacing="4"
+                                  AutomationProperties.Name="Administrator retry coverage comparison">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Coverage" Style="{StaticResource CaptionStyle}" />
+                                    <TextBlock x:Name="AdministratorRetryCoverageText" Style="{StaticResource BodyStyle}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Observed, unclassified" Style="{StaticResource MetricLabelStyle}" />
-                                    <TextBlock x:Name="UnclassifiedValueText" Style="{StaticResource BodyStyle}" />
+                                    <TextBlock Text="Newly found storage" Style="{StaticResource CaptionStyle}" />
+                                    <TextBlock x:Name="AdministratorRetryNewlyAccountedText" Style="{StaticResource BodyStyle}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Spacing="2">
-                                    <TextBlock Text="Not observed" Style="{StaticResource MetricLabelStyle}" />
-                                    <TextBlock x:Name="UnobservedValueText" Style="{StaticResource BodyStyle}" />
+                                    <TextBlock Text="Restricted areas" Style="{StaticResource CaptionStyle}" />
+                                    <TextBlock x:Name="AdministratorRetryAreasText" Style="{StaticResource BodyStyle}" />
                                 </StackPanel>
                             </Grid>
-                            <TextBlock x:Name="ClassificationRetryNoteText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}"
-                                       TextWrapping="Wrap" AutomationProperties.Name="Why classification changed after administrator retry" />
+                            <TextBlock x:Name="AdministratorRetryBasisNoteText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}"
+                                       TextWrapping="Wrap" AutomationProperties.Name="Administrator retry accounting basis note" />
+                            <Button x:Name="AdministratorRetryButton" Click="RequestAdministratorRetry" Style="{StaticResource SecondaryActionStyle}"
+                                    HorizontalAlignment="Left"
+                                    AutomationProperties.HelpText="Optional, read-only. Retries only the restricted scan areas with administrator permission. Does not delete, move, rename, or modify files." />
+                            <StackPanel x:Name="AdministratorRetryRunningPanel" Spacing="6" Visibility="Collapsed">
+                                <ProgressBar x:Name="AdministratorRetryProgress" IsIndeterminate="True" Height="4" />
+                                <TextBlock x:Name="AdministratorRetryElapsedText" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap"
+                                           AutomationProperties.LiveSetting="Polite" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
-                    <!-- 4. Scan quality and limitations -->
-                    <Border Style="{StaticResource CompactCardStyle}" AutomationProperties.Name="Scan quality and limitations">
+                    <!-- 4. Analysis quality, with technical detail consolidated into one expander -->
+                    <Border Style="{StaticResource CompactCardStyle}" AutomationProperties.Name="Analysis quality">
                         <StackPanel Spacing="12">
                             <Grid ColumnSpacing="12">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <StackPanel Spacing="4">
-                                    <TextBlock Text="Scan quality" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Analysis quality" Style="{StaticResource CardTitleStyle}" />
                                     <TextBlock x:Name="QualityDescriptionText" Style="{StaticResource BodySecondaryStyle}" />
                                 </StackPanel>
                                 <controls:StatusBadge x:Name="QualityBadgeControl" Grid.Column="1" VerticalAlignment="Top" />
                             </Grid>
-                            <Expander x:Name="LimitationsExpander" Header="What this scan could and could not see"
+                            <Expander x:Name="LimitationsExpander" Header="How these numbers are calculated"
                                       HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                      AutomationProperties.Name="Scan limitation details">
+                                      AutomationProperties.Name="How these numbers are calculated">
                                 <ItemsControl x:Name="LimitationRows" AutomationProperties.Name="Limitation details">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -300,16 +249,15 @@
                         <ItemsControl x:Name="FindingList" AutomationProperties.Name="Storage findings">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Padding="0,10" AutomationProperties.Name="{Binding AccessibleText}">
+                                    <Border Padding="0,10" AutomationProperties.Name="{Binding AccessibleText}"
+                                            ToolTipService.ToolTip="{Binding TechnicalDetail}">
                                         <StackPanel Spacing="4">
                                             <Grid ColumnSpacing="12">
                                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                                 <TextBlock Text="{Binding Title}" Style="{StaticResource BodyStyle}" FontWeight="SemiBold" TextWrapping="Wrap" />
                                                 <TextBlock Grid.Column="1" Text="{Binding Size}" Style="{StaticResource StatusTextStyle}" HorizontalAlignment="Right" />
                                             </Grid>
-                                            <TextBlock Style="{StaticResource CaptionStyle}">
-                                                <Run Text="{Binding Category}" /><Run Text=" · " /><Run Text="{Binding Confidence}" /><Run Text=" confidence · " /><Run Text="{Binding SafetyStatus}" />
-                                            </TextBlock>
+                                            <TextBlock Text="{Binding NaturalStatus}" Style="{StaticResource CaptionStyle}" />
                                             <TextBlock Text="{Binding Explanation}" Style="{StaticResource BodySecondaryStyle}" />
                                         </StackPanel>
                                     </Border>
@@ -324,7 +272,7 @@
                     <!-- 7. Largest directories and files -->
                     <StackPanel x:Name="DirectoriesSection" Spacing="14" Visibility="Collapsed" AutomationProperties.Name="Largest directories">
                         <controls:SectionHeader Title="Largest top-level folders"
-                            Description="Direct children of the drive root, ranked by observed size. These rows do not overlap and can be compared directly." />
+                            Description="Main folders directly inside this drive. These values do not overlap." />
                         <ItemsControl x:Name="DirectoryList" AutomationProperties.Name="Largest top-level folders list">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -346,6 +294,8 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <Button x:Name="ShowAllFoldersButton" Click="ToggleTopLevelDirectories" Style="{StaticResource QuietButtonStyle}"
+                                HorizontalAlignment="Left" Visibility="Collapsed" />
                         <Expander x:Name="NestedDirectoriesExpander" Header="Largest nested folders" Visibility="Collapsed"
                                   HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                   AutomationProperties.Name="Largest nested folders, deeper than the drive root">
@@ -403,45 +353,6 @@
                         </ItemsControl>
                         <TextBlock x:Name="FilesProvenanceText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
                     </StackPanel>
-
-                    <!-- 8. Administrator retry -->
-                    <Border x:Name="AdministratorRetryCard" Style="{StaticResource CompactCardStyle}" Visibility="Collapsed"
-                            AutomationProperties.Name="Administrator retry for restricted scan areas">
-                        <StackPanel Spacing="10">
-                            <controls:SectionHeader Title="Administrator retry"
-                                Description="Some folders could not be fully inspected. CLYR can retry only those scan areas with administrator access." />
-                            <Button x:Name="AdministratorRetryButton" Click="RequestAdministratorRetry" Style="{StaticResource SecondaryActionStyle}"
-                                    HorizontalAlignment="Left"
-                                    AutomationProperties.HelpText="Optional, read-only. Retries only the restricted scan areas with administrator permission. Does not delete, move, rename, or modify files." />
-                            <StackPanel x:Name="AdministratorRetryRunningPanel" Spacing="6" Visibility="Collapsed">
-                                <ProgressBar x:Name="AdministratorRetryProgress" IsIndeterminate="True" Height="4" />
-                                <TextBlock x:Name="AdministratorRetryElapsedText" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap"
-                                           AutomationProperties.LiveSetting="Polite" />
-                            </StackPanel>
-                            <InfoBar x:Name="AdministratorRetryInfoBar" IsOpen="False" IsClosable="False" CornerRadius="{StaticResource CornerRadiusControl}" />
-                            <TextBlock x:Name="AdministratorRetrySummary" Style="{StaticResource BodySecondaryStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
-                            <Grid x:Name="AdministratorRetryComparison" Visibility="Collapsed" ColumnSpacing="16" RowSpacing="4"
-                                  AutomationProperties.Name="Administrator retry coverage comparison">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="Coverage" Style="{StaticResource CaptionStyle}" />
-                                    <TextBlock x:Name="AdministratorRetryCoverageText" Style="{StaticResource BodyStyle}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Newly accounted" Style="{StaticResource CaptionStyle}" />
-                                    <TextBlock x:Name="AdministratorRetryNewlyAccountedText" Style="{StaticResource BodyStyle}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="2">
-                                    <TextBlock Text="Restricted areas" Style="{StaticResource CaptionStyle}" />
-                                    <TextBlock x:Name="AdministratorRetryAreasText" Style="{StaticResource BodyStyle}" />
-                                </StackPanel>
-                            </Grid>
-                            <TextBlock x:Name="AdministratorRetryBasisNoteText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}"
-                                       TextWrapping="Wrap" AutomationProperties.Name="Administrator retry accounting basis note" />
-                        </StackPanel>
-                    </Border>
 
                     <!-- 9. Final action area -->
                     <Border Style="{StaticResource DividerStyle}" Margin="0,4" />

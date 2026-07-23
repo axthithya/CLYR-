@@ -90,11 +90,47 @@
                                            Style="{StaticResource BodySecondaryStyle}" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="CLYR begins showing useful storage insights early and continues toward a complete drive analysis."
-                                   Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
                         <StackPanel x:Name="FirstRunActions" Orientation="Horizontal" Spacing="12">
                             <Button Content="Analyze drive" Click="AnalyzeDrive" Style="{StaticResource PrimaryActionStyle}"
                                     AutomationProperties.Name="Analyze drive" />
+                        </StackPanel>
+                    </StackPanel>
+                    <!-- Section 16 correction: a saved analysis from a previous session must never be hidden
+                         behind the generic "No analysis yet" first-run state — this card truthfully surfaces it,
+                         sourced directly from local History, and is only ever shown when no result exists yet in
+                         this running session. -->
+                    <StackPanel x:Name="SavedOnlyPanel" Spacing="16" Visibility="Collapsed"
+                                AutomationProperties.Name="Latest saved analysis">
+                        <StackPanel.Transitions>
+                            <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
+                        </StackPanel.Transitions>
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Border Width="44" Height="44" Background="{ThemeResource SurfaceSelected}" CornerRadius="22">
+                                <FontIcon Glyph="&#xE81C;" FontSize="20" Foreground="{ThemeResource AccentPrimary}" />
+                            </Border>
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <TextBlock Text="Latest saved analysis" Style="{StaticResource SectionTitleStyle}"
+                                           AutomationProperties.HeadingLevel="Level2" />
+                                <TextBlock x:Name="SavedOnlyCompletedText" Style="{StaticResource BodySecondaryStyle}" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid ColumnSpacing="24">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Storage mapped" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="SavedOnlyMappedText" Style="{StaticResource CardTitleStyle}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Text="Coverage" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="SavedOnlyCoverageText" Style="{StaticResource CardTitleStyle}" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="This is from a previous session, saved in your local history."
+                                   Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Button Content="View in History" Click="ViewHistory" Style="{StaticResource PrimaryActionStyle}" />
+                            <Button Content="Analyze again" Click="AnalyzeDrive" Style="{StaticResource SecondaryActionStyle}" />
                         </StackPanel>
                     </StackPanel>
                     <StackPanel x:Name="RunningPanel" Spacing="12" Visibility="Collapsed"
@@ -115,8 +151,6 @@
                         </Grid>
                         <StackPanel Orientation="Horizontal" Spacing="12">
                             <Button Content="View progress" Click="ViewScanProgress" Style="{StaticResource SecondaryActionStyle}" />
-                            <Button x:Name="ViewCurrentInsightsFromOverview" Content="View current insights" Click="ViewCurrentInsights"
-                                    Style="{StaticResource QuietButtonStyle}" IsEnabled="False" />
                         </StackPanel>
                     </StackPanel>
                     <StackPanel x:Name="ResultActionPanel" Spacing="12" Visibility="Collapsed"

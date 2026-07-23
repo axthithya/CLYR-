@@ -76,7 +76,7 @@
                                 Click="StartAnalysis" HorizontalAlignment="Left"
                                 AutomationProperties.Name="Analyze drive"
                                 AutomationProperties.HelpText="Begins a private, read-only analysis of the selected drive." />
-                        <TextBlock Text="CLYR begins showing useful storage insights early and continues toward a complete drive analysis."
+                        <TextBlock Text="CLYR analyzes the drive in the background and shows a live summary while it works."
                                    Style="{StaticResource BodyMutedStyle}" TextWrapping="Wrap" />
                         <StackPanel x:Name="SafetyNote" Orientation="Horizontal" Spacing="8">
                             <FontIcon Glyph="&#xE72E;" FontSize="14" Foreground="{ThemeResource PrivacySafe}" />
@@ -102,61 +102,33 @@
                                 <TextBlock x:Name="RunningTitle" Style="{StaticResource SectionTitleStyle}"
                                            AutomationProperties.HeadingLevel="Level2" AutomationProperties.LiveSetting="Polite" />
                                 <TextBlock x:Name="RunningStatus" Style="{StaticResource BodySecondaryStyle}" />
-                                <TextBlock x:Name="RunningGuidance" Style="{StaticResource CaptionStyle}" />
                             </StackPanel>
                         </Grid>
-                        <ProgressBar x:Name="ActiveProgress" IsIndeterminate="True" Height="5"
+                        <ProgressBar x:Name="ActiveProgress" IsIndeterminate="True" Height="5" HorizontalAlignment="Stretch"
                                      AutomationProperties.Name="Analysis in progress" />
                         <Grid x:Name="RunningMetrics" ColumnSpacing="20" RowSpacing="16">
                             <StackPanel x:Name="ElapsedMetric" Spacing="2">
-                                <TextBlock Text="Elapsed" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock Text="Time elapsed" Style="{StaticResource MetricLabelStyle}" />
                                 <TextBlock x:Name="ElapsedText" Text="--" Style="{StaticResource CardTitleStyle}" />
                             </StackPanel>
+                            <StackPanel x:Name="ObservedMetric" Spacing="2">
+                                <TextBlock Text="Storage found so far" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock x:Name="ObservedSize" Text="--" Style="{StaticResource CardTitleStyle}" />
+                            </StackPanel>
                             <StackPanel x:Name="FilesMetric" Spacing="2">
-                                <TextBlock Text="Files examined" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock Text="Files checked" Style="{StaticResource MetricLabelStyle}" />
                                 <TextBlock x:Name="FileCount" Text="--" Style="{StaticResource CardTitleStyle}" />
                             </StackPanel>
                             <StackPanel x:Name="DirectoryMetric" Spacing="2">
-                                <TextBlock Text="Folders examined" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock Text="Folders checked" Style="{StaticResource MetricLabelStyle}" />
                                 <TextBlock x:Name="DirectoryCount" Text="--" Style="{StaticResource CardTitleStyle}" />
                             </StackPanel>
-                            <StackPanel x:Name="ObservedMetric" Spacing="2">
-                                <TextBlock Text="Bytes observed" Style="{StaticResource MetricLabelStyle}" />
-                                <TextBlock x:Name="ObservedSize" Text="--" Style="{StaticResource CardTitleStyle}" />
-                            </StackPanel>
-                            <StackPanel x:Name="InaccessibleMetric" Spacing="2">
-                                <TextBlock Text="Inaccessible" Style="{StaticResource MetricLabelStyle}" />
-                                <TextBlock x:Name="InaccessibleCount" Text="--" Style="{StaticResource CardTitleStyle}" />
-                            </StackPanel>
                             <StackPanel x:Name="WarningMetric" Spacing="2">
-                                <TextBlock Text="Warnings" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock Text="Access issues" Style="{StaticResource MetricLabelStyle}" />
                                 <TextBlock x:Name="WarningCountText" Text="--" Style="{StaticResource CardTitleStyle}" />
                             </StackPanel>
                         </Grid>
-                        <Border Padding="14,10" Background="{ThemeResource SurfaceSecondary}"
-                                CornerRadius="{StaticResource CornerRadiusControl}">
-                            <Grid ColumnSpacing="10">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <FontIcon Glyph="&#xE81D;" FontSize="15" Foreground="{ThemeResource TextMuted}" />
-                                <TextBlock x:Name="CurrentLocation" Grid.Column="1" Text="Preparing a privacy-safe location..."
-                                           Style="{StaticResource CaptionStyle}" TextTrimming="CharacterEllipsis"
-                                           AutomationProperties.Name="Privacy-safe current scan location" />
-                            </Grid>
-                        </Border>
-                        <Border x:Name="EarlyInsightsPanel" Style="{StaticResource InfoBannerStyle}" Visibility="Collapsed"
-                                AutomationProperties.Name="Early insights ready" AutomationProperties.LiveSetting="Polite">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Early insights are ready" Style="{StaticResource CardTitleStyle}" />
-                                <TextBlock x:Name="EarlyInsightsSummary" Style="{StaticResource BodySecondaryStyle}" TextWrapping="Wrap" />
-                                <TextBlock Text="These values are provisional and may change while the analysis continues."
-                                           Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
                         <StackPanel x:Name="RunningActions" Orientation="Horizontal" Spacing="12">
-                            <Button x:Name="ViewCurrentInsightsButton" Content="View current insights" Click="ViewCurrentInsights"
-                                    Style="{StaticResource SecondaryActionStyle}" IsEnabled="False"
-                                    AutomationProperties.Name="View current insights"
-                                    AutomationProperties.HelpText="Shows the provisional results gathered so far while the analysis keeps running." />
                             <Button x:Name="StopButton" Content="Stop analysis" Click="StopAnalysis"
                                     Style="{StaticResource QuietButtonStyle}"
                                     AutomationProperties.Name="Stop analysis"
@@ -184,7 +156,7 @@
                     <StackPanel x:Name="TerminalSummary" Spacing="16">
                         <Grid ColumnSpacing="16">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <TextBlock Text="Coverage summary" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock x:Name="TerminalCoverageSentence" Style="{StaticResource CardTitleStyle}" TextWrapping="Wrap" />
                             <Border Grid.Column="1" Style="{StaticResource StatusBadgeStyle}">
                                 <TextBlock x:Name="QualityText" Style="{StaticResource StatusTextStyle}"
                                            AutomationProperties.Name="Scan coverage quality" AutomationProperties.LiveSetting="Polite" />
@@ -196,37 +168,38 @@
                             <StackPanel Spacing="4">
                                 <TextBlock x:Name="AccountedValue" FontSize="36" FontWeight="SemiBold"
                                            Foreground="{ThemeResource TextPrimary}" />
-                                <TextBlock Text="of used storage accounted for" Style="{StaticResource BodySecondaryStyle}" />
+                                <TextBlock x:Name="AccountedValueCaption" Text="coverage" Style="{StaticResource BodySecondaryStyle}" />
                             </StackPanel>
                             <Grid x:Name="TerminalStorageMetrics" Grid.Column="1" ColumnSpacing="20" RowSpacing="14">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                                 <StackPanel Spacing="2">
-                                    <TextBlock Text="Observed" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock Text="Storage mapped" Style="{StaticResource MetricLabelStyle}" />
                                     <TextBlock x:Name="TerminalObserved" Style="{StaticResource CardTitleStyle}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="Not observed" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock Text="Still unexplained" Style="{StaticResource MetricLabelStyle}" />
                                     <TextBlock x:Name="TerminalUnobserved" Style="{StaticResource CardTitleStyle}" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Spacing="2">
-                                    <TextBlock Text="Classified of observed" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock Text="Categorized" Style="{StaticResource MetricLabelStyle}" />
                                     <TextBlock x:Name="TerminalClassified" Style="{StaticResource CardTitleStyle}" />
                                 </StackPanel>
                             </Grid>
                         </Grid>
+                        <TextBlock x:Name="TerminalBasisNoteText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
                         <Border Style="{StaticResource DividerStyle}" />
                         <Grid x:Name="TerminalDetails" ColumnSpacing="24" RowSpacing="14">
                             <StackPanel x:Name="TerminalDurationMetric" Spacing="2">
-                                <TextBlock Text="Duration" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock Text="Time" Style="{StaticResource MetricLabelStyle}" />
                                 <TextBlock x:Name="TerminalDuration" Style="{StaticResource StatusTextStyle}" />
                             </StackPanel>
                             <StackPanel x:Name="TerminalFilesMetric" Spacing="2">
-                                <TextBlock Text="Files examined" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock Text="Files checked" Style="{StaticResource MetricLabelStyle}" />
                                 <TextBlock x:Name="TerminalFiles" Style="{StaticResource StatusTextStyle}" />
                             </StackPanel>
                             <StackPanel x:Name="TerminalFoldersMetric" Spacing="2">
-                                <TextBlock Text="Folders examined" Style="{StaticResource MetricLabelStyle}" />
+                                <TextBlock Text="Folders checked" Style="{StaticResource MetricLabelStyle}" />
                                 <TextBlock x:Name="TerminalFolders" Style="{StaticResource StatusTextStyle}" />
                             </StackPanel>
                             <StackPanel x:Name="TerminalCompletedMetric" Spacing="2">
@@ -241,10 +214,11 @@
                         <FontIcon Glyph="&#xE7BA;" FontSize="17" Foreground="{ThemeResource Warning}" />
                         <StackPanel Grid.Column="1" Spacing="2">
                             <TextBlock x:Name="TerminalWarningTitle" Style="{StaticResource StatusTextStyle}" />
-                            <TextBlock Text="Some Windows-managed or permission-restricted areas could not be fully inspected."
+                            <TextBlock Text="Some protected or restricted areas could not be fully inspected."
                                        Style="{StaticResource BodyMutedStyle}" />
                         </StackPanel>
                     </Grid>
+                    <TextBlock x:Name="TerminalStaleRetryNoteText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
                     <StackPanel x:Name="TerminalActions" Orientation="Horizontal" Spacing="12">
                         <Button x:Name="ResultsButton" Content="View Results" Click="ViewResults"
                                 Style="{StaticResource PrimaryActionStyle}" AutomationProperties.Name="View Results" />

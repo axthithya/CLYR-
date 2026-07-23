@@ -61,11 +61,14 @@ public sealed partial class OverviewPage : Page
         RenderRecentActivity();
 
         var hasResult = result is not null;
-        FirstRunPanel.Visibility = !scanning && !hasResult ? Visibility.Visible : Visibility.Collapsed;
+        var savedOnly = !hasResult && !scanning && ViewModel.LatestSaved is not null;
+        FirstRunPanel.Visibility = !scanning && !hasResult && !savedOnly ? Visibility.Visible : Visibility.Collapsed;
+        SavedOnlyPanel.Visibility = savedOnly ? Visibility.Visible : Visibility.Collapsed;
         RunningPanel.Visibility = scanning ? Visibility.Visible : Visibility.Collapsed;
         ResultActionPanel.Visibility = !scanning && hasResult ? Visibility.Visible : Visibility.Collapsed;
         LatestAnalysisSection.Visibility = !scanning && hasResult ? Visibility.Visible : Visibility.Collapsed;
 
+        if (savedOnly) RenderSavedOnly(ViewModel.LatestSaved!);
         if (scanning) RenderRunning();
 
         if (result is null)
@@ -87,13 +90,24 @@ public sealed partial class OverviewPage : Page
     private void RenderRunning()
     {
         var progress = ViewModel.Session.Progress;
-        var snapshot = ViewModel.Session.ProvisionalSnapshot;
         var elapsed = progress?.Elapsed.ToString(@"mm\:ss", System.Globalization.CultureInfo.InvariantCulture) ?? "00:00";
         var drive = ViewModel.Session.SelectedDrive;
         var driveText = drive is null ? "the selected drive" : drive.Root.TrimEnd('\\');
-        var coverageText = snapshot?.ProvisionalCoveragePercentage is { } coverage ? $"{coverage:F1}% provisional coverage" : "gathering insights";
-        RunningSummaryText.Text = $"Analyzing {driveText} - elapsed {elapsed} - {coverageText}.";
-        ViewCurrentInsightsFromOverview.IsEnabled = snapshot?.EarlyInsightsReady ?? false;
+        RunningSummaryText.Text = $"Analyzing {driveText} - elapsed {elapsed}.";
+    }
+
+    /// <summary>Renders the truthful "Latest saved analysis" card sourced directly from local History (see
+    /// <see cref="OverviewViewModel.LatestSaved"/>) — never a live <see cref="ScanResult"/>, and never labelled
+    /// as belonging to the current session. Access-issue and per-file detail are not available from the saved
+    /// aggregate summary alone; the full record remains viewable in History.</summary>
+    private void RenderSavedOnly(SnapshotSummary saved)
+    {
+        SavedOnlyCompletedText.Text = $"Completed {saved.CapturedAtUtc.LocalDateTime:g}";
+        SavedOnlyMappedText.Text = Format(saved.LogicalBytesObserved);
+        var coverage = saved.UsedBytes is > 0
+            ? Math.Clamp(saved.LogicalBytesObserved * 100d / saved.UsedBytes.Value, 0, 100)
+            : (double?)null;
+        SavedOnlyCoverageText.Text = coverage is { } value ? $"{value:F1}%" : "Unavailable";
     }
 
     private void RenderDrive(DriveSummary? drive, ScanResult? result)
@@ -101,9 +115,11 @@ public sealed partial class OverviewPage : Page
         var label = drive is null || string.IsNullOrWhiteSpace(drive.Label) ? "System drive" : drive.Label.Trim();
         var root = drive?.Root.TrimEnd('\\') ?? string.Empty;
         DriveIdentity.Text = drive is null ? "System drive unavailable" : $"{label} ({root})";
-        DriveLatestState.Text = result is null
-            ? "No analysis has been completed for this session."
-            : $"Latest: Drive Analysis - {Friendly(result.Status)}";
+        DriveLatestState.Text = result is not null
+            ? $"Latest: Drive Analysis - {Friendly(result.Status)}"
+            : ViewModel.LatestSaved is not null
+                ? "A saved analysis from a previous session is available."
+                : "No analysis has been completed yet.";
 
         var percentage = drive?.CapacityBytes is > 0 && drive.UsedBytes is { } used
             ? Math.Clamp(used * 100d / drive.CapacityBytes.Value, 0, 100)
@@ -144,7 +160,7 @@ public sealed partial class OverviewPage : Page
             ScanQuality.Excellent => "Excellent coverage",
             ScanQuality.Good => "Good coverage",
             ScanQuality.Partial => "Partial coverage",
-            ScanQuality.AccountingBasisDiffers => "Coverage unavailable",
+            ScanQuality.AccountingBasisDiffers => "Coverage cannot be calculated",
             _ => "Insufficient coverage"
         };
         LatestCoverageValue.Text = accounting.AccountedPercentage is { } accounted ? $"{accounted:F1}%" : "Unavailable";
@@ -168,8 +184,10 @@ public sealed partial class OverviewPage : Page
         WarningSummary.Visibility = warningCount > 0 || result.Status == ScanStatus.CompletedWithWarnings
             ? Visibility.Visible
             : Visibility.Collapsed;
+        // Section 15: "access issues" is the normal-UI term everywhere; "access warnings" remains a technical
+        // synonym for Developer Mode/advanced surfaces only.
         WarningTitle.Text = warningCount > 0
-            ? $"{warningCount:N0} access {(warningCount == 1 ? "warning" : "warnings")}"
+            ? $"{warningCount:N0} access {(warningCount == 1 ? "issue" : "issues")}"
             : "Analysis completed with warnings";
     }
 
@@ -200,7 +218,7 @@ public sealed partial class OverviewPage : Page
         {
             var coverage = item.UsedBytes is > 0
                 ? $"{Math.Clamp(item.LogicalBytesObserved * 100d / item.UsedBytes.Value, 0, 100):F1}% coverage"
-                : "Coverage unavailable";
+                : "Coverage cannot be calculated";
             // Phase (progressive-analysis terminology correction): Quick-mode history remains truthfully
             // labelled (it genuinely was a bounded Quick pass, whether from the legacy dual-mode UI or the CLI);
             // every Deep-mode record — old dual-mode-UI or new "Analyze drive" — is the same underlying
@@ -262,7 +280,6 @@ public sealed partial class OverviewPage : Page
 
     private void AnalyzeDrive(object sender, RoutedEventArgs args) => ViewModel.Navigate("Scan");
     private void ViewScanProgress(object sender, RoutedEventArgs args) => ViewModel.Navigate("Scan");
-    private void ViewCurrentInsights(object sender, RoutedEventArgs args) => ViewModel.Navigate("Results");
 
     private void ViewResults(object sender, RoutedEventArgs args) => ViewModel.Navigate("Results");
     private void ViewHistory(object sender, RoutedEventArgs args) => ViewModel.Navigate("History");

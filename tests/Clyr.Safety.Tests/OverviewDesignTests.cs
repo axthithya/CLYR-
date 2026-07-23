@@ -49,11 +49,14 @@ public sealed class OverviewDesignTests
     }
 
     [Fact]
-    public void RunningStateShowsProgressAndCurrentInsightsWhenAvailable()
+    public void RunningStateShowsProgressWithoutTheRemovedEarlyInsightsExperience()
     {
-        foreach (var required in new[] { "Analysis in progress", "RunningPanel", "ViewScanProgress", "ViewCurrentInsights", "RunningSummaryText" })
+        foreach (var required in new[] { "Analysis in progress", "RunningPanel", "ViewScanProgress", "RunningSummaryText" })
             Assert.Contains(required, Page + Code, StringComparison.Ordinal);
         Assert.Contains("RunningPanel.Visibility = scanning", Code, StringComparison.Ordinal);
+        // Section 3 correction: the normal UI no longer offers a separate "Early Insights" experience.
+        Assert.DoesNotContain("ViewCurrentInsights", Page + Code, StringComparison.Ordinal);
+        Assert.DoesNotContain("EarlyInsightsReady", Page + Code, StringComparison.Ordinal);
     }
 
     [Fact]

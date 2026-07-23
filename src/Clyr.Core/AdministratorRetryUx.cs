@@ -235,6 +235,14 @@ public sealed class AdministratorRetryController(IElevatedScanRetryService servi
     private ScanResult? evaluatedFor;
     private bool disposed;
 
+    /// <summary>The ScanId a currently-held terminal outcome (<see cref="State"/>) belongs to, or
+    /// <see langword="null"/> when <see cref="State"/> is not terminal. Applying a successful retry's enriched
+    /// result preserves <see cref="ScanResult.ScanId"/> (see <see cref="AppSessionViewModel.ApplyEnrichedResult"/>),
+    /// so this is exactly how <see cref="Evaluate"/> tells "the very analysis this outcome belongs to, now
+    /// possibly enriched" apart from "a genuinely different, newer analysis" — see the bug this fixes in
+    /// <see cref="Evaluate"/>'s remarks.</summary>
+    private Guid? terminalScanId;
+
     public AdministratorRetryUiState State { get; private set; } = AdministratorRetryUiState.Hidden;
 
     /// <summary>Raised only while this controller is not yet disposed — see <see cref="Dispose"/> and
@@ -249,13 +257,47 @@ public sealed class AdministratorRetryController(IElevatedScanRetryService servi
     /// <see langword="null"/> — the caller passes <see langword="null"/> while no completed result exists, or
     /// while a new scan is running). Never called mid-retry: a retry already in flight for a previous evaluation
     /// keeps its own state undisturbed until it finishes, so a routine page refresh can never yank the button or
-    /// its running status out from under an active attempt.</summary>
+    /// its running status out from under an active attempt.
+    /// <para/>
+    /// Confirmed real-machine defect this corrects: applying a successful retry's enriched result fires
+    /// <c>AppSessionViewModel.StateChanged</c> synchronously, which (via the page's own subscription) calls this
+    /// method again with the now-enriched result — a normal, expected re-evaluation. But re-evaluating naively
+    /// discarded the just-set <see cref="AdministratorRetryPhase.Applied"/> terminal state outright (replacing it
+    /// with a fresh <see cref="AdministratorRetryUx.FromAvailability"/> result), so the terminal summary never
+    /// actually reached the screen — only the plain "Retry restricted areas as administrator" button did, even
+    /// though the retry had already succeeded. Since enrichment always preserves <see cref="ScanResult.ScanId"/>,
+    /// a matching ScanId here means this re-evaluation is for the very same analysis whose terminal outcome is
+    /// already held — the fix merges in the fresh availability (so a "retry again" button can still appear
+    /// beneath the summary when further restricted roots remain) instead of discarding the terminal state. A
+    /// genuinely different ScanId (a new Drive Analysis) still starts completely fresh.
+    /// </summary>
     public void Evaluate(ScanResult? originalResult)
     {
         if (cancellation is not null) return;
         evaluatedFor = originalResult;
-        SetState(originalResult is null ? AdministratorRetryUiState.Hidden : AdministratorRetryUx.FromAvailability(service.Evaluate(originalResult)));
+        if (originalResult is null) { terminalScanId = null; SetState(AdministratorRetryUiState.Hidden); return; }
+
+        var availability = AdministratorRetryUx.FromAvailability(service.Evaluate(originalResult));
+        if (IsTerminal(State.Phase) && terminalScanId == originalResult.ScanId)
+        {
+            State = State with
+            {
+                IsAdministratorRetryAvailable = availability.IsAdministratorRetryAvailable,
+                ReplaceableRootCount = availability.ReplaceableRootCount,
+            };
+            return;
+        }
+
+        terminalScanId = null;
+        SetState(availability);
     }
+
+    /// <summary>Every phase reached only after a retry attempt actually concluded (successfully or not) — as
+    /// opposed to <see cref="AdministratorRetryPhase.Idle"/>/<see cref="AdministratorRetryPhase.Hidden"/>
+    /// (nothing has been attempted yet), <see cref="AdministratorRetryPhase.Running"/> (one is in flight), or
+    /// <see cref="AdministratorRetryPhase.NotEligible"/> (a pure availability fact, not an attempt's outcome).</summary>
+    private static bool IsTerminal(AdministratorRetryPhase phase) => phase is not (AdministratorRetryPhase.Idle
+        or AdministratorRetryPhase.Hidden or AdministratorRetryPhase.Running or AdministratorRetryPhase.NotEligible);
 
     /// <summary>True only when the action is currently available, not already running, and
     /// <paramref name="originalResult"/> is the exact same result this controller most recently evaluated
@@ -283,20 +325,24 @@ public sealed class AdministratorRetryController(IElevatedScanRetryService servi
         try
         {
             var result = await service.RetryAsync(originalResult, ownCancellation.Token).ConfigureAwait(false);
+            terminalScanId = originalResult.ScanId;
             SetState(AdministratorRetryUx.FromWorkflowResult(result));
         }
         catch (OperationCanceledException)
         {
+            terminalScanId = originalResult.ScanId;
             SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.Cancelled, originalResult));
         }
         catch (ObjectDisposedException)
         {
             // Only reachable if Dispose() raced this call and cancelled/disposed the token source it was
             // holding out from under it — that is itself a form of cancellation, never an app-visible failure.
+            terminalScanId = originalResult.ScanId;
             SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.Cancelled, originalResult));
         }
         catch (TimeoutException)
         {
+            terminalScanId = originalResult.ScanId;
             SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.OperationTimedOut, originalResult));
         }
         catch (Exception exception) when (AdministratorRetryUx.IsRecoverable(exception))
@@ -304,6 +350,7 @@ public sealed class AdministratorRetryController(IElevatedScanRetryService servi
             // IOException (and its EndOfStreamException subclass), JsonException, Win32Exception, and any other
             // non-fatal operational failure this boundary was not specifically expecting all land here — one
             // calm, bounded message, never the exception's own message or stack trace.
+            terminalScanId = originalResult.ScanId;
             SetState(AdministratorRetryUx.Terminal(AdministratorRetryPhase.Failed, originalResult));
         }
         finally

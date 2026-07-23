@@ -88,12 +88,17 @@ public sealed class AdministratorRetryResultIntegrationTests
     public void RetryCompletionWordingDistinguishesInspectedAddedAndRemainingWithoutOverclaiming()
     {
         var text = File.ReadAllText(Path.Combine(Root, "src", "Clyr.App", "Pages", "ResultsPage.xaml.cs"));
-        Assert.Contains("restricted area{(state.RootsCompleted == 1", text, StringComparison.Ordinal);
-        Assert.Contains("added {OverviewPage.Format(additiveBytes)} of previously unobserved storage.", text, StringComparison.Ordinal);
-        Assert.Contains("No previously unobserved storage was added to this result", text, StringComparison.Ordinal);
-        Assert.Contains("remain unavailable", text, StringComparison.Ordinal);
-        // Never a bare "added {bytes}" without the "previously unobserved" qualifier — that qualifier is what
-        // keeps this from ever reading like the elevated engine's raw scanned total.
+        // Section 9 correction: natural language distinguishing added/refreshed/overlap/remaining areas — never
+        // describing a replacement's net change as "newly added" storage.
+        Assert.Contains("if (rootsAdditive > 0) areaParts.Add($\"{rootsAdditive} added new storage information\");", text, StringComparison.Ordinal);
+        Assert.Contains("if (rootsReplaced > 0) areaParts.Add($\"{rootsReplaced} refreshed existing results\");", text, StringComparison.Ordinal);
+        Assert.Contains("if (rootsOverlapped > 0) areaParts.Add($\"{rootsOverlapped} contained no additional information\");", text, StringComparison.Ordinal);
+        Assert.Contains("remain restricted", text, StringComparison.Ordinal);
+        Assert.Contains("Files checked:", text, StringComparison.Ordinal);
+        Assert.Contains("Folders checked:", text, StringComparison.Ordinal);
+        Assert.Contains("Access issues:", text, StringComparison.Ordinal);
+        // Never a bare "added {bytes}" without the reconciliation-mode context — the additive-vs-replacement
+        // distinction stays anchored to per-root counts, never a raw byte figure alone.
         Assert.DoesNotContain("and added {OverviewPage.Format(state.AdditionalLogicalBytes", text, StringComparison.Ordinal);
     }
 

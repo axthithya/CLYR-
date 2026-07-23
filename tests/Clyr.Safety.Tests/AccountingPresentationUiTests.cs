@@ -15,7 +15,7 @@ public sealed class AccountingPresentationUiTests
     public void ResultsPageShowsObservedLogicalSizeAndNotAvailableForIncompatibleAccounting()
     {
         var code = File.ReadAllText(Path.Combine(Pages, "ResultsPage.xaml.cs"));
-        Assert.Contains("AccountedMetricLabel.Text = basisDiffers ? \"Observed logical size\" : \"Accounted by this scan\";", code, StringComparison.Ordinal);
+        Assert.Contains("AccountedMetricLabel.Text = basisDiffers ? \"Storage found (logical size)\" : \"Storage mapped\";", code, StringComparison.Ordinal);
         Assert.Contains("\"Not available\"", code, StringComparison.Ordinal);
         Assert.Contains("summary.PresentableUnaccountedDriveBytes", code, StringComparison.Ordinal);
         Assert.DoesNotContain("OverviewPage.FormatSigned(summary.UnaccountedDriveBytes)", code, StringComparison.Ordinal);
@@ -25,7 +25,7 @@ public sealed class AccountingPresentationUiTests
     public void ResultsPageShowsCoverageUnavailableBadgeAndHidesTheProportionalBarForIncompatibleAccounting()
     {
         var code = File.ReadAllText(Path.Combine(Pages, "ResultsPage.xaml.cs"));
-        Assert.Contains("ScanQuality.AccountingBasisDiffers => (\"Coverage unavailable\"", code, StringComparison.Ordinal);
+        Assert.Contains("ScanQuality.AccountingBasisDiffers => (\"Cannot be calculated\"", code, StringComparison.Ordinal);
         Assert.Contains("StorageVisualization.Visibility = basisDiffers ? Visibility.Collapsed : Visibility.Visible;", code, StringComparison.Ordinal);
         Assert.Contains("AccountingBasisDiffersPanel.Visibility = basisDiffers ? Visibility.Visible : Visibility.Collapsed;", code, StringComparison.Ordinal);
 
@@ -51,7 +51,10 @@ public sealed class AccountingPresentationUiTests
     {
         var code = File.ReadAllText(Path.Combine(Pages, "ResultsPage.xaml.cs"));
         Assert.Contains("ClassificationHeadlineText.Text = summary.ClassificationPercentage is { } classified", code, StringComparison.Ordinal);
-        Assert.Contains("CoverageHeadlineText.Text = summary.AccountedPercentage is { } accounted", code, StringComparison.Ordinal);
+        // Section 4 correction: Coverage is now shown exactly once (the large top-right value in RenderStorageHero)
+        // — this card no longer repeats it as a separate headline.
+        Assert.Contains("AccountedPercentValue.Text = summary.AccountedPercentage is { } accounted", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("CoverageHeadlineText", code, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -59,8 +62,8 @@ public sealed class AccountingPresentationUiTests
     {
         var code = File.ReadAllText(Path.Combine(Pages, "ResultsPage.xaml.cs"));
         // Never a blanket "Unavailable" swallowing a genuinely valid "before" percentage.
-        Assert.Contains("var beforeText = beforePercentage is { } before ? $\"{before:F1}%\" : \"unavailable\";", code, StringComparison.Ordinal);
-        Assert.Contains("var afterText = afterPercentage is { } after ? $\"{after:F1}%\" : \"unavailable\";", code, StringComparison.Ordinal);
+        Assert.Contains("var beforeText = beforePercentage is { } before ? $\"{before:F1}%\" : \"cannot be calculated\";", code, StringComparison.Ordinal);
+        Assert.Contains("var afterText = afterPercentage is { } after ? $\"{after:F1}%\" : \"cannot be calculated\";", code, StringComparison.Ordinal);
         Assert.Contains("This is not a retry failure.", code, StringComparison.Ordinal);
     }
 
@@ -78,7 +81,7 @@ public sealed class AccountingPresentationUiTests
     {
         var code = File.ReadAllText(Path.Combine(Pages, "HistoryPage.xaml.cs"));
         Assert.Contains("PresentableUnaccountedBytes(item, detail)", code, StringComparison.Ordinal);
-        Assert.Contains("ScanQuality.AccountingBasisDiffers => \"Coverage unavailable\"", code, StringComparison.Ordinal);
+        Assert.Contains("ScanQuality.AccountingBasisDiffers => \"Coverage cannot be calculated\"", code, StringComparison.Ordinal);
         Assert.Contains("private static AccountingConsistency ConsistencyFor(SnapshotSummary item)", code, StringComparison.Ordinal);
     }
 

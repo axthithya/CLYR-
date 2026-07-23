@@ -9,7 +9,20 @@ namespace Clyr.App.Pages;
 
 public sealed partial class ResultsPage : Page
 {
-    private const int InitialContributorCount = 12;
+    /// <summary>Section 9 correction: the default contributor view always includes at least this many top
+    /// categories (by observed size), regardless of their individual share — never a technical byte threshold
+    /// that could behave badly on a small drive.</summary>
+    private const int DefaultContributorCount = 10;
+
+    /// <summary>Beyond <see cref="DefaultContributorCount"/>, a category is still shown by default only when it
+    /// represents a practically useful share of mapped storage — tiny entries (129 B, 1.18 MiB, and similar) add
+    /// no value in the primary view and are pushed behind "Show all categories" instead.</summary>
+    private const double DefaultContributorMinPercentage = 0.5;
+
+    /// <summary>An upper bound on the default view regardless of how many categories clear the percentage
+    /// threshold — the default view stays a short, scannable list; everything beyond this remains one click away,
+    /// never deleted from the underlying result.</summary>
+    private const int MaxDefaultContributorCount = 15;
 
     /// <summary>Guards against enqueueing a second redundant dispatcher callback while one is already pending —
     /// <see cref="RenderAdministratorRetry"/> always reads the controller's current
@@ -26,6 +39,16 @@ public sealed partial class ResultsPage : Page
     private ResultsContributorItem[] contributors = [];
     private bool contributorsExpanded;
     private ResultsFindingItem[] findings = [];
+    private ResultsPathItem[] topLevelDirectoriesAll = [];
+    private ResultsPathItem[] topLevelDirectoriesDefault = [];
+    private bool topLevelDirectoriesExpanded;
+
+    /// <summary>Section 10 correction: mirrors the contributor list's default-inclusion rule (section 9) — the
+    /// top N folders by size, plus any further folder still representing a practically useful share of mapped
+    /// storage, bounded by a maximum. Zero-byte entries are never included in the default view.</summary>
+    private const int DefaultTopLevelFolderCount = 10;
+    private const double DefaultTopLevelFolderMinPercentage = 0.5;
+    private const int MaxDefaultTopLevelFolderCount = 15;
 
     public ResultsPage(ResultsViewModel viewModel)
     {
@@ -126,33 +149,10 @@ public sealed partial class ResultsPage : Page
     {
         ProvisionalTitleText.Text = stillRunning ? "Analysis in progress" : "Analysis stopped";
         ProvisionalSubtitleText.Text = stillRunning
-            ? "CLYR is continuing to inspect the drive. Values may change until the analysis finishes."
-            : "The analysis stopped before finishing. These insights are the last available and are marked incomplete.";
+            ? "CLYR is still inspecting this drive. View the Scan page for live progress."
+            : "The analysis stopped before finishing. Start a new analysis, or view the Scan page for what was found.";
         ProvisionalBadge.Text = stillRunning ? "In progress" : "Incomplete";
         ProvisionalBadge.Glyph = stillRunning ? "" : "";
-
-        ProvisionalObservedText.Text = OverviewPage.Format(snapshot.LogicalBytesObserved);
-        ProvisionalCoverageText.Text = snapshot.ProvisionalCoveragePercentage is { } coverage ? $"{coverage:F1}%" : "Unavailable";
-        ProvisionalExaminedText.Text = $"{snapshot.FilesObserved:N0} files, {snapshot.DirectoriesObserved:N0} folders";
-        ProvisionalElapsedText.Text = snapshot.Elapsed.ToString(@"mm\:ss", System.Globalization.CultureInfo.InvariantCulture);
-        ProvisionalWarningsText.Text = snapshot.WarningCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
-        ProvisionalLimitationsText.Text = snapshot.LimitationCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
-
-        ProvisionalContributorList.ItemsSource = snapshot.TopContributors
-            .Where(item => item.LogicalBytes > 0)
-            .OrderByDescending(item => item.LogicalBytes)
-            .Select(item => new ResultsLimitationRow(OverviewPage.Humanize(item.Category), OverviewPage.Format(item.LogicalBytes)))
-            .ToArray();
-        ProvisionalDirectoryList.ItemsSource = snapshot.TopDirectories
-            .OrderByDescending(item => item.LogicalBytes)
-            .Take(10)
-            .Select(item => new ResultsLimitationRow(item.DisplayPath, OverviewPage.Format(item.LogicalBytes)))
-            .ToArray();
-        ProvisionalFileList.ItemsSource = snapshot.TopFiles
-            .OrderByDescending(item => item.LogicalBytes)
-            .Take(10)
-            .Select(item => new ResultsLimitationRow(item.DisplayPath, OverviewPage.Format(item.LogicalBytes)))
-            .ToArray();
     }
 
     private void RenderIdentity(ScanResult r)
@@ -171,8 +171,10 @@ public sealed partial class ResultsPage : Page
         // result when in fact large portions of the drive were never observed within Quick's bounded budget.
         var quickEstimateComplete = !completedWithWarnings && r.Mode == ScanMode.Quick
             && ScanAccounting.Summarize(r).Quality is ScanQuality.Partial or ScanQuality.Insufficient;
+        // Section 6 correction: "Completed with warnings" next to a separate "N access issues" badge said the
+        // same thing twice. One neutral lifecycle status here; the access-issue badge below carries the count.
         StatusBadgeControl.Text = completedWithWarnings
-            ? "Completed with warnings"
+            ? "Drive analysis complete"
             : quickEstimateComplete ? "Quick estimate complete" : OverviewPage.Humanize(r.Status);
         StatusBadgeControl.Glyph = completedWithWarnings ? "" : "";
 
@@ -181,15 +183,15 @@ public sealed partial class ResultsPage : Page
         // scan-policy boundaries (Quick's time/item/pending-capacity budget being reached, an expected outcome
         // of a bounded scan, not a warning about the scan itself). Informational notes (reparse skips, cloud
         // placeholders, checkpoint resumption) are not badged at all; they remain in the limitations list below.
-        var warningCount = r.Issues.Where(item => item.Severity is
-            ScanIssueSeverity.AccessWarning or ScanIssueSeverity.PermissionLimited or ScanIssueSeverity.DataChanged or ScanIssueSeverity.Fatal)
-            .Sum(item => item.Count);
+        var warningCount = AccessIssueCount(r);
         WarningBadgeControl.Visibility = warningCount > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (warningCount > 0)
         {
             // Section 6/14: name the actual warning category rather than a generic count — these are access
             // warnings (permission-limited or access-denied areas), never an unqualified "N warnings".
-            WarningBadgeControl.Text = $"{warningCount:N0} access {(warningCount == 1 ? "warning" : "warnings")}";
+            // Section 15: "access issues" reads more naturally in normal UI; the more technical "access warnings"
+            // phrasing remains in Developer Mode and other advanced surfaces.
+            WarningBadgeControl.Text = $"{warningCount:N0} access {(warningCount == 1 ? "issue" : "issues")}";
             WarningBadgeControl.Glyph = "";
         }
 
@@ -212,17 +214,17 @@ public sealed partial class ResultsPage : Page
         // used-bytes basis (hard links, sparse files, compression, filesystem-managed storage).
         var basisDiffers = summary.Consistency.HasFlag(AccountingConsistency.LogicalExceedsDriveUsed);
 
-        // Section 4/7 correction: a bare large "Unavailable" over a small "accounted" caption reads as
-        // "Unavailable accounted" — nonsensical. When the accounting basis is incompatible, collapse both into
-        // one neutral, self-contained phrase and hide the now-redundant caption entirely.
-        AccountedPercentValue.Text = summary.AccountedPercentage is { } accounted ? $"{accounted:F1}%" : "Coverage unavailable";
-        AccountedPercentCaptionText.Visibility = summary.AccountedPercentage is not null ? Visibility.Visible : Visibility.Collapsed;
+        // Section 4 correction: "Coverage" is now a permanent caption under the large value (never hidden) — the
+        // value itself is either the real percentage or the one canonical phrase used everywhere in this app for
+        // an incompatible accounting basis: "Coverage cannot be calculated". Never alternate between that and
+        // "Unavailable"/"Cannot be compared directly"/"Coverage unavailable"/"Accounted percentage unavailable".
+        AccountedPercentValue.Text = summary.AccountedPercentage is { } accounted ? $"{accounted:F1}%" : "Cannot be calculated";
         AccountedDescriptionText.Text = summary.AccountedPercentage is not null
-            ? "of this drive's used storage was observed by this analysis."
+            ? "of this drive's used storage was mapped by this analysis."
             : basisDiffers
-                ? "CLYR observed logical filesystem sizes that cannot be directly compared with the drive's physical used-space total."
-                : "Drive coverage cannot be calculated from the available accounting basis.";
-        AccountedMetricLabel.Text = basisDiffers ? "Observed logical size" : "Accounted by this scan";
+                ? "Some files share storage or use compression, so logical file sizes can be larger than the physical space Windows reports."
+                : "Coverage cannot be calculated for this analysis.";
+        AccountedMetricLabel.Text = basisDiffers ? "Storage found (logical size)" : "Storage mapped";
         AccountedMetric.Text = OverviewPage.Format(r.LogicalBytesObserved);
         // Section 5: never a negative "amount of unobserved storage" — PresentableUnaccountedDriveBytes is null
         // (never a raw negative UnaccountedDriveBytes) exactly when the bases are incompatible.
@@ -232,14 +234,16 @@ public sealed partial class ResultsPage : Page
         FreeMetric.Text = drive?.FreeBytes is { } free ? OverviewPage.Format(free) : "Unavailable";
         DriveUsedMetric.Text = r.DriveUsedBytes is { } used ? OverviewPage.Format(used) : "Unavailable";
 
-        // Section 8: never render a proportional bar implying 276 GiB fits inside a 275 GiB drive — replaced
-        // entirely with a neutral, non-proportional explanation surface when the bases are incompatible.
+        // Section 8 correction: lead with the plain numbers, not a technical accounting-basis paragraph. The
+        // complete technical explanation (hard links, sparse files, compression, filesystem-managed storage)
+        // moves into "How these numbers are calculated" (see RenderQualityAndLimitations) instead of repeating
+        // here — never render a proportional bar implying 276 GiB fits inside a 275 GiB drive.
         StorageVisualization.Visibility = basisDiffers ? Visibility.Collapsed : Visibility.Visible;
         AccountingBasisDiffersPanel.Visibility = basisDiffers ? Visibility.Visible : Visibility.Collapsed;
         if (basisDiffers)
         {
-            AccountingBasisDiffersText.Text = "Hard links, sparse files, compression and filesystem-managed storage can cause " +
-                "logical totals to exceed physical usage. Accounting basis differs — a proportional comparison is not shown.";
+            AccountingBasisDiffersText.Text = "Some files share storage or use compression, so logical file sizes can be larger " +
+                "than the physical space Windows reports.";
             AutomationProperties.SetName(AccountingBasisDiffersPanel, AccountingBasisDiffersText.Text);
             return;
         }
@@ -266,28 +270,22 @@ public sealed partial class ResultsPage : Page
     private void RenderCoverageAndClassification(ScanResult r)
     {
         var summary = ScanAccounting.Summarize(r);
-        CoverageHeadlineText.Text = summary.AccountedPercentage is { } accounted
-            ? $"{accounted:F1}% accounted - CLYR observed {AccountedPortion(accounted)} of the drive's used storage."
-            : "Accounted percentage unavailable for this scan.";
+        // Section 4 correction: Coverage is already shown once, as the large top-right value — this card no
+        // longer repeats it. Only Categorized remains here.
         ClassificationHeadlineText.Text = summary.ClassificationPercentage is { } classified
-            ? $"{classified:F1}% classified - about {Rounded(classified)}% of the observed storage matched known categories."
-            : "Classification percentage unavailable for this scan.";
+            ? $"{classified:F1}% of mapped storage"
+            : "Unavailable";
 
-        ClassifiedValueText.Text = OverviewPage.Format(r.Classification?.Coverage.ClassifiedBytes ?? 0);
-        UnclassifiedValueText.Text = OverviewPage.Format(summary.UnclassifiedObservedBytes);
-        UnobservedValueText.Text = summary.PresentableUnaccountedDriveBytes is { } notObserved
-            ? OverviewPage.FormatSigned(notObserved)
-            : "Not available";
-
-        // Section 8 correction: administrator retry only carries aggregate per-root byte counts, never per-file
-        // classification evidence — every retried byte lands in Unknown, which can lower the classification
-        // percentage even though coverage improved. Explain that truthfully rather than leaving it unexplained.
+        // Section 10 correction: administrator retry only carries aggregate per-root byte counts, never per-file
+        // classification evidence — every retried byte lands in Unknown, which can lower the categorized
+        // percentage even though coverage improved. Explain that truthfully, in plain language, rather than
+        // leaving it unexplained.
         var (retryApplied, uninspectedUnclassified) = RetryUninspectedUnclassifiedBytes();
         ClassificationRetryNoteText.Visibility = retryApplied && uninspectedUnclassified > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (retryApplied && uninspectedUnclassified > 0)
-            ClassificationRetryNoteText.Text = "Administrator Retry added storage-accounting evidence without enough per-file/category " +
-                $"information to classify it. This storage remains unclassified. Administrator-inspected logical storage remaining " +
-                $"unclassified: {OverviewPage.Format(uninspectedUnclassified)}.";
+            ClassificationRetryNoteText.Text = "Why did the categorized percentage change? Administrator Retry found more storage, " +
+                "but it did not return enough file-level details to categorize all of it. The storage is included in the total and " +
+                $"remains uncategorized ({OverviewPage.Format(uninspectedUnclassified)}).";
     }
 
     /// <summary>Truthful, bounded estimate of how much of the currently active result's observed logical bytes
@@ -303,22 +301,6 @@ public sealed partial class ResultsPage : Page
         return (true, Math.Max(0, attempt.AdditiveLogicalBytes) + Math.Max(0, attempt.ReplacementNetLogicalBytes));
     }
 
-    private static string Rounded(double percentage) => percentage switch
-    {
-        >= 95 => "all",
-        >= 45 and <= 55 => "half",
-        _ => $"{percentage:F0}"
-    };
-
-    private static string AccountedPortion(double percentage) => percentage switch
-    {
-        >= 90 => "nearly all",
-        >= 60 => "most",
-        >= 25 => "part",
-        > 0 => "a small portion",
-        _ => "none"
-    };
-
     private void RenderQualityAndLimitations(ScanResult r)
     {
         var summary = ScanAccounting.Summarize(r);
@@ -327,10 +309,10 @@ public sealed partial class ResultsPage : Page
         // percentage.
         var (qualityText, qualityGlyph) = summary.Quality switch
         {
-            ScanQuality.Excellent => ("Excellent coverage", ""),
-            ScanQuality.Good => ("Good coverage", ""),
-            ScanQuality.AccountingBasisDiffers => ("Coverage unavailable", ""),
-            _ => ("Limited coverage", "") // Partial, Insufficient (a genuinely low, valid percentage)
+            ScanQuality.Excellent => ("Excellent", ""),
+            ScanQuality.Good => ("Good", ""),
+            ScanQuality.AccountingBasisDiffers => ("Cannot be calculated", ""),
+            _ => ("Limited", "") // Partial, Insufficient (a genuinely low, valid percentage)
         };
         QualityBadgeControl.Text = qualityText;
         QualityBadgeControl.Glyph = qualityGlyph;
@@ -339,14 +321,14 @@ public sealed partial class ResultsPage : Page
         // two separate concepts, never merged into one ambiguous sentence.
         QualityDescriptionText.Text = summary.Quality switch
         {
-            ScanQuality.Excellent or ScanQuality.Good => "This scan accounted for most or all of this drive's used space.",
-            ScanQuality.AccountingBasisDiffers => "CLYR completed the drive analysis, but logical filesystem sizes cannot be " +
-                "directly compared with the drive's physical used-space total.",
+            ScanQuality.Excellent or ScanQuality.Good => "CLYR mapped nearly all of the storage Windows currently reports as used.",
+            ScanQuality.AccountingBasisDiffers => "Storage found cannot be directly compared with what Windows reports as used.",
             _ => "Some areas could still not be inspected."
         };
 
         var rows = new List<ResultsLimitationRow>
         {
+            new("Coverage vs. categorized", "Coverage is how much used storage CLYR mapped. Categorized is how much of that mapped storage matched a known type. Mapped but uncategorized storage is still real storage — it simply has no known type yet."),
             new("Logical vs. allocated size", "Sizes reflect logical (namespace) bytes, not real on-disk allocation."),
             new("Hard links", "Content shared by multiple paths may be counted more than once in logical totals."),
             new("Filesystem-managed storage", "Some Windows-managed areas are reported but are not cleanup candidates."),
@@ -376,29 +358,37 @@ public sealed partial class ResultsPage : Page
             })
             .ToArray() ?? [];
         ContributorsSection.Visibility = contributors.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ContributorsExpandButton.Visibility = contributors.Length > InitialContributorCount ? Visibility.Visible : Visibility.Collapsed;
 
-        var quality = ScanAccounting.Summarize(r).Quality;
-        var limitedCoverage = quality is ScanQuality.Partial or ScanQuality.Insufficient or ScanQuality.AccountingBasisDiffers;
         var (retryApplied, uninspectedUnclassified) = RetryUninspectedUnclassifiedBytes();
-        ContributorsHeader.Title = limitedCoverage ? "Largest observed contributors" : "Why is this drive full?";
-        // Section 9 correction: after a retry that added storage the classification protocol cannot categorize,
-        // contributor rankings must say so — they never claim to explain every observed byte in that case.
+        // Section 8 correction: one consistent heading in every state — never changed by coverage or by whether
+        // a retry was applied.
+        ContributorsHeader.Title = "What is using space?";
+        // Section 8/11 correction: drop the accessibility-implementation sentence ("include exact sizes so the
+        // ranking never relies on color alone") from user-facing copy — natural wording instead. After a retry
+        // that added storage the classification protocol cannot categorize, say so truthfully.
         ContributorsHeader.Description = retryApplied && uninspectedUnclassified > 0
-            ? "Rankings use classified logical storage observed by CLYR. Administrator-inspected storage without category evidence remains unclassified. Percentages show share of observed logical storage."
-            : limitedCoverage
-                ? "These rankings describe only the storage observed by this analysis. Percentages show share of observed logical storage."
-                : "Ranked contributors include exact sizes so the ranking never relies on color alone. Percentages show share of observed logical storage.";
+            ? "Largest categories found during this analysis. Percentages are based on the storage CLYR mapped. Some administrator-inspected storage could not be categorized and is not shown as a named category below."
+            : "Largest categories found during this analysis. Percentages are based on the storage CLYR mapped.";
 
         RenderContributorList();
     }
 
+    /// <summary>Section 9 correction: the default view shows the most useful categories only — the top
+    /// <see cref="DefaultContributorCount"/> plus any further category still representing at least
+    /// <see cref="DefaultContributorMinPercentage"/>% of mapped storage, bounded by
+    /// <see cref="MaxDefaultContributorCount"/>. Every category remains available, in the exact same order, via
+    /// "Show all categories" — nothing is ever removed from the underlying result.</summary>
     private void RenderContributorList()
     {
-        var visible = contributorsExpanded ? contributors : contributors.Take(InitialContributorCount).ToArray();
+        var defaultVisible = contributors
+            .Where((item, index) => index < DefaultContributorCount || item.PercentageValue >= DefaultContributorMinPercentage)
+            .Take(MaxDefaultContributorCount)
+            .ToArray();
+        var visible = contributorsExpanded ? contributors : defaultVisible;
         ContributorList.ItemsSource = visible;
-        if (contributors.Length > InitialContributorCount)
-            ContributorsExpandButton.Content = contributorsExpanded ? "Show fewer" : $"Show all {contributors.Length}";
+        ContributorsExpandButton.Visibility = contributors.Length > defaultVisible.Length ? Visibility.Visible : Visibility.Collapsed;
+        if (contributors.Length > defaultVisible.Length)
+            ContributorsExpandButton.Content = contributorsExpanded ? "Show fewer categories" : $"Show all {contributors.Length} categories";
     }
 
     private void ToggleContributors(object sender, RoutedEventArgs args)
@@ -414,15 +404,14 @@ public sealed partial class ResultsPage : Page
             var size = OverviewPage.Format(item.LogicalBytes);
             var category = OverviewPage.Humanize(item.Category);
             var confidence = item.Confidence.ToString();
-            // Section 1/13 correction: SafetyStatus is already a complete, correctly-cased prose sentence (it may
-            // contain the CLYR brand name or another acronym) — running it through the PascalCase-word-splitting
-            // humanizer here letter-spaced that embedded text into a broken, spaced-out rendering of the brand
-            // name. Only the enum-name fallback is a single PascalCase token that legitimately needs humanizing.
-            var safety = item.Explanation.SafetyStatus.Length > 0
-                ? item.Explanation.SafetyStatus
-                : OverviewPage.Humanize(item.Status.ToString());
-            return new ResultsFindingItem(item.Title, size, category, confidence, safety, item.Explanation.WhatItMeans, item.Confidence,
-                $"{item.Title}, {size}, {category}, {confidence} confidence, {safety}. {item.Explanation.WhatItMeans}");
+            // Section 12 correction: a single natural status word/phrase replaces the old repeated
+            // "Confirmed confidence · Protected or product-managed · CLYR provides explanation only" caption —
+            // normal users should not need to read internal confidence terminology on every row. Category and
+            // confidence remain available as a tooltip for anyone who wants the technical detail.
+            var naturalStatus = NaturalFindingStatus(item.Category, item.Status);
+            var technicalDetail = $"{category} - {confidence} confidence";
+            return new ResultsFindingItem(item.Title, size, naturalStatus, item.Explanation.WhatItMeans, technicalDetail, item.Confidence,
+                $"{item.Title}, {size}, {naturalStatus}. {item.Explanation.WhatItMeans}");
         }).ToArray() ?? [];
         FindingsSection.Visibility = findings.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -432,8 +421,8 @@ public sealed partial class ResultsPage : Page
         FindingsProvenanceText.Visibility = retryApplied ? Visibility.Visible : Visibility.Collapsed;
         if (retryApplied)
             FindingsProvenanceText.Text = uninspectedUnclassified > 0
-                ? "Findings remain based on classification evidence from the original Drive Analysis. Retry-added storage without category evidence remains unclassified."
-                : "Findings remain based on classification evidence from the original Drive Analysis.";
+                ? "Findings remain based on the original Drive Analysis. Storage found by Administrator Retry without enough detail to categorize remains uncategorized."
+                : "Findings remain based on the original Drive Analysis.";
         ApplyFindingFilter();
     }
 
@@ -454,11 +443,19 @@ public sealed partial class ResultsPage : Page
 
     private void RenderDirectoriesAndFiles(ScanResult r)
     {
-        // Section 12 correction: the main list must contain only non-overlapping rows - TopLevelDirectories is
+        // Section 12/13 correction: the main list must contain only non-overlapping rows - TopLevelDirectories is
         // exactly that (depth-1 children of the drive root). LargestDirectories can include deeper, overlapping
         // descendants, which must never be summed against the top-level rows above them; those go into a
-        // clearly-labelled, overlap-explained secondary view instead (see below).
-        DirectoryList.ItemsSource = r.TopLevelDirectories.Select(item => ToPathItem(item, r, "")).ToArray();
+        // clearly-labelled, overlap-explained secondary view instead. Zero-byte entries add no practical value in
+        // the default view, so they are hidden until "Show all folders" is used.
+        var topLevelSorted = r.TopLevelDirectories.OrderByDescending(item => item.LogicalBytes).ToArray();
+        topLevelDirectoriesAll = topLevelSorted.Select(item => ToPathItem(item, r, "")).ToArray();
+        topLevelDirectoriesDefault = topLevelDirectoriesAll
+            .Where(item => item.PercentageValue > 0)
+            .Where((item, index) => index < DefaultTopLevelFolderCount || item.PercentageValue >= DefaultTopLevelFolderMinPercentage)
+            .Take(MaxDefaultTopLevelFolderCount)
+            .ToArray();
+        RenderTopLevelDirectoryList();
         DirectoriesSection.Visibility = r.TopLevelDirectories.Count > 0 || r.LargestDirectories.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         var topLevelPaths = new HashSet<string>(r.TopLevelDirectories.Select(item => NormalizedAncestryKey(item.DisplayPath)), StringComparer.OrdinalIgnoreCase);
@@ -474,11 +471,50 @@ public sealed partial class ResultsPage : Page
 
         FileList.ItemsSource = r.LargestFiles.Select(item => ToPathItem(item, r, "")).ToArray();
         FilesSection.Visibility = r.LargestFiles.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        FilesProvenanceText.Visibility = retryApplied ? Visibility.Visible : Visibility.Collapsed;
-        if (retryApplied)
-            FilesProvenanceText.Text = "Individual-file rankings remain based on the original Drive Analysis. " +
-                "Administrator Retry updates storage accounting and directory coverage only.";
+        FilesProvenanceText.Visibility = r.LargestFiles.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        FilesProvenanceText.Text = retryApplied
+            ? "Large files are not automatically safe to remove. Individual-file rankings remain based on the " +
+                "original Drive Analysis. Administrator Retry updates storage accounting and directory coverage only."
+            : "Large files are not automatically safe to remove.";
     }
+
+    /// <summary>Renders the top-level folder list, hiding zero-byte entries by default (section 13) — they add
+    /// no practical value in the common case and only clutter the default view. "Show all folders" reveals them
+    /// without ever discarding the underlying data.</summary>
+    private void RenderTopLevelDirectoryList()
+    {
+        DirectoryList.ItemsSource = topLevelDirectoriesExpanded
+            ? topLevelDirectoriesAll
+            : topLevelDirectoriesDefault;
+        ShowAllFoldersButton.Visibility = topLevelDirectoriesDefault.Length < topLevelDirectoriesAll.Length ? Visibility.Visible : Visibility.Collapsed;
+        ShowAllFoldersButton.Content = topLevelDirectoriesExpanded ? "Show fewer folders" : "Show all folders";
+    }
+
+    private void ToggleTopLevelDirectories(object sender, RoutedEventArgs args)
+    {
+        topLevelDirectoriesExpanded = !topLevelDirectoriesExpanded;
+        RenderTopLevelDirectoryList();
+    }
+
+    /// <summary>Maps a finding's raw <see cref="FindingStatus"/> to one short, natural phrase a non-technical
+    /// user can understand at a glance — never broadening cleanup eligibility, never marking a protected item as
+    /// cleanable; this is presentation only. Full category/confidence detail remains one tooltip away.</summary>
+    private static string NaturalFindingStatus(StorageCategory category, FindingStatus status) => status switch
+    {
+        FindingStatus.Protected => category is StorageCategory.WindowsSystemManaged or StorageCategory.WindowsUpdateServicing or StorageCategory.RestoreRecovery
+            ? "Protected by Windows"
+            : "Managed by another application",
+        FindingStatus.Review => "Needs your review",
+        FindingStatus.Unknown => "Unsupported",
+        _ => "Information only"
+    };
+
+    /// <summary>The count shown as "access issues" in normal UI (and "access warnings" in technical/advanced
+    /// surfaces) — genuine access-denied/permission/data-changed/fatal issues only, never Quick's expected
+    /// policy-boundary budget or purely informational notes.</summary>
+    private static long AccessIssueCount(ScanResult r) => r.Issues.Where(item => item.Severity is
+        ScanIssueSeverity.AccessWarning or ScanIssueSeverity.PermissionLimited or ScanIssueSeverity.DataChanged or ScanIssueSeverity.Fatal)
+        .Sum(item => item.Count);
 
     private static ResultsPathItem ToPathItem(RankedPath item, ScanResult r, string glyph)
     {
@@ -486,7 +522,7 @@ public sealed partial class ResultsPage : Page
         var name = ShortName(item.DisplayPath);
         var shortPath = ShortenPath(item.DisplayPath);
         var percentage = r.LogicalBytesObserved > 0 ? Math.Clamp(item.LogicalBytes * 100d / r.LogicalBytesObserved, 0, 100) : 0;
-        return new ResultsPathItem(name, shortPath, item.DisplayPath, size, $"{percentage:F1}%", glyph,
+        return new ResultsPathItem(name, shortPath, item.DisplayPath, size, $"{percentage:F1}%", percentage, glyph,
             $"{name}, {shortPath}, {size}, {percentage:F1}% share of observed logical storage.");
     }
 
@@ -542,12 +578,25 @@ public sealed partial class ResultsPage : Page
     private void RenderAdministratorRetry()
     {
         var state = ViewModel.AdministratorRetry.State;
-        AdministratorRetryCard.Visibility = state.IsAdministratorRetryAvailable || state.IsAdministratorRetryRunning ? Visibility.Visible : Visibility.Collapsed;
-
         var everAttempted = state.Phase is not (AdministratorRetryPhase.Idle or AdministratorRetryPhase.Hidden or AdministratorRetryPhase.Running);
+        // Section 3 correction (confirmed real-machine defect): the card — and its terminal summary — must stay
+        // visible even once no further retry remains available (IsAdministratorRetryAvailable can legitimately
+        // become false after a fully-resolved retry). Collapsing on availability alone silently threw the
+        // terminal summary away.
+        AdministratorRetryCard.Visibility =
+            state.IsAdministratorRetryAvailable || state.IsAdministratorRetryRunning || everAttempted
+                ? Visibility.Visible : Visibility.Collapsed;
+        // The pre-retry pitch text ("Some folders could not be fully inspected...") is redundant and stale once
+        // a retry has actually concluded — the terminal InfoBar/summary explains the outcome instead.
+        AdministratorRetryHeader.Visibility = everAttempted ? Visibility.Collapsed : Visibility.Visible;
+
         AdministratorRetryButton.Content = everAttempted ? AdministratorRetryUx.RetryAgainButtonText : AdministratorRetryUx.ButtonText;
         AutomationProperties.SetName(AdministratorRetryButton, everAttempted ? AdministratorRetryUx.RetryAgainButtonText : AdministratorRetryUx.ButtonText);
         AdministratorRetryButton.IsEnabled = state.IsAdministratorRetryAvailable && !state.IsAdministratorRetryRunning;
+        // Once no further retry can ever be available (fully resolved), the button disappears entirely rather
+        // than lingering, disabled, beneath the summary.
+        AdministratorRetryButton.Visibility =
+            state.IsAdministratorRetryAvailable || state.IsAdministratorRetryRunning ? Visibility.Visible : Visibility.Collapsed;
 
         AdministratorRetryRunningPanel.Visibility = state.IsAdministratorRetryRunning ? Visibility.Visible : Visibility.Collapsed;
         if (state.IsAdministratorRetryRunning)
@@ -590,21 +639,29 @@ public sealed partial class ResultsPage : Page
             var rootsReplaced = attempt?.RootsReplaced ?? 0;
             var rootsOverlapped = attempt?.RootsOverlapped ?? 0;
 
-            var inspectedText = $"{state.RootsCompleted} restricted area{(state.RootsCompleted == 1 ? "" : "s")} were safely reconciled.";
-            var parts = new List<string>();
-            if (rootsAdditive > 0)
-                parts.Add($" {rootsAdditive} area{(rootsAdditive == 1 ? "" : "s")} added {OverviewPage.Format(additiveBytes)} of previously unobserved storage.");
-            if (rootsReplaced > 0)
-                parts.Add($" {rootsReplaced} area{(rootsReplaced == 1 ? "" : "s")} changed while the retry was running and " +
-                    $"{(rootsReplaced == 1 ? "was" : "were")} safely replaced (net change {OverviewPage.FormatSigned(replacementNet)}).");
-            if (rootsOverlapped > 0)
-                parts.Add($" {rootsOverlapped} area{(rootsOverlapped == 1 ? "" : "s")} found no new evidence.");
-            if (parts.Count == 0 && state.RootsCompleted > 0)
-                parts.Add(" No previously unobserved storage was added to this result.");
-            var remainingText = state.RootsStillInaccessible > 0
-                ? $" {state.RootsStillInaccessible} restricted area{(state.RootsStillInaccessible == 1 ? "" : "s")} remain unavailable."
-                : " No restricted areas remain unavailable.";
-            AdministratorRetrySummary.Text = inspectedText + string.Concat(parts) + remainingText;
+            // Section 9 correction: natural language, distinguishing added/refreshed/overlap/remaining areas —
+            // never describing a replacement's net change as "newly added" storage.
+            var areaParts = new List<string>();
+            if (rootsAdditive > 0) areaParts.Add($"{rootsAdditive} added new storage information");
+            if (rootsReplaced > 0) areaParts.Add($"{rootsReplaced} refreshed existing results");
+            if (rootsOverlapped > 0) areaParts.Add($"{rootsOverlapped} contained no additional information");
+            if (state.RootsStillInaccessible > 0) areaParts.Add($"{state.RootsStillInaccessible} remain restricted");
+            var areasText = areaParts.Count > 0 ? string.Join(", ", areaParts) + "." : "No additional areas were found.";
+
+            // Section 3 correction: always show Files checked/Folders checked/Access issues/Coverage before→after
+            // — using the actual reconciliation values, never conditionally hidden when unchanged, matching the
+            // confirmed real-machine example exactly.
+            var originalResult = state.CombinedResult?.OriginalResult;
+            var currentResult = ViewModel.Session.Result;
+            var comparisons = new List<string>();
+            if (originalResult is not null && currentResult is not null)
+            {
+                comparisons.Add($"Files checked: {originalResult.Coverage.FilesObserved:N0} -> {currentResult.Coverage.FilesObserved:N0}.");
+                comparisons.Add($"Folders checked: {originalResult.Coverage.DirectoriesObserved:N0} -> {currentResult.Coverage.DirectoriesObserved:N0}.");
+                comparisons.Add($"Access issues: {AccessIssueCount(originalResult):N0} -> {AccessIssueCount(currentResult):N0}.");
+            }
+            AdministratorRetrySummary.Text = "CLYR safely inspected additional restricted areas. " + areasText +
+                (comparisons.Count > 0 ? " " + string.Join(" ", comparisons) : string.Empty);
 
             // Section 7 correction: "before" is shown whenever it was ever valid, independent of whether "after"
             // is now unavailable — a retry that adds real logical-over-physical data is a success, never a
@@ -612,8 +669,8 @@ public sealed partial class ResultsPage : Page
             // "the comparison itself failed."
             var beforePercentage = state.CombinedResult is { } combined ? ScanAccounting.Summarize(combined.OriginalResult).AccountedPercentage : null;
             var afterPercentage = ViewModel.Session.Result is { } current ? ScanAccounting.Summarize(current).AccountedPercentage : null;
-            var beforeText = beforePercentage is { } before ? $"{before:F1}%" : "unavailable";
-            var afterText = afterPercentage is { } after ? $"{after:F1}%" : "unavailable";
+            var beforeText = beforePercentage is { } before ? $"{before:F1}%" : "cannot be calculated";
+            var afterText = afterPercentage is { } after ? $"{after:F1}%" : "cannot be calculated";
             AdministratorRetryCoverageText.Text = $"{beforeText} -> {afterText}";
             // Never the old full-sum (additive + replacement net) figure — only genuinely additive bytes are
             // safe to describe as "newly accounted".
@@ -720,10 +777,10 @@ internal sealed record ResultsContributorItem(
     int Rank, string Name, string Glyph, string Size, string Percentage, double PercentageValue, string AccessibleText);
 
 internal sealed record ResultsFindingItem(
-    string Title, string Size, string Category, string Confidence, string SafetyStatus, string Explanation,
+    string Title, string Size, string NaturalStatus, string Explanation, string TechnicalDetail,
     FindingConfidence ConfidenceValue, string AccessibleText);
 
 internal sealed record ResultsPathItem(
-    string Name, string ShortPath, string FullPath, string Size, string Percentage, string Glyph, string AccessibleText);
+    string Name, string ShortPath, string FullPath, string Size, string Percentage, double PercentageValue, string Glyph, string AccessibleText);
 
 internal sealed record ResultsLimitationRow(string Label, string Value);

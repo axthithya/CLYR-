@@ -159,6 +159,57 @@ public sealed class AdministratorRetryUxTests
     }
 
     [Fact]
+    public async Task ReEvaluatingTheEnrichedResultAfterASuccessfulRetryKeepsTheTerminalSummary()
+    {
+        // Confirmed real-machine defect: applying a successful retry's enriched result fires
+        // AppSessionViewModel.StateChanged synchronously, which the page's own subscription turns into another
+        // Evaluate(...) call for the now-enriched result — before the page ever renders the just-set Applied
+        // state. The old behavior discarded that terminal summary outright, so only the plain retry button ever
+        // reached the screen even though the retry had already succeeded.
+        var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        service.NextResult = AppliedResult();
+        var controller = new AdministratorRetryController(service);
+        var original = OriginalResult();
+        controller.Evaluate(original);
+
+        await controller.RunAsync(original);
+        Assert.Equal(AdministratorRetryPhase.Applied, controller.State.Phase);
+        var combinedBeforeReEvaluate = controller.State.CombinedResult;
+
+        // Enrichment always preserves ScanId (see AppSessionViewModel.ApplyEnrichedResult) — a different object,
+        // same identity.
+        var enriched = original with { LogicalBytesObserved = original.LogicalBytesObserved + 500 };
+        controller.Evaluate(enriched);
+
+        Assert.Equal(AdministratorRetryPhase.Applied, controller.State.Phase);
+        Assert.Same(combinedBeforeReEvaluate, controller.State.CombinedResult);
+        // The fresh availability check still merges in — so a "retry again" button can appear beneath the
+        // summary when further restricted roots remain eligible.
+        Assert.True(controller.State.IsAdministratorRetryAvailable);
+        Assert.Equal(1, controller.State.ReplaceableRootCount);
+    }
+
+    [Fact]
+    public async Task ReEvaluatingADifferentScanIdAfterATerminalOutcomeStartsCompletelyFresh()
+    {
+        var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
+        service.NextResult = AppliedResult();
+        var controller = new AdministratorRetryController(service);
+        var original = OriginalResult();
+        controller.Evaluate(original);
+        await controller.RunAsync(original);
+        Assert.Equal(AdministratorRetryPhase.Applied, controller.State.Phase);
+
+        // A genuinely new Drive Analysis — different ScanId — must never inherit the previous analysis's
+        // terminal summary.
+        var newAnalysis = ScanFixtures.Result(ScanMode.Deep, ScanStatus.Completed) with { ScanId = Guid.NewGuid() };
+        controller.Evaluate(newAnalysis);
+
+        Assert.Equal(AdministratorRetryPhase.Idle, controller.State.Phase);
+        Assert.Null(controller.State.CombinedResult);
+    }
+
+    [Fact]
     public async Task DeniedOutcomeShowsANeutralMessageAndRestoresAvailability()
     {
         var service = FakeService.Evaluating(new(true, ElevatedScanRetryEligibilityOutcome.Eligible, 1, 1, "elevated-retry-availability.eligible"));
