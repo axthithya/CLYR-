@@ -111,7 +111,9 @@ public sealed class ExecutionReceipt
         DateTimeOffset startedAtUtc, DateTimeOffset? completedAtUtc, ExecutionState finalState, bool cancelled,
         bool elevationUsed, ExecutionSummary summary, long? driveFreeBytesBefore, long? driveFreeBytesAfter,
         long? observedFreeSpaceDeltaBytes, ImmutableDictionary<string, int> outcomeCategories,
-        ImmutableArray<string> warnings, ImmutableArray<string> limitations, string privacyMode, string digest)
+        ImmutableArray<string> warnings, ImmutableArray<string> limitations, string privacyMode, string digest,
+        Guid sourceScanId, string evidenceStateId, ImmutableArray<string> actionIds,
+        Guid executionSessionId, string windowsUserSidFingerprint)
     {
         SchemaVersion = schemaVersion;
         ExecutionId = executionId;
@@ -134,6 +136,11 @@ public sealed class ExecutionReceipt
         Limitations = limitations;
         PrivacyMode = privacyMode;
         Digest = digest;
+        SourceScanId = sourceScanId;
+        EvidenceStateId = evidenceStateId;
+        ActionIds = actionIds;
+        ExecutionSessionId = executionSessionId;
+        WindowsUserSidFingerprint = windowsUserSidFingerprint;
     }
 
     public int SchemaVersion { get; }
@@ -157,4 +164,27 @@ public sealed class ExecutionReceipt
     public ImmutableArray<string> Limitations { get; }
     public string PrivacyMode { get; }
     public string Digest { get; }
+
+    /// <summary>The completed analysis this execution's plan was built from — <see cref="Guid.Empty"/> when the
+    /// plan had no analysis result at all (a plan built only from the always-live CLYR-owned-temp-artifact
+    /// candidate). Durable crash recovery and replay protection (see <c>IExecutionReceiptStore.BeginAsync</c>)
+    /// need this independently of <see cref="SourcePlanId"/>, which is a fresh random identity per plan build.</summary>
+    public Guid SourceScanId { get; }
+
+    /// <summary>The plan's bound evidence-state identity (see <c>Clyr.Core.EvidenceState</c>) at the moment this
+    /// execution began — never a raw path, always an opaque content digest.</summary>
+    public string EvidenceStateId { get; }
+
+    /// <summary>The built-in action rule IDs this execution was authorized for — the same set bound into the
+    /// execution token (see <c>IExecutionTokenService.Issue</c>), recorded durably for audit.</summary>
+    public ImmutableArray<string> ActionIds { get; }
+
+    /// <summary>The application session this execution ran under (see <see cref="ExecutionSessionId"/> the type,
+    /// not this property) — never persisted across a restart on its own, but recorded here so a durable receipt
+    /// can be correlated back to the session that authorized it.</summary>
+    public Guid ExecutionSessionId { get; }
+
+    /// <summary>A one-way privacy-safe fingerprint of the Windows user SID this execution ran as — the same
+    /// fingerprinting convention already used for <see cref="DriveIdentityFingerprint"/>. Never the raw SID.</summary>
+    public string WindowsUserSidFingerprint { get; }
 }

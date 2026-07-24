@@ -4,6 +4,14 @@ Status: implementation complete across every reviewable surface; **not approved,
 the real fixture-only UAC smoke test has not been run in this environment (it requires a real person at an
 interactive desktop to approve a Windows UAC prompt). See "What remains" below.
 
+**Crash-recovery correction (this pass):** a durable "Started" execution record is now written — schema v4,
+`IExecutionReceiptStore.BeginAsync`/`CompleteAsync` — before any file mutation can occur, and finalized with the
+same `ExecutionId` once the outcome is known. If CLYR, Windows, or a future elevated helper crashes after a
+mutation but before the terminal record, the next launch's startup reconciliation
+(`ReconcileInterruptedAsync`, now actually invoked at `App.OnLaunched` and at the start of every CLI invocation,
+not merely available) marks that row `Interrupted` — never `Completed`, never silently resumed, never replayed.
+See "Durable execution lifecycle" below for exactly what this does and does not protect.
+
 ## Scope
 
 CLYR ships one narrowly allowlisted, low-risk, non-elevated cleanup action end to end, plus the full
@@ -16,8 +24,10 @@ architecture a future elevation-requiring action would need without elevating th
 3. **Typed IPC** (`Clyr.Contracts.ExecutionIpc`, `Clyr.Core.Execution.ElevatedHelperIpc`) — a closed, bounded,
    versioned named-pipe protocol.
 4. **UAC launcher** (`ElevatedHelperLauncher`) — the one reviewed `Process.Start` in production source.
-5. **Receipt persistence** (`Clyr.Persistence.SqliteExecutionReceiptStore`) — schema v3, immutable terminal
-   rows, crash-reconciliation primitive.
+5. **Receipt persistence** (`Clyr.Persistence.SqliteExecutionReceiptStore`) — schema v4, a durable
+   `BeginAsync`/`CompleteAsync` lifecycle (immutable terminal rows, fail-closed on duplicate begin or unknown/
+   conflicting completion), durable plan-replay protection (`HasRecordForPlanAsync`), and a crash-reconciliation
+   primitive that is now actually invoked at every application and CLI launch, not merely available.
 6. **CLI** — `plan execute`, `execution status|receipt|list|export|discard-receipt`.
 7. **WinUI** — Review Plan's execution panel: no default selections, a gated confirmation dialog, live progress,
    cancellation, Completed/PartiallyCompleted/Cancelled/Failed/Interrupted/Unknown-outcome display, receipt
@@ -34,6 +44,47 @@ required. `ClyrOwnedTempArtifactScanner` produces its `CleanupCandidate` with re
 entries; `PlanCliCommands.CandidatesFor` and `ReviewPlanViewModel.Candidates` both merge this live-scanned
 candidate alongside classification-derived ones, so a plan can actually contain an executable item through the
 normal `plan candidates`/`plan create` flow or the Review Plan page.
+
+## Durable execution lifecycle (crash-recovery correction)
+
+`NonElevatedCleanupExecutor.ExecuteAsync` — the one production executor — now follows this exact order:
+
+1. Validate the execution token (identity/session/user/drive/digest), the plan's own digest, and its expiry.
+2. Check `IExecutionReceiptStore.HasRecordForPlanAsync(plan.Id, plan.Digest)` — durable replay protection: even
+   across a restart (which clears every in-memory attempted-plan guard), the exact same plan identity or digest
+   can never reach the executor twice. A genuinely new plan (always a fresh random `CleanupPlanId`, and a digest
+   that includes that ID) never matches, so unrelated future plans are never blocked.
+3. Consume the one-time token.
+4. Generate the `ExecutionId` and durably persist a `Running`-state "Started" record —
+   schema version, `ExecutionId`, `PlanId`, plan digest, evidence-state identity, source `ScanId`, drive-identity
+   fingerprint, action IDs, approved item count and logical-byte estimate, session ID, a privacy-safe Windows-SID
+   fingerprint, privacy mode, and the started timestamp. No raw path is added to this record.
+5. Only after that durable write succeeds does the mutation loop begin.
+6. Build the terminal receipt and call `CompleteAsync` with the same `ExecutionId`.
+
+**If the durable Started write fails:** no mutation occurs, the already-consumed token cannot be reused (a fresh
+plan/token is required — never an automatic retry), and the caller sees a safe rejection.
+**If the terminal write fails after mutation:** the true, already-determined outcome is still returned (never
+relabeled), with an added warning that the durable trail could not be completed; the Started row remains exactly
+as an interrupted execution would look, until the next launch's reconciliation resolves it.
+
+`IExecutionReceiptStore.CompleteAsync` fails closed on an unknown `ExecutionId` (`receipt.unknown-execution`),
+rejects retargeting another plan/scan/evidence/drive/session/user (`receipt.completion-mismatch`), is idempotent
+only when a repeated completion's digest matches what is already stored, and rejects a genuinely conflicting
+repeat (`receipt.immutable`). `BeginAsync` fails closed on a duplicate `ExecutionId` (`receipt.duplicate-begin`).
+
+Startup reconciliation (`ReconcileInterruptedAsync(TimeSpan.Zero, now)`) now actually runs — at `App.OnLaunched`
+before the main window is created, and at the start of every `CliApplication.Run` before any command dispatches —
+marking any row left non-terminal past that boundary as `Interrupted`. Receipt/history UI and CLI output show a
+bounded, non-identifying explanation ("CLYR found an execution that started but did not record a final result...
+Run a new Drive Analysis before creating another cleanup plan.") with no Resume button and no automatic retry;
+`clyr execution status <id>` returns a non-zero exit code for `Interrupted`/`UnknownOutcome`.
+
+The elevated-helper path remains fully dormant in production — confirmed directly against the code this pass,
+not merely from prior reports: `ExecutionEligibilityValidator` rejects every item with `RequiresElevation: true`
+(`execution.elevation-unsupported`), and no production caller invokes `ElevatedHelperLauncher.RunAsync` anywhere.
+If a future elevated action is ever added, it must go through the identical Begin-before-mutate/Complete-after
+pattern — there is no second way to write a receipt row that skips it.
 
 ## WinUI execution flow
 
@@ -81,7 +132,11 @@ reliably interrupt from an external script; that exact code path is instead prov
 
 `plan execute <plan-id> --confirm-digest <prefix> [--json]` and
 `execution status|receipt|list|export --output <path>|discard-receipt` — active in-memory plan only, digest
-confirmation required, no `--force`/`--path`/`--root`/`--action`/`--command`, plan replay rejected per-process.
+confirmation required, no `--force`/`--path`/`--root`/`--action`/`--command`. Plan replay is rejected both
+per-process (in-memory `attemptedPlanIds`) and durably (`HasRecordForPlanAsync` against the receipt store, which
+survives a restart even though the in-memory plan store does not). `plan execute` now refuses to run at all if
+no execution-receipt store is available, and requires the plan to pass full revalidation (not just its digest)
+before selecting executable items.
 
 ## What remains
 
@@ -91,8 +146,11 @@ confirmation required, no `--force`/`--path`/`--root`/`--action`/`--command`, pl
    only a person at an interactive desktop can approve or deny — that step was not performed in this
    environment. **Phase 6 implementation is ready for final approval, but Phase 6 remains incomplete until the
    fixture-only UAC smoke test passes.**
-2. **A "started" receipt placeholder** for true crash-mid-run recovery (ADR-0014's Consequences) — not
-   implemented; the reconciliation mechanism exists and is tested in isolation.
+2. ~~A "started" receipt placeholder for true crash-mid-run recovery~~ — **implemented this pass**: see "Durable
+   execution lifecycle" above. What remains open: this closes the gap for the one production (non-elevated)
+   executor only; a real crash was not injected against the live SQLite file in this environment (only simulated
+   via an in-memory test double and a directly-seeded pre-existing row), and the broader IPC/helper security
+   matrix in point 3 below is unaffected by this change.
 3. **Broader IPC/helper security matrix** — protocol downgrade, forged completion response, wrong-client/binary
    identity verification beyond the pipe ACL — not implemented; see ADR-0013's Consequences.
 4. A live UI Automation run of the extended `scripts/verify-winui.ps1` (it was written, parse-checked, and its

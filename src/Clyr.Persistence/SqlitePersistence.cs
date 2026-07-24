@@ -21,7 +21,7 @@ public static class SqliteRuntime
 
 public sealed class AppMetadataDatabase
 {
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
     private readonly string connectionString;
 
     public AppMetadataDatabase(string connectionString)
@@ -95,6 +95,24 @@ public sealed class AppMetadataDatabase
                 CREATE INDEX IX_ExecutionReceipt_Time ON ExecutionReceipt(StartedAtUtc DESC);
                 CREATE INDEX IX_ExecutionReceipt_State ON ExecutionReceipt(FinalState, StartedAtUtc);
                 UPDATE SchemaInfo SET Version = 3;
+                """;
+            command.ExecuteNonQuery();
+            version = 3;
+        }
+        if (version == 3)
+        {
+            // Phase 6 crash-recovery correction: a durable "Started" row must carry enough identity to (a) block
+            // a durable replay of the exact same plan across a restart and (b) audit which analysis, action set,
+            // session, and user a still-unresolved execution belongs to. Existing rows predate this and get safe,
+            // non-identifying defaults — never inferred or backfilled from anything that could be wrong.
+            command.CommandText = """
+                ALTER TABLE ExecutionReceipt ADD COLUMN SourceScanId TEXT NOT NULL DEFAULT '';
+                ALTER TABLE ExecutionReceipt ADD COLUMN EvidenceStateId TEXT NOT NULL DEFAULT '';
+                ALTER TABLE ExecutionReceipt ADD COLUMN ActionIdsJson TEXT NOT NULL DEFAULT '[]';
+                ALTER TABLE ExecutionReceipt ADD COLUMN ExecutionSessionId TEXT NOT NULL DEFAULT '';
+                ALTER TABLE ExecutionReceipt ADD COLUMN WindowsUserSidFingerprint TEXT NOT NULL DEFAULT '';
+                CREATE INDEX IX_ExecutionReceipt_Plan ON ExecutionReceipt(SourcePlanId, SourcePlanDigest);
+                UPDATE SchemaInfo SET Version = 4;
                 """;
             command.ExecuteNonQuery();
         }

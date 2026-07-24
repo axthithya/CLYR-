@@ -3,10 +3,13 @@
 Status: Phase 0 design baseline. As of Phase 6, one narrowly allowlisted, low-risk, non-elevated cleanup
 capability is implemented exactly as this baseline requires: exact target, consequence, risk, and explicit
 confirmation before any mutation. See `docs/PHASE6_EXECUTION.md` and ADR-0012 for what is now real; every other
-finding remains dry-run/report-only. As of Phase 7, Developer Mode adds read-only detection for 14 developer
-tool families plus one additional narrow, closed-argument, read-only process probe (Docker/WSL status only) —
-no developer-tool finding is added to the execution allowlist; see `docs/PHASE7_DEVELOPER_MODE.md` and
-ADR-0015–0017.
+finding remains dry-run/report-only. This pass closes the "Audit and verification" section's requirement below ("persist an action-journal entry ...
+before mutation") for that one capability: a durable `Running`-state record is written, using the final
+receipt's own `ExecutionId`, before any file is touched, and is only ever finalized or marked `Interrupted` by
+startup reconciliation — never silently resumed or replayed. As of Phase 7, Developer Mode adds read-only
+detection for 14 developer tool families plus one additional narrow, closed-argument, read-only process probe
+(Docker/WSL status only) — no developer-tool finding is added to the execution allowlist; see
+`docs/PHASE7_DEVELOPER_MODE.md` and ADR-0015–0017.
 Applies to: the CLYR desktop app, CLI, core engine, rule packs, adapters, and elevated helper.
 
 ## Safety objective

@@ -14,6 +14,7 @@ namespace Clyr.Cli.Tests;
 /// (%LocalAppData%\Clyr\Temp) using synthetic files this test creates and removes itself, exactly like the
 /// existing Phase6ExecutionCliTests.
 /// </summary>
+[Collection("ClyrOwnedTempRoot")]
 public sealed class PlanEvidenceStaleCliTests
 {
     [Fact]

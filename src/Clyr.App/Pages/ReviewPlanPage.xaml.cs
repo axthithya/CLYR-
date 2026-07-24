@@ -477,7 +477,7 @@ public sealed partial class ReviewPlanPage : Page
         });
         try
         {
-            var outcome = await Task.Run(() => ViewModel.Execute(selectedItemIds, progress, executionCancellation.Token));
+            var outcome = await ViewModel.ExecuteAsync(selectedItemIds, progress, executionCancellation.Token);
             ShowExecutionResult(outcome);
         }
         catch (InvalidOperationException)
@@ -508,26 +508,18 @@ public sealed partial class ReviewPlanPage : Page
     private void ShowExecutionResult(ExecutionOutcome outcome)
     {
         ExecutionResultPanel.Visibility = Visibility.Visible;
-        ExecutionResultState.Text = outcome.State switch
-        {
-            ExecutionState.Completed => "Completed",
-            ExecutionState.PartiallyCompleted => "Partially completed",
-            ExecutionState.Cancelled => "Cancelled",
-            ExecutionState.Failed => "Failed",
-            ExecutionState.Interrupted => "Interrupted",
-            ExecutionState.Rejected => "Rejected",
-            ExecutionState.UnknownOutcome => "Unknown outcome",
-            _ => outcome.State.ToString()
-        };
+        ExecutionResultState.Text = ExecutionStateLabel(outcome.State);
         var summary = outcome.Receipt.Summary;
         ExecutionResultCounts.Text = $"Total {summary.TotalItems:N0} · Removed {summary.RemovedCount:N0} · Skipped {summary.SkippedCount:N0} · Failed {summary.FailedCount:N0}";
         ExecutionResultBytes.Text = $"Removed logical bytes: {OverviewPage.Format(summary.RemovedLogicalBytes)}" +
             (outcome.Receipt.ObservedFreeSpaceDeltaBytes.HasValue
                 ? $" · Observed free-space change: {OverviewPage.Format(Math.Abs(outcome.Receipt.ObservedFreeSpaceDeltaBytes.Value))}"
                 : " · Observed free-space change: unavailable");
-        ExecutionResultWarnings.Text = outcome.Receipt.Warnings.IsDefaultOrEmpty
-            ? "Review the counts above, then run a new analysis to refresh storage estimates."
-            : string.Join("\n", outcome.Receipt.Warnings);
+        ExecutionResultWarnings.Text = outcome.State is ExecutionState.Interrupted or ExecutionState.UnknownOutcome
+            ? InterruptedGuidanceText
+            : outcome.Receipt.Warnings.IsDefaultOrEmpty
+                ? "Review the counts above, then run a new analysis to refresh storage estimates."
+                : string.Join("\n", outcome.Receipt.Warnings);
         ExecutionReceiptOutput.Visibility = Visibility.Collapsed;
         RefreshReceiptHistory();
     }
@@ -552,11 +544,22 @@ public sealed partial class ReviewPlanPage : Page
         receiptRows.Clear();
         foreach (var entry in history)
         {
-            var text = new TextBlock
+            var unresolved = entry.FinalState is ExecutionState.Interrupted or ExecutionState.UnknownOutcome;
+            var content = new StackPanel { Spacing = unresolved ? 4 : 0 };
+            content.Children.Add(new TextBlock
             {
-                Text = $"{entry.StartedAtUtc.LocalDateTime:g} · {entry.FinalState} · removed {entry.RemovedCount:N0} · skipped {entry.SkippedCount:N0} · failed {entry.FailedCount:N0} · {OverviewPage.Format(entry.RemovedLogicalBytes)}",
+                Text = $"{entry.StartedAtUtc.LocalDateTime:g} · {ExecutionStateLabel(entry.FinalState)} · removed {entry.RemovedCount:N0} · skipped {entry.SkippedCount:N0} · failed {entry.FailedCount:N0} · {OverviewPage.Format(entry.RemovedLogicalBytes)}",
                 TextWrapping = TextWrapping.Wrap
-            };
+            });
+            // No "Resume" and no automatic "Retry cleanup" control exists anywhere on this row, deliberately —
+            // only the same "View"/"Delete receipt" controls every other row already has.
+            if (unresolved)
+                content.Children.Add(new TextBlock
+                {
+                    Text = InterruptedGuidanceText,
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = ResourceBrush("Warning")
+                });
             var view = new Button { Content = "View" };
             AutomationProperties.SetName(view, "View execution receipt " + entry.ExecutionId);
             view.Click += (_, _) =>
@@ -573,13 +576,35 @@ public sealed partial class ReviewPlanPage : Page
                 Orientation = PageHost.LayoutMode == Controls.ResponsivePageWidth.Narrow ? Orientation.Vertical : Orientation.Horizontal,
                 Spacing = 12
             };
-            row.Children.Add(text);
+            row.Children.Add(content);
             row.Children.Add(view);
             row.Children.Add(discard);
+            AutomationProperties.SetName(row, unresolved
+                ? $"Execution {entry.ExecutionId}, {ExecutionStateLabel(entry.FinalState)}. {InterruptedGuidanceText}"
+                : $"Execution {entry.ExecutionId}, {ExecutionStateLabel(entry.FinalState)}");
             receiptRows.Add(row);
             ReceiptHistoryStack.Children.Add(new Border { Style = (Style)Application.Current.Resources["CompactCardStyle"], Child = row });
         }
     }
+
+    /// <summary>Section 9's exact required guidance for an execution whose true outcome CLYR could not durably
+    /// confirm — never a claim of success, never an assumption that nothing changed, and never a button that
+    /// would resume or automatically retry it.</summary>
+    private const string InterruptedGuidanceText =
+        "CLYR found an execution that started but did not record a final result. Some approved items may have changed. " +
+        "CLYR will not repeat the operation automatically. Run a new Drive Analysis before creating another cleanup plan.";
+
+    private static string ExecutionStateLabel(ExecutionState state) => state switch
+    {
+        ExecutionState.Completed => "Completed",
+        ExecutionState.PartiallyCompleted => "Partially completed",
+        ExecutionState.Cancelled => "Cancelled",
+        ExecutionState.Failed => "Failed",
+        ExecutionState.Rejected => "Failed before mutation",
+        ExecutionState.Interrupted => "Interrupted — outcome could not be confirmed",
+        ExecutionState.UnknownOutcome => "Outcome unknown",
+        _ => state.ToString()
+    };
 
     private void ExportPlan(object sender, RoutedEventArgs args)
     {

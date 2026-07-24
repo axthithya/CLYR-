@@ -23,6 +23,7 @@ public sealed partial class CliApplication
 
     public int Run(IReadOnlyList<string> arguments, TextWriter output, TextWriter error)
     {
+        ReconcileInterruptedExecutions();
         var command = arguments.Count == 0 ? "--help" : arguments[0];
         if (command is "--help" or "-h" or "help") return Help(output);
         if (command == "--version") { output.WriteLine(version); return 0; }

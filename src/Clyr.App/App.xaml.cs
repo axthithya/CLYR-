@@ -22,10 +22,22 @@ public partial class App : Application
 
     public ServiceProvider Services { get; }
 
-    protected override void OnLaunched(LaunchActivatedEventArgs args)
+    protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
         try
         {
+            // Crash-recovery correction: any durable "Started" execution record left by a previous crash is
+            // resolved to Interrupted before anything (including Review Plan's receipt history) can render it —
+            // never resumed, never guessed successful. Best-effort: a corrupted or inaccessible history store
+            // must not block the app from starting at all.
+            try
+            {
+                var receiptStore = Services.GetRequiredService<IExecutionReceiptStore>();
+                var clock = Services.GetRequiredService<IClock>();
+                await receiptStore.ReconcileInterruptedAsync(TimeSpan.Zero, clock.UtcNow);
+            }
+            catch (ExecutionReceiptStoreException) { /* best-effort; surfaced only when the user opens Review Plan's receipt history */ }
+
             window = Services.GetRequiredService<MainWindow>();
         }
         catch (Exception exception)

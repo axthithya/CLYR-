@@ -379,7 +379,7 @@ public sealed class ReviewPlanViewModel : PageViewModel
     public IReadOnlyList<CleanupPlanItem> ExecutableItems() =>
         CurrentPlan is null ? [] : [.. CurrentPlan.Items.Where(item => ExecutionEligibilityValidator.ValidateItemForExecution(item).IsSuccess)];
 
-    public ExecutionOutcome Execute(IReadOnlyList<string> selectedItemIds, IProgress<ExecutionItemResult>? progress, CancellationToken cancellationToken)
+    public async Task<ExecutionOutcome> ExecuteAsync(IReadOnlyList<string> selectedItemIds, IProgress<ExecutionItemResult>? progress, CancellationToken cancellationToken)
     {
         var plan = CurrentPlan ?? throw new InvalidOperationException("No dry-run plan is available.");
         // Closes the exact gap this correction targets: a plan built before an Administrator Retry enrichment
@@ -388,14 +388,17 @@ public sealed class ReviewPlanViewModel : PageViewModel
             throw new InvalidOperationException("This plan is no longer current and cannot be executed. Rebuild the plan and try again.");
         if (!attemptedPlanIds.Add(plan.Id.ToString()))
             throw new InvalidOperationException("This plan has already been used for an execution attempt.");
+        // A durable execution-start record is required before any mutation can occur — with no receipt store
+        // there is nowhere safe to write it, so execution must not proceed at all (see NonElevatedCleanupExecutor).
+        if (receiptStore is null)
+            throw new InvalidOperationException("Execution history is unavailable, so CLYR cannot safely start this cleanup.");
         var userSid = OperatingSystem.IsWindows() ? WindowsUserIdentity.CurrentSid() : "unavailable";
         var actionIds = plan.Items.Where(item => selectedItemIds.Contains(item.ItemId, StringComparer.Ordinal))
             .Select(item => item.Action.SourceRuleId).Distinct(StringComparer.Ordinal).ToArray();
         var token = tokenService.Issue(plan, sessionId, userSid, actionIds, clock.UtcNow);
-        var executor = new NonElevatedCleanupExecutor(tokenService, clock);
-        var outcome = executor.Execute(plan, selectedItemIds, token, sessionId, userSid, Session.ApplicationVersion,
-            trustedRootOverride, cancellationToken, progress);
-        receiptStore?.SaveAsync(outcome.Receipt, cancellationToken).GetAwaiter().GetResult();
+        var executor = new NonElevatedCleanupExecutor(tokenService, clock, receiptStore);
+        var outcome = await executor.ExecuteAsync(plan, selectedItemIds, token, sessionId, userSid, Session.ApplicationVersion,
+            trustedRootOverride, cancellationToken, progress).ConfigureAwait(false);
         LastOutcome = outcome;
         return outcome;
     }

@@ -7,11 +7,19 @@ using Clyr.Rules;
 
 namespace Clyr.Cli.Tests;
 
+/// <summary>Every test class that writes stale fixtures directly into the CLI's real resolved trusted root
+/// (%LocalAppData%\Clyr\Temp — the CLI has no override hook, unlike the WinUI path) shares this xunit collection,
+/// so xunit never runs them concurrently with each other; two tests racing to scan/delete files in the same real
+/// folder at once could otherwise pick up each other's fixture and report a spurious partial result.</summary>
+[CollectionDefinition("ClyrOwnedTempRoot", DisableParallelization = true)]
+public sealed class ClyrOwnedTempRootTestGroup;
+
 /// <summary>
 /// Exercises 'plan execute' and 'execution *' against the CLI's own resolved trusted root
 /// (%LocalAppData%\Clyr\Temp) — the only root these commands ever touch — using synthetic files this test
 /// creates and removes itself. No real user, system, browser, or project path is ever involved.
 /// </summary>
+[Collection("ClyrOwnedTempRoot")]
 public sealed class Phase6ExecutionCliTests
 {
     [Fact]

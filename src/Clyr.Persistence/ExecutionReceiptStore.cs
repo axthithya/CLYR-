@@ -2,33 +2,17 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.Json;
 using Clyr.Contracts;
+using Clyr.Core.Execution;
 using Microsoft.Data.Sqlite;
 
 namespace Clyr.Persistence;
 
-public sealed class ExecutionReceiptStoreException(string code, string message, Exception inner) : Exception(message, inner)
-{
-    public string Code { get; } = code;
-}
-
-public interface IExecutionReceiptStore
-{
-    Task SaveAsync(ExecutionReceipt receipt, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<ExecutionReceiptSummary>> ListAsync(int limit = 50, CancellationToken cancellationToken = default);
-    Task<ExecutionReceipt?> GetAsync(ExecutionId id, CancellationToken cancellationToken = default);
-    Task<bool> DiscardAsync(ExecutionId id, CancellationToken cancellationToken = default);
-
-    /// <summary>Marks any receipt left in an in-flight state past <paramref name="staleAfter"/> as Interrupted.
-    /// This never guesses success — an abandoned "Running" row can only ever become Interrupted, never Completed.</summary>
-    Task<int> ReconcileInterruptedAsync(TimeSpan staleAfter, DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
-}
-
 /// <summary>
-/// CLYR-owned local SQLite storage for execution receipts. Receipts are immutable once their final state is a
-/// terminal one (Completed/PartiallyCompleted/Cancelled/Failed/Interrupted/UnknownOutcome/Rejected) — <see cref="SaveAsync"/>
-/// upserts by execution ID so a future "started" placeholder row could be updated in place, but this store never
-/// rewrites a row that already recorded a terminal state. No raw file paths and no reusable execution token or
-/// authority are persisted; only the privacy-safe accounting fields defined on <see cref="ExecutionReceipt"/>.
+/// CLYR-owned local SQLite storage for execution receipts. A row is written exactly twice — <see cref="BeginAsync"/>
+/// before any mutation may occur, <see cref="CompleteAsync"/> once the outcome is known — and is immutable once
+/// its final state is a terminal one (Completed/PartiallyCompleted/Cancelled/Failed/Interrupted/UnknownOutcome/
+/// Rejected). No raw file paths and no reusable execution token or authority are persisted; only the privacy-safe
+/// accounting fields defined on <see cref="ExecutionReceipt"/>.
 /// </summary>
 public sealed class SqliteExecutionReceiptStore : IExecutionReceiptStore
 {
@@ -50,7 +34,7 @@ public sealed class SqliteExecutionReceiptStore : IExecutionReceiptStore
         new AppMetadataDatabase(connectionString).Migrate();
     }
 
-    public async Task SaveAsync(ExecutionReceipt receipt, CancellationToken cancellationToken = default)
+    public async Task BeginAsync(ExecutionReceipt startRecord, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -58,40 +42,85 @@ public sealed class SqliteExecutionReceiptStore : IExecutionReceiptStore
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using var existing = connection.CreateCommand();
             existing.Transaction = (SqliteTransaction)transaction;
-            existing.CommandText = "SELECT FinalState FROM ExecutionReceipt WHERE Id=$id;";
-            Add(existing, "$id", receipt.ExecutionId.ToString());
-            var current = await existing.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as string;
-            if (current is not null && TerminalStates.Contains(current, StringComparer.Ordinal))
+            existing.CommandText = "SELECT 1 FROM ExecutionReceipt WHERE Id=$id;";
+            Add(existing, "$id", startRecord.ExecutionId.ToString());
+            if (await existing.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not null)
             {
                 await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-                throw new ExecutionReceiptStoreException("receipt.immutable", "A terminal execution receipt cannot be overwritten.", new InvalidOperationException());
+                throw new ExecutionReceiptStoreException("receipt.duplicate-begin",
+                    "An execution record already exists for this execution ID.", new InvalidOperationException());
             }
 
-            await using var upsert = connection.CreateCommand();
-            upsert.Transaction = (SqliteTransaction)transaction;
-            upsert.CommandText = """
+            await using var insert = connection.CreateCommand();
+            insert.Transaction = (SqliteTransaction)transaction;
+            insert.CommandText = """
                 INSERT INTO ExecutionReceipt VALUES($id,$schema,$plan,$digest,$app,$pack,$drive,$start,$end,$state,
                     $cancelled,$elevated,$total,$removed,$skipped,$failed,$planned,$removedb,$skippedb,$failedb,
-                    $freebefore,$freeafter,$delta,$categories,$warnings,$limitations,$privacy,$receiptdigest)
-                ON CONFLICT(Id) DO UPDATE SET CompletedAtUtc=excluded.CompletedAtUtc, FinalState=excluded.FinalState,
-                    Cancelled=excluded.Cancelled, TotalItems=excluded.TotalItems, RemovedCount=excluded.RemovedCount,
-                    SkippedCount=excluded.SkippedCount, FailedCount=excluded.FailedCount,
-                    PlannedLogicalBytes=excluded.PlannedLogicalBytes, RemovedLogicalBytes=excluded.RemovedLogicalBytes,
-                    SkippedLogicalBytes=excluded.SkippedLogicalBytes, FailedLogicalBytes=excluded.FailedLogicalBytes,
-                    DriveFreeBytesBefore=excluded.DriveFreeBytesBefore, DriveFreeBytesAfter=excluded.DriveFreeBytesAfter,
-                    ObservedFreeSpaceDeltaBytes=excluded.ObservedFreeSpaceDeltaBytes,
-                    OutcomeCategoriesJson=excluded.OutcomeCategoriesJson, WarningsJson=excluded.WarningsJson,
-                    LimitationsJson=excluded.LimitationsJson, Digest=excluded.Digest;
+                    $freebefore,$freeafter,$delta,$categories,$warnings,$limitations,$privacy,$receiptdigest,
+                    $scanid,$evidence,$actionids,$session,$userfingerprint);
                 """;
-            Bind(upsert, receipt);
-            await upsert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            Bind(insert, startRecord);
+            await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
             await using var retain = connection.CreateCommand();
             retain.Transaction = (SqliteTransaction)transaction;
-            retain.CommandText = "DELETE FROM ExecutionReceipt WHERE Id IN (SELECT Id FROM ExecutionReceipt ORDER BY StartedAtUtc DESC, Id LIMIT -1 OFFSET $keep);";
+            retain.CommandText = "DELETE FROM ExecutionReceipt WHERE Id IN (SELECT Id FROM ExecutionReceipt WHERE FinalState IN ('Completed','PartiallyCompleted','Cancelled','Failed','Interrupted','UnknownOutcome','Rejected') ORDER BY StartedAtUtc DESC, Id LIMIT -1 OFFSET $keep);";
             Add(retain, "$keep", RetentionLimit);
             await retain.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (SqliteException exception) { throw Translate(exception); }
+    }
+
+    public async Task CompleteAsync(ExecutionId id, ExecutionReceipt finalReceipt, CancellationToken cancellationToken = default)
+    {
+        if (!id.Equals(finalReceipt.ExecutionId))
+            throw new ExecutionReceiptStoreException("receipt.id-mismatch", "The completion target does not match the receipt's own execution ID.", new InvalidOperationException());
+        try
+        {
+            await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            await using var existing = connection.CreateCommand();
+            existing.Transaction = (SqliteTransaction)transaction;
+            existing.CommandText = "SELECT * FROM ExecutionReceipt WHERE Id=$id;";
+            Add(existing, "$id", id.ToString());
+            await using var reader = await existing.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                throw new ExecutionReceiptStoreException("receipt.unknown-execution",
+                    "No started execution record exists for this execution ID.", new InvalidOperationException());
+            }
+            var stored = Read(reader);
+            await reader.DisposeAsync().ConfigureAwait(false);
+
+            if (TerminalStates.Contains(stored.FinalState.ToString(), StringComparer.Ordinal))
+            {
+                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                if (string.Equals(stored.Digest, finalReceipt.Digest, StringComparison.Ordinal)) return; // identical repeat: idempotent no-op
+                throw new ExecutionReceiptStoreException("receipt.immutable", "A terminal execution receipt cannot be overwritten.", new InvalidOperationException());
+            }
+            if (!SameStartIdentity(stored, finalReceipt))
+            {
+                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                throw new ExecutionReceiptStoreException("receipt.completion-mismatch",
+                    "The completing receipt does not match the plan, scan, evidence, drive, session or user this execution started with.", new InvalidOperationException());
+            }
+
+            await using var update = connection.CreateCommand();
+            update.Transaction = (SqliteTransaction)transaction;
+            update.CommandText = """
+                UPDATE ExecutionReceipt SET CompletedAtUtc=$end, FinalState=$state, Cancelled=$cancelled,
+                    TotalItems=$total, RemovedCount=$removed, SkippedCount=$skipped, FailedCount=$failed,
+                    PlannedLogicalBytes=$planned, RemovedLogicalBytes=$removedb, SkippedLogicalBytes=$skippedb,
+                    FailedLogicalBytes=$failedb, DriveFreeBytesBefore=$freebefore, DriveFreeBytesAfter=$freeafter,
+                    ObservedFreeSpaceDeltaBytes=$delta, OutcomeCategoriesJson=$categories, WarningsJson=$warnings,
+                    LimitationsJson=$limitations, Digest=$receiptdigest
+                WHERE Id=$id;
+                """;
+            Bind(update, finalReceipt);
+            await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (SqliteException exception) { throw Translate(exception); }
@@ -144,6 +173,20 @@ public sealed class SqliteExecutionReceiptStore : IExecutionReceiptStore
         catch (SqliteException exception) { throw Translate(exception); }
     }
 
+    public async Task<bool> HasRecordForPlanAsync(CleanupPlanId planId, string planDigest, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+            await using var command = connection.CreateCommand();
+            command.CommandText = "SELECT 1 FROM ExecutionReceipt WHERE SourcePlanId=$plan OR SourcePlanDigest=$digest LIMIT 1;";
+            Add(command, "$plan", planId.ToString());
+            Add(command, "$digest", planDigest);
+            return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not null;
+        }
+        catch (SqliteException exception) { throw Translate(exception); }
+    }
+
     public async Task<int> ReconcileInterruptedAsync(TimeSpan staleAfter, DateTimeOffset nowUtc, CancellationToken cancellationToken = default)
     {
         try
@@ -161,6 +204,22 @@ public sealed class SqliteExecutionReceiptStore : IExecutionReceiptStore
         }
         catch (SqliteException exception) { throw Translate(exception); }
     }
+
+    /// <summary>The immutable start-context a completing receipt must still agree with — everything that
+    /// identifies which plan, analysis, and authority this execution began under. Terminal-only fields (state,
+    /// counts, free-space, warnings) are deliberately excluded; those are exactly what <see cref="CompleteAsync"/>
+    /// is allowed to set.</summary>
+    private static bool SameStartIdentity(ExecutionReceipt started, ExecutionReceipt completing) =>
+        started.SourcePlanId.Equals(completing.SourcePlanId)
+        && string.Equals(started.SourcePlanDigest, completing.SourcePlanDigest, StringComparison.Ordinal)
+        && string.Equals(started.ApplicationVersion, completing.ApplicationVersion, StringComparison.Ordinal)
+        && string.Equals(started.RulePackVersion, completing.RulePackVersion, StringComparison.Ordinal)
+        && string.Equals(started.DriveIdentityFingerprint, completing.DriveIdentityFingerprint, StringComparison.Ordinal)
+        && started.SourceScanId == completing.SourceScanId
+        && string.Equals(started.EvidenceStateId, completing.EvidenceStateId, StringComparison.Ordinal)
+        && started.ExecutionSessionId == completing.ExecutionSessionId
+        && string.Equals(started.WindowsUserSidFingerprint, completing.WindowsUserSidFingerprint, StringComparison.Ordinal)
+        && string.Equals(started.PrivacyMode, completing.PrivacyMode, StringComparison.Ordinal);
 
     private async Task<SqliteConnection> OpenAsync(CancellationToken token)
     {
@@ -203,6 +262,11 @@ public sealed class SqliteExecutionReceiptStore : IExecutionReceiptStore
         Add(command, "$limitations", JsonSerializer.Serialize(receipt.Limitations, JsonOptions));
         Add(command, "$privacy", receipt.PrivacyMode);
         Add(command, "$receiptdigest", receipt.Digest);
+        Add(command, "$scanid", receipt.SourceScanId.ToString());
+        Add(command, "$evidence", receipt.EvidenceStateId);
+        Add(command, "$actionids", JsonSerializer.Serialize(receipt.ActionIds, JsonOptions));
+        Add(command, "$session", receipt.ExecutionSessionId.ToString());
+        Add(command, "$userfingerprint", receipt.WindowsUserSidFingerprint);
     }
 
     private static ExecutionReceipt Read(SqliteDataReader reader)
@@ -210,6 +274,7 @@ public sealed class SqliteExecutionReceiptStore : IExecutionReceiptStore
         var categories = JsonSerializer.Deserialize<Dictionary<string, int>>((string)reader["OutcomeCategoriesJson"], JsonOptions) ?? [];
         var warnings = JsonSerializer.Deserialize<string[]>((string)reader["WarningsJson"], JsonOptions) ?? [];
         var limitations = JsonSerializer.Deserialize<string[]>((string)reader["LimitationsJson"], JsonOptions) ?? [];
+        var actionIds = JsonSerializer.Deserialize<string[]>((string)reader["ActionIdsJson"], JsonOptions) ?? [];
         var summary = new ExecutionSummary(Convert.ToInt32(reader["TotalItems"], CultureInfo.InvariantCulture),
             Convert.ToInt32(reader["RemovedCount"], CultureInfo.InvariantCulture), Convert.ToInt32(reader["SkippedCount"], CultureInfo.InvariantCulture),
             Convert.ToInt32(reader["FailedCount"], CultureInfo.InvariantCulture), Convert.ToInt64(reader["PlannedLogicalBytes"], CultureInfo.InvariantCulture),
@@ -225,7 +290,10 @@ public sealed class SqliteExecutionReceiptStore : IExecutionReceiptStore
             reader["DriveFreeBytesBefore"] is DBNull ? null : Convert.ToInt64(reader["DriveFreeBytesBefore"], CultureInfo.InvariantCulture),
             reader["DriveFreeBytesAfter"] is DBNull ? null : Convert.ToInt64(reader["DriveFreeBytesAfter"], CultureInfo.InvariantCulture),
             reader["ObservedFreeSpaceDeltaBytes"] is DBNull ? null : Convert.ToInt64(reader["ObservedFreeSpaceDeltaBytes"], CultureInfo.InvariantCulture),
-            categories.ToImmutableDictionary(), [.. warnings], [.. limitations], (string)reader["PrivacyMode"], (string)reader["Digest"]);
+            categories.ToImmutableDictionary(), [.. warnings], [.. limitations], (string)reader["PrivacyMode"], (string)reader["Digest"],
+            Guid.TryParse((string)reader["SourceScanId"], out var scanId) ? scanId : Guid.Empty, (string)reader["EvidenceStateId"],
+            [.. actionIds], Guid.TryParse((string)reader["ExecutionSessionId"], out var sessionId) ? sessionId : Guid.Empty,
+            (string)reader["WindowsUserSidFingerprint"]);
     }
 
     private static DateTimeOffset ParseTime(string value) => DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);

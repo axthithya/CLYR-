@@ -72,11 +72,11 @@ public sealed class CleanupPlanEvidenceStalenessPresentationTests
     public void ExecuteRefusesAPlanThatIsNoLongerCurrentBeforeItReachesTheExecutor()
     {
         var code = File.ReadAllText(Path.Combine(ViewModels, "AppSessionViewModel.cs"));
-        var executeIndex = code.IndexOf("public ExecutionOutcome Execute(", StringComparison.Ordinal);
+        var executeIndex = code.IndexOf("public async Task<ExecutionOutcome> ExecuteAsync(", StringComparison.Ordinal);
         var validateIndex = code.IndexOf("if (ValidateAgainstCurrentEvidence(plan) is { IsValid: false })", StringComparison.Ordinal);
-        var executorIndex = code.IndexOf("var executor = new NonElevatedCleanupExecutor(tokenService, clock);", StringComparison.Ordinal);
+        var executorIndex = code.IndexOf("var executor = new NonElevatedCleanupExecutor(tokenService, clock, receiptStore);", StringComparison.Ordinal);
         Assert.True(executeIndex >= 0 && validateIndex > executeIndex && executorIndex > validateIndex,
-            "Execute must validate the plan against current evidence before constructing NonElevatedCleanupExecutor.");
+            "ExecuteAsync must validate the plan against current evidence before constructing NonElevatedCleanupExecutor.");
         Assert.Contains("throw new InvalidOperationException(\"This plan is no longer current and cannot be executed. Rebuild the plan and try again.\");", code, StringComparison.Ordinal);
     }
 

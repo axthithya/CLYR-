@@ -1,5 +1,6 @@
 using Clyr.Contracts;
 using Clyr.Core;
+using Clyr.Core.Execution;
 using Clyr.Persistence;
 
 namespace Clyr.App;
@@ -38,11 +39,40 @@ public sealed record ExecutionFixtureRoot(string? Path)
 /// </summary>
 internal sealed class UiFixtureExecutionReceiptStore : IExecutionReceiptStore
 {
+    private static readonly HashSet<ExecutionState> TerminalStates =
+    [
+        ExecutionState.Completed, ExecutionState.PartiallyCompleted, ExecutionState.Cancelled,
+        ExecutionState.Failed, ExecutionState.Interrupted, ExecutionState.UnknownOutcome, ExecutionState.Rejected
+    ];
     private readonly Dictionary<ExecutionId, ExecutionReceipt> receipts = [];
 
-    public Task SaveAsync(ExecutionReceipt receipt, CancellationToken cancellationToken = default)
+    /// <summary>Mirrors <c>SqliteExecutionReceiptStore.BeginAsync</c>'s contract in memory, so UI Automation
+    /// exercises the same fail-closed-on-duplicate behavior a real launch would.</summary>
+    public Task BeginAsync(ExecutionReceipt startRecord, CancellationToken cancellationToken = default)
     {
-        receipts[receipt.ExecutionId] = receipt;
+        if (!receipts.TryAdd(startRecord.ExecutionId, startRecord))
+            throw new ExecutionReceiptStoreException("receipt.duplicate-begin", "An execution record already exists for this execution ID.", new InvalidOperationException());
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Mirrors <c>SqliteExecutionReceiptStore.CompleteAsync</c>'s contract in memory: fails closed on an
+    /// unknown ID, rejects retargeting another plan/digest/scan/evidence/session/user, and is idempotent only
+    /// when a repeat completion is byte-identical to what is already stored.</summary>
+    public Task CompleteAsync(ExecutionId id, ExecutionReceipt finalReceipt, CancellationToken cancellationToken = default)
+    {
+        if (!id.Equals(finalReceipt.ExecutionId))
+            throw new ExecutionReceiptStoreException("receipt.id-mismatch", "The completion target does not match the receipt's own execution ID.", new InvalidOperationException());
+        if (!receipts.TryGetValue(id, out var stored))
+            throw new ExecutionReceiptStoreException("receipt.unknown-execution", "No started execution record exists for this execution ID.", new InvalidOperationException());
+        if (TerminalStates.Contains(stored.FinalState))
+        {
+            if (string.Equals(stored.Digest, finalReceipt.Digest, StringComparison.Ordinal)) return Task.CompletedTask;
+            throw new ExecutionReceiptStoreException("receipt.immutable", "A terminal execution receipt cannot be overwritten.", new InvalidOperationException());
+        }
+        if (!SameStartIdentity(stored, finalReceipt))
+            throw new ExecutionReceiptStoreException("receipt.completion-mismatch",
+                "The completing receipt does not match the plan, scan, evidence, drive, session or user this execution started with.", new InvalidOperationException());
+        receipts[id] = finalReceipt;
         return Task.CompletedTask;
     }
 
@@ -61,7 +91,37 @@ internal sealed class UiFixtureExecutionReceiptStore : IExecutionReceiptStore
     public Task<bool> DiscardAsync(ExecutionId id, CancellationToken cancellationToken = default) =>
         Task.FromResult(receipts.Remove(id));
 
-    public Task<int> ReconcileInterruptedAsync(TimeSpan staleAfter, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult(0);
+    public Task<bool> HasRecordForPlanAsync(CleanupPlanId planId, string planDigest, CancellationToken cancellationToken = default) =>
+        Task.FromResult(receipts.Values.Any(receipt => receipt.SourcePlanId.Equals(planId) || string.Equals(receipt.SourcePlanDigest, planDigest, StringComparison.Ordinal)));
+
+    public Task<int> ReconcileInterruptedAsync(TimeSpan staleAfter, DateTimeOffset nowUtc, CancellationToken cancellationToken = default)
+    {
+        var stale = receipts.Values.Where(receipt => !receipt.CompletedAtUtc.HasValue && !TerminalStates.Contains(receipt.FinalState)
+            && receipt.StartedAtUtc <= nowUtc - staleAfter).ToArray();
+        foreach (var receipt in stale)
+            receipts[receipt.ExecutionId] = Interrupted(receipt, nowUtc);
+        return Task.FromResult(stale.Length);
+    }
+
+    private static ExecutionReceipt Interrupted(ExecutionReceipt receipt, DateTimeOffset nowUtc) => new(
+        receipt.SchemaVersion, receipt.ExecutionId, receipt.SourcePlanId, receipt.SourcePlanDigest, receipt.ApplicationVersion,
+        receipt.RulePackVersion, receipt.DriveIdentityFingerprint, receipt.StartedAtUtc, nowUtc, ExecutionState.Interrupted,
+        receipt.Cancelled, receipt.ElevationUsed, receipt.Summary, receipt.DriveFreeBytesBefore, receipt.DriveFreeBytesAfter,
+        receipt.ObservedFreeSpaceDeltaBytes, receipt.OutcomeCategories, receipt.Warnings, receipt.Limitations,
+        receipt.PrivacyMode, receipt.Digest, receipt.SourceScanId, receipt.EvidenceStateId, receipt.ActionIds,
+        receipt.ExecutionSessionId, receipt.WindowsUserSidFingerprint);
+
+    private static bool SameStartIdentity(ExecutionReceipt started, ExecutionReceipt completing) =>
+        started.SourcePlanId.Equals(completing.SourcePlanId)
+        && string.Equals(started.SourcePlanDigest, completing.SourcePlanDigest, StringComparison.Ordinal)
+        && string.Equals(started.ApplicationVersion, completing.ApplicationVersion, StringComparison.Ordinal)
+        && string.Equals(started.RulePackVersion, completing.RulePackVersion, StringComparison.Ordinal)
+        && string.Equals(started.DriveIdentityFingerprint, completing.DriveIdentityFingerprint, StringComparison.Ordinal)
+        && started.SourceScanId == completing.SourceScanId
+        && string.Equals(started.EvidenceStateId, completing.EvidenceStateId, StringComparison.Ordinal)
+        && started.ExecutionSessionId == completing.ExecutionSessionId
+        && string.Equals(started.WindowsUserSidFingerprint, completing.WindowsUserSidFingerprint, StringComparison.Ordinal)
+        && string.Equals(started.PrivacyMode, completing.PrivacyMode, StringComparison.Ordinal);
 }
 
 internal sealed class UiFixtureDriveDiscovery : IDriveDiscovery
