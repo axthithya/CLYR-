@@ -71,9 +71,11 @@
                             </Grid>
                         </StackPanel>
                     </Border>
-                    <StackPanel x:Name="IdleActionPanel" Spacing="8">
+                    <StackPanel x:Name="IdleActionPanel" Spacing="10">
                         <Button x:Name="StartButton" Content="Analyze drive" Style="{StaticResource PrimaryActionStyle}"
                                 Click="StartAnalysis" HorizontalAlignment="Left"
+                                MinHeight="52" MinWidth="200" Padding="28,12"
+                                FontSize="16" FontWeight="SemiBold"
                                 AutomationProperties.Name="Analyze drive"
                                 AutomationProperties.HelpText="Begins a private, read-only analysis of the selected drive." />
                         <TextBlock Text="CLYR analyzes the drive in the background and shows a live summary while it works."
@@ -153,7 +155,7 @@
                             <TextBlock x:Name="TerminalMessage" Style="{StaticResource BodySecondaryStyle}" />
                         </StackPanel>
                     </Grid>
-                    <StackPanel x:Name="TerminalSummary" Spacing="16">
+                    <StackPanel x:Name="TerminalSummary" Spacing="20">
                         <Grid ColumnSpacing="16">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                             <TextBlock x:Name="TerminalCoverageSentence" Style="{StaticResource CardTitleStyle}" TextWrapping="Wrap" />
@@ -162,49 +164,54 @@
                                            AutomationProperties.Name="Scan coverage quality" AutomationProperties.LiveSetting="Polite" />
                             </Border>
                         </Grid>
-                        <Grid x:Name="TerminalCoverage" ColumnSpacing="28" RowSpacing="18">
+                        <!-- The coverage figure is promoted to the same hero scale Results uses for the same
+                             number, so completing an analysis and reviewing it read as one consistent hierarchy
+                             rather than two different-looking numbers for the same concept. -->
+                        <Grid x:Name="TerminalCoverage" ColumnSpacing="28" RowSpacing="20">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="4*" /><ColumnDefinition Width="3*" /></Grid.ColumnDefinitions>
                             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                            <StackPanel Spacing="4">
-                                <TextBlock x:Name="AccountedValue" FontSize="36" FontWeight="SemiBold"
-                                           Foreground="{ThemeResource TextPrimary}" />
+                            <StackPanel Spacing="2">
+                                <TextBlock x:Name="AccountedValue" Style="{StaticResource HeroMetricValueStyle}" />
                                 <TextBlock x:Name="AccountedValueCaption" Text="coverage" Style="{StaticResource BodySecondaryStyle}" />
                             </StackPanel>
-                            <Grid x:Name="TerminalStorageMetrics" Grid.Column="1" ColumnSpacing="20" RowSpacing="14">
+                            <Grid x:Name="TerminalStorageMetrics" Grid.Column="1" ColumnSpacing="20" RowSpacing="14" VerticalAlignment="Center">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Storage mapped" Style="{StaticResource MetricLabelStyle}" />
-                                    <TextBlock x:Name="TerminalObserved" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock x:Name="TerminalObserved" Style="{StaticResource MetricValueQuietStyle}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Spacing="2">
                                     <TextBlock Text="Still unexplained" Style="{StaticResource MetricLabelStyle}" />
-                                    <TextBlock x:Name="TerminalUnobserved" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock x:Name="TerminalUnobserved" Style="{StaticResource MetricValueQuietStyle}" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Spacing="2">
                                     <TextBlock Text="Categorized" Style="{StaticResource MetricLabelStyle}" />
-                                    <TextBlock x:Name="TerminalClassified" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock x:Name="TerminalClassified" Style="{StaticResource MetricValueQuietStyle}" />
                                 </StackPanel>
                             </Grid>
                         </Grid>
                         <TextBlock x:Name="TerminalBasisNoteText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
                         <Border Style="{StaticResource DividerStyle}" />
+                        <!-- Section 7: the run's own bookkeeping (time/files/folders/completed) is real information
+                             worth keeping, but it is not the reward — smaller, muted values keep it from reading
+                             as a second table competing with the coverage hero above. -->
                         <Grid x:Name="TerminalDetails" ColumnSpacing="24" RowSpacing="14">
                             <StackPanel x:Name="TerminalDurationMetric" Spacing="2">
                                 <TextBlock Text="Time" Style="{StaticResource MetricLabelStyle}" />
-                                <TextBlock x:Name="TerminalDuration" Style="{StaticResource StatusTextStyle}" />
+                                <TextBlock x:Name="TerminalDuration" Style="{StaticResource CaptionStyle}" Foreground="{ThemeResource TextSecondary}" />
                             </StackPanel>
                             <StackPanel x:Name="TerminalFilesMetric" Spacing="2">
                                 <TextBlock Text="Files checked" Style="{StaticResource MetricLabelStyle}" />
-                                <TextBlock x:Name="TerminalFiles" Style="{StaticResource StatusTextStyle}" />
+                                <TextBlock x:Name="TerminalFiles" Style="{StaticResource CaptionStyle}" Foreground="{ThemeResource TextSecondary}" />
                             </StackPanel>
                             <StackPanel x:Name="TerminalFoldersMetric" Spacing="2">
                                 <TextBlock Text="Folders checked" Style="{StaticResource MetricLabelStyle}" />
-                                <TextBlock x:Name="TerminalFolders" Style="{StaticResource StatusTextStyle}" />
+                                <TextBlock x:Name="TerminalFolders" Style="{StaticResource CaptionStyle}" Foreground="{ThemeResource TextSecondary}" />
                             </StackPanel>
                             <StackPanel x:Name="TerminalCompletedMetric" Spacing="2">
                                 <TextBlock Text="Completed" Style="{StaticResource MetricLabelStyle}" />
-                                <TextBlock x:Name="TerminalCompleted" Style="{StaticResource StatusTextStyle}" />
+                                <TextBlock x:Name="TerminalCompleted" Style="{StaticResource CaptionStyle}" Foreground="{ThemeResource TextSecondary}" />
                             </StackPanel>
                         </Grid>
                     </StackPanel>

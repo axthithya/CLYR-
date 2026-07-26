@@ -42,6 +42,25 @@
         <Setter Property="Foreground" Value="{ThemeResource TextPrimary}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
+    <!-- Reserved for the single dominant number on a page (e.g. Results' coverage hero) — deliberately its own
+         token rather than enlarging MetricValueStyle, which several pages already share for smaller badges. -->
+    <Style x:Key="HeroMetricValueStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamilyDisplay}" />
+        <Setter Property="FontSize" Value="46" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{ThemeResource TextPrimary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="LineHeight" Value="48" />
+    </Style>
+    <!-- A quieter sibling of CardTitleStyle for secondary metrics that sit near a hero value and must not compete
+         with it — same information, less visual weight (Regular instead of SemiBold, secondary color). -->
+    <Style x:Key="MetricValueQuietStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamilyText}" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Foreground" Value="{ThemeResource TextSecondary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
     <Style x:Key="MetricLabelStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontFamilyText}" />
         <Setter Property="FontSize" Value="12" />

@@ -46,7 +46,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <StackPanel x:Name="Dashboard" Visibility="Collapsed" Spacing="{StaticResource PageSectionSpacing}">
+                <StackPanel x:Name="Dashboard" Visibility="Collapsed" Spacing="28">
                     <StackPanel.Transitions>
                         <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
                     </StackPanel.Transitions>
@@ -65,29 +65,32 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- 2. Main summary hero -->
+                    <!-- 2. Main summary hero. The coverage number is the single largest, boldest element on the
+                         page (HeroMetricValueStyle, ~1.6x the old size) so a user's eye lands there first; every
+                         other value on this card is deliberately quieter (MetricValueQuietStyle) so it reads as
+                         supporting detail, not a competing headline — same numbers, clearer priority. -->
                     <Border Style="{StaticResource StandardCardStyle}" AutomationProperties.Name="What CLYR found">
-                        <StackPanel Spacing="18">
+                        <StackPanel Spacing="22">
                             <Grid ColumnSpacing="20">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <StackPanel Spacing="4">
+                                <StackPanel Spacing="4" VerticalAlignment="Center">
                                     <TextBlock Text="What CLYR found" Style="{StaticResource SectionTitleStyle}"
                                                AutomationProperties.HeadingLevel="Level2" />
                                     <TextBlock x:Name="AccountedDescriptionText" Style="{StaticResource BodySecondaryStyle}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                                    <TextBlock x:Name="AccountedPercentValue" Style="{StaticResource MetricValueStyle}" HorizontalAlignment="Right" />
+                                    <TextBlock x:Name="AccountedPercentValue" Style="{StaticResource HeroMetricValueStyle}" HorizontalAlignment="Right" />
                                     <TextBlock x:Name="AccountedPercentCaptionText" Text="Coverage" Style="{StaticResource MetricLabelStyle}" HorizontalAlignment="Right" />
                                 </StackPanel>
                             </Grid>
-                            <Grid x:Name="StorageVisualization" Height="16" Background="{ThemeResource SurfaceSecondary}"
-                                  CornerRadius="8" AutomationProperties.Name="Drive storage breakdown">
+                            <Grid x:Name="StorageVisualization" Height="14" Background="{ThemeResource SurfaceSecondary}"
+                                  CornerRadius="7" AutomationProperties.Name="Drive storage breakdown">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition x:Name="AccountedColumn" Width="0*" />
                                     <ColumnDefinition x:Name="NotObservedColumn" Width="0*" />
                                     <ColumnDefinition x:Name="FreeColumn" Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border x:Name="AccountedSegment" Background="{ThemeResource AccentPrimary}" CornerRadius="8,0,0,8" />
+                                <Border x:Name="AccountedSegment" Background="{ThemeResource AccentPrimary}" CornerRadius="7,0,0,7" />
                                 <Border x:Name="NotObservedSegment" Grid.Column="1" Background="{ThemeResource BorderStrong}" />
                             </Grid>
                             <Border x:Name="AccountingBasisDiffersPanel" Visibility="Collapsed" Padding="14,10"
@@ -95,7 +98,7 @@
                                     AutomationProperties.Name="Accounting basis differs explanation">
                                 <TextBlock x:Name="AccountingBasisDiffersText" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
                             </Border>
-                            <Grid x:Name="StorageMetrics" ColumnSpacing="24" RowSpacing="16">
+                            <Grid x:Name="StorageMetrics" ColumnSpacing="24" RowSpacing="14">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
@@ -105,25 +108,25 @@
                                         <Border Width="8" Height="8" CornerRadius="2" Background="{ThemeResource AccentPrimary}" />
                                         <TextBlock x:Name="AccountedMetricLabel" Text="Storage mapped" Style="{StaticResource MetricLabelStyle}" />
                                     </StackPanel>
-                                    <TextBlock x:Name="AccountedMetric" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock x:Name="AccountedMetric" Style="{StaticResource MetricValueQuietStyle}" />
                                 </StackPanel>
                                 <StackPanel x:Name="NotObservedMetricPanel" Grid.Column="1" Spacing="3">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <Border Width="8" Height="8" CornerRadius="2" Background="{ThemeResource BorderStrong}" />
                                         <TextBlock Text="Still unexplained" Style="{StaticResource MetricLabelStyle}" />
                                     </StackPanel>
-                                    <TextBlock x:Name="NotObservedMetric" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock x:Name="NotObservedMetric" Style="{StaticResource MetricValueQuietStyle}" />
                                 </StackPanel>
                                 <StackPanel x:Name="FreeMetricPanel" Grid.Column="2" Spacing="3">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <Border Width="8" Height="8" CornerRadius="2" Background="{ThemeResource SurfaceSecondary}" BorderBrush="{ThemeResource BorderSubtle}" BorderThickness="1" />
                                         <TextBlock Text="Free space" Style="{StaticResource MetricLabelStyle}" />
                                     </StackPanel>
-                                    <TextBlock x:Name="FreeMetric" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock x:Name="FreeMetric" Style="{StaticResource MetricValueQuietStyle}" />
                                 </StackPanel>
                                 <StackPanel x:Name="DriveUsedTotalPanel" Grid.Column="3" Spacing="3">
                                     <TextBlock Text="Windows reports used" Style="{StaticResource MetricLabelStyle}" />
-                                    <TextBlock x:Name="DriveUsedMetric" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock x:Name="DriveUsedMetric" Style="{StaticResource MetricValueQuietStyle}" />
                                 </StackPanel>
                             </Grid>
                             <Border Style="{StaticResource DividerStyle}" />
@@ -141,7 +144,7 @@
 
                     <!-- 3. Administrator retry — kept directly below the main summary so a successful retry is
                          never buried at the bottom of a long page (see section 9). -->
-                    <Border x:Name="AdministratorRetryCard" Style="{StaticResource CompactCardStyle}" Visibility="Collapsed"
+                    <Border x:Name="AdministratorRetryCard" Style="{StaticResource CompactCardStyle}" Padding="16,14" Visibility="Collapsed"
                             AutomationProperties.Name="Administrator retry for restricted scan areas">
                         <StackPanel Spacing="10">
                             <controls:SectionHeader x:Name="AdministratorRetryHeader" Title="Administrator retry"
@@ -150,8 +153,10 @@
                                  be replaced by it — a successful (or otherwise concluded) retry keeps its summary
                                  visible even when further restricted roots still make another retry available. -->
                             <InfoBar x:Name="AdministratorRetryInfoBar" IsOpen="False" IsClosable="False" CornerRadius="{StaticResource CornerRadiusControl}" />
-                            <TextBlock x:Name="AdministratorRetrySummary" Style="{StaticResource BodySecondaryStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
-                            <Grid x:Name="AdministratorRetryComparison" Visibility="Collapsed" ColumnSpacing="16" RowSpacing="4"
+                            <!-- Compact metrics dashboard stays directly visible; the prose explanation of what
+                                 happened is one click away instead of always expanded, so the card's resting
+                                 height is dominated by scannable numbers, not a paragraph. -->
+                            <Grid x:Name="AdministratorRetryComparison" Visibility="Collapsed" ColumnSpacing="14" RowSpacing="4"
                                   AutomationProperties.Name="Administrator retry coverage comparison">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
@@ -176,8 +181,15 @@
                                     <TextBlock x:Name="AdministratorRetryAreasText" Style="{StaticResource BodyStyle}" />
                                 </StackPanel>
                             </Grid>
-                            <TextBlock x:Name="AdministratorRetryBasisNoteText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}"
-                                       TextWrapping="Wrap" AutomationProperties.Name="Administrator retry accounting basis note" />
+                            <Expander x:Name="AdministratorRetryDetailsExpander" Header="Retry details" Visibility="Collapsed"
+                                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                      AutomationProperties.Name="Administrator retry details">
+                                <StackPanel Spacing="8">
+                                    <TextBlock x:Name="AdministratorRetrySummary" Style="{StaticResource BodySecondaryStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
+                                    <TextBlock x:Name="AdministratorRetryBasisNoteText" Visibility="Collapsed" Style="{StaticResource CaptionStyle}"
+                                               TextWrapping="Wrap" AutomationProperties.Name="Administrator retry accounting basis note" />
+                                </StackPanel>
+                            </Expander>
                             <Button x:Name="AdministratorRetryButton" Click="RequestAdministratorRetry" Style="{StaticResource SecondaryActionStyle}"
                                     HorizontalAlignment="Left"
                                     AutomationProperties.HelpText="Optional, read-only. Retries only the restricted scan areas with administrator permission. Does not delete, move, rename, or modify files." />
@@ -191,14 +203,14 @@
 
                     <!-- 4. Analysis quality, with technical detail consolidated into one expander -->
                     <Border Style="{StaticResource CompactCardStyle}" AutomationProperties.Name="Analysis quality">
-                        <StackPanel Spacing="12">
-                            <Grid ColumnSpacing="12">
+                        <StackPanel Spacing="14">
+                            <Grid ColumnSpacing="16">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <StackPanel Spacing="4">
+                                <StackPanel Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Analysis quality" Style="{StaticResource CardTitleStyle}" />
                                     <TextBlock x:Name="QualityDescriptionText" Style="{StaticResource BodySecondaryStyle}" />
                                 </StackPanel>
-                                <controls:StatusBadge x:Name="QualityBadgeControl" Grid.Column="1" VerticalAlignment="Top" />
+                                <controls:StatusBadge x:Name="QualityBadgeControl" Grid.Column="1" VerticalAlignment="Center" />
                             </Grid>
                             <Expander x:Name="LimitationsExpander" Header="How these numbers are calculated"
                                       HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
@@ -221,19 +233,26 @@
                         <ItemsControl x:Name="ContributorList" AutomationProperties.Name="Ranked storage contributors">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Margin="0,0,0,12" ColumnSpacing="12" AutomationProperties.Name="{Binding AccessibleText}">
+                                    <Grid Margin="0,0,0,16" ColumnSpacing="14" AutomationProperties.Name="{Binding AccessibleText}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="22" /><ColumnDefinition Width="26" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="34" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{Binding Rank}" Style="{StaticResource CaptionStyle}" VerticalAlignment="Center" />
-                                        <FontIcon Grid.Column="1" Glyph="{Binding Glyph}" FontSize="15" Foreground="{ThemeResource TextSecondary}" VerticalAlignment="Center" />
-                                        <StackPanel Grid.Column="2" MinWidth="0" Spacing="5" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStyle}" TextTrimming="CharacterEllipsis" />
-                                            <ProgressBar Value="{Binding PercentageValue}" Minimum="0" Maximum="100" Height="4"
+                                        <Border Width="34" Height="34" CornerRadius="{StaticResource CornerRadiusControl}"
+                                                Background="{ThemeResource SurfaceSecondary}" VerticalAlignment="Center">
+                                            <FontIcon Glyph="{Binding Glyph}" FontSize="15" Foreground="{ThemeResource TextPrimary}"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" MinWidth="0" Spacing="6" VerticalAlignment="Center">
+                                            <Grid ColumnSpacing="8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Rank}" Style="{StaticResource CaptionStyle}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" Style="{StaticResource BodyStyle}" TextTrimming="CharacterEllipsis" />
+                                            </Grid>
+                                            <ProgressBar Value="{Binding PercentageValue}" Minimum="0" Maximum="100" Height="6" CornerRadius="3"
                                                          Foreground="{ThemeResource AccentPrimary}" Background="{ThemeResource SurfaceSecondary}"
                                                          IsHitTestVisible="False" AutomationProperties.Name="{Binding AccessibleText}" />
                                         </StackPanel>
-                                        <StackPanel Grid.Column="3" HorizontalAlignment="Right">
+                                        <StackPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Size}" Style="{StaticResource StatusTextStyle}" HorizontalAlignment="Right" />
                                             <TextBlock Text="{Binding Percentage}" Style="{StaticResource CaptionStyle}" HorizontalAlignment="Right" />
                                         </StackPanel>
@@ -254,18 +273,28 @@
                                       SelectionChanged="FindingFilterChanged" AutomationProperties.Name="Filter findings by confidence" />
                         </Grid>
                         <ItemsControl x:Name="FindingList" AutomationProperties.Name="Storage findings">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="8" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Padding="0,10" AutomationProperties.Name="{Binding AccessibleText}"
+                                    <Border Padding="14,12" Background="{ThemeResource SurfaceSecondary}"
+                                            CornerRadius="{StaticResource CornerRadiusControl}"
+                                            AutomationProperties.Name="{Binding AccessibleText}"
                                             ToolTipService.ToolTip="{Binding TechnicalDetail}">
-                                        <StackPanel Spacing="4">
+                                        <StackPanel Spacing="6">
                                             <Grid ColumnSpacing="12">
                                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding Title}" Style="{StaticResource BodyStyle}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                                <TextBlock Grid.Column="1" Text="{Binding Size}" Style="{StaticResource StatusTextStyle}" HorizontalAlignment="Right" />
+                                                <StackPanel Spacing="2" MinWidth="0">
+                                                    <TextBlock Text="{Binding Title}" Style="{StaticResource BodyStyle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding NaturalStatus}" Style="{StaticResource CaptionStyle}" Foreground="{ThemeResource TextMuted}" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Text="{Binding Size}" Style="{StaticResource StatusTextStyle}"
+                                                           HorizontalAlignment="Right" VerticalAlignment="Top" />
                                             </Grid>
-                                            <TextBlock Text="{Binding NaturalStatus}" Style="{StaticResource CaptionStyle}" />
-                                            <TextBlock Text="{Binding Explanation}" Style="{StaticResource BodySecondaryStyle}" />
+                                            <TextBlock Text="{Binding Explanation}" Style="{StaticResource CaptionStyle}" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -283,13 +312,17 @@
                         <ItemsControl x:Name="DirectoryList" AutomationProperties.Name="Largest top-level folders list">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid MinHeight="44" ColumnSpacing="12" AutomationProperties.Name="{Binding AccessibleText}"
+                                    <Grid MinHeight="48" ColumnSpacing="14" Margin="0,0,0,4" AutomationProperties.Name="{Binding AccessibleText}"
                                           ToolTipService.ToolTip="{Binding FullPath}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="24" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="32" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <FontIcon Glyph="&#xE8B7;" FontSize="15" Foreground="{ThemeResource TextSecondary}" VerticalAlignment="Center" />
-                                        <StackPanel Grid.Column="1" MinWidth="0" VerticalAlignment="Center" Spacing="2">
+                                        <Border Width="32" Height="32" CornerRadius="{StaticResource CornerRadiusControl}"
+                                                Background="{ThemeResource SurfaceSecondary}" VerticalAlignment="Center">
+                                            <FontIcon Glyph="&#xE8B7;" FontSize="14" Foreground="{ThemeResource TextPrimary}"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" MinWidth="0" VerticalAlignment="Center" Spacing="3">
                                             <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStyle}" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Text="{Binding ShortPath}" Style="{StaticResource CaptionStyle}" TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
@@ -312,13 +345,17 @@
                                 <ItemsControl x:Name="NestedDirectoryList" AutomationProperties.Name="Largest nested folders list">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Grid MinHeight="44" ColumnSpacing="12" AutomationProperties.Name="{Binding AccessibleText}"
+                                            <Grid MinHeight="48" ColumnSpacing="14" Margin="0,0,0,4" AutomationProperties.Name="{Binding AccessibleText}"
                                                   ToolTipService.ToolTip="{Binding FullPath}">
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="24" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="32" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <FontIcon Glyph="&#xE8B7;" FontSize="15" Foreground="{ThemeResource TextSecondary}" VerticalAlignment="Center" />
-                                                <StackPanel Grid.Column="1" MinWidth="0" VerticalAlignment="Center" Spacing="2">
+                                                <Border Width="32" Height="32" CornerRadius="{StaticResource CornerRadiusControl}"
+                                                        Background="{ThemeResource SurfaceSecondary}" VerticalAlignment="Center">
+                                                    <FontIcon Glyph="&#xE8B7;" FontSize="14" Foreground="{ThemeResource TextPrimary}"
+                                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1" MinWidth="0" VerticalAlignment="Center" Spacing="3">
                                                     <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStyle}" TextTrimming="CharacterEllipsis" />
                                                     <TextBlock Text="{Binding ShortPath}" Style="{StaticResource CaptionStyle}" TextTrimming="CharacterEllipsis" />
                                                 </StackPanel>
@@ -341,13 +378,17 @@
                         <ItemsControl x:Name="FileList" AutomationProperties.Name="Largest files list">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid MinHeight="44" ColumnSpacing="12" AutomationProperties.Name="{Binding AccessibleText}"
+                                    <Grid MinHeight="48" ColumnSpacing="14" Margin="0,0,0,4" AutomationProperties.Name="{Binding AccessibleText}"
                                           ToolTipService.ToolTip="{Binding FullPath}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="24" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="32" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <FontIcon Glyph="&#xE7C3;" FontSize="15" Foreground="{ThemeResource TextSecondary}" VerticalAlignment="Center" />
-                                        <StackPanel Grid.Column="1" MinWidth="0" VerticalAlignment="Center" Spacing="2">
+                                        <Border Width="32" Height="32" CornerRadius="{StaticResource CornerRadiusControl}"
+                                                Background="{ThemeResource SurfaceElevated}" VerticalAlignment="Center">
+                                            <FontIcon Glyph="&#xE7C3;" FontSize="14" Foreground="{ThemeResource TextPrimary}"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" MinWidth="0" VerticalAlignment="Center" Spacing="3">
                                             <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStyle}" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Text="{Binding ShortPath}" Style="{StaticResource CaptionStyle}" TextTrimming="CharacterEllipsis" />
                                         </StackPanel>

@@ -652,6 +652,10 @@ public sealed partial class ResultsPage : Page
         var showSummary = state.Phase == AdministratorRetryPhase.Applied;
         AdministratorRetrySummary.Visibility = showSummary ? Visibility.Visible : Visibility.Collapsed;
         AdministratorRetryComparison.Visibility = showSummary ? Visibility.Visible : Visibility.Collapsed;
+        // UI/UX pass: the prose explanation now lives in a collapsed-by-default "Retry details" expander instead
+        // of always sitting expanded beside the compact metrics dashboard — presentation only, same underlying
+        // AdministratorRetrySummary/AdministratorRetryBasisNoteText text and Applied-phase condition as before.
+        AdministratorRetryDetailsExpander.Visibility = showSummary ? Visibility.Visible : Visibility.Collapsed;
         if (showSummary)
         {
             var attempt = state.CombinedResult?.Attempt;
